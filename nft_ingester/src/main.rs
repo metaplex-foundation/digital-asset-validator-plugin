@@ -116,10 +116,10 @@ async fn service_account_stream<T: Messenger>(
     })
 }
 
-async fn handle_account(manager: &ProgramHandlerManager<'static>, data: Vec<(i64, &[u8])>) {
+async fn handle_account(manager: &ProgramHandlerManager<'static>, data: Vec<(i64, Vec<u8>)>) {
     for (_message_id, data) in data {
         // Get root of account info flatbuffers object.
-        let account_update = match root_as_account_info(data) {
+        let account_update = match root_as_account_info(data.as_ref()) {
             Err(err) => {
                 println!("Flatbuffers AccountInfo deserialization error: {err}");
                 continue;
@@ -145,7 +145,7 @@ async fn handle_account(manager: &ProgramHandlerManager<'static>, data: Vec<(i64
     }
 }
 
-async fn handle_transaction(manager: &ProgramHandlerManager<'static>, data: Vec<(i64, &[u8])>) {
+async fn handle_transaction(manager: &ProgramHandlerManager<'static>, data: Vec<(i64, Vec<u8>)>) {
     for (message_id, data) in data {
         println!("RECV");
         //TODO -> Dedupe the stream, the stream could have duplicates as a way of ensuring fault tolerance if one validator node goes down.
@@ -154,7 +154,7 @@ async fn handle_transaction(manager: &ProgramHandlerManager<'static>, data: Vec<
         //  1. only 1 ingest instance picks it up, two the stream coming out of the ingester can be considered deduped
 
         // Get root of transaction info flatbuffers object.
-        let transaction = match root_as_transaction_info(data) {
+        let transaction = match root_as_transaction_info(data.as_ref()) {
             Err(err) => {
                 println!("Flatbuffers TransactionInfo deserialization error: {err}");
                 continue;

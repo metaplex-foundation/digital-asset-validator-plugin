@@ -1,6 +1,5 @@
 #![cfg(feature = "redis")]
 
-use std::fmt::format;
 use {
     crate::{error::MessengerError, Messenger, MessengerConfig},
     async_trait::async_trait,
@@ -10,7 +9,6 @@ use {
         streams::{StreamId, StreamKey, StreamMaxlen, StreamReadOptions, StreamReadReply},
         AsyncCommands, RedisResult, Value,
     },
-    solana_geyser_plugin_interface::geyser_plugin_interface::{GeyserPluginError},
     std::{
         collections::HashMap,
         fmt::{Debug, Formatter},
@@ -127,7 +125,10 @@ impl Messenger for RedisMessenger {
         Ok(())
     }
 
-    async fn recv(&mut self, stream_key: &'static str) -> Result<Vec<(i64, &[u8])>, MessengerError> {
+    async fn recv(
+        &mut self,
+        stream_key: &'static str,
+    ) -> Result<Vec<(i64, Vec<u8>)>, MessengerError> {
         let opts = StreamReadOptions::default()
             .block(0) // Block forever.
             .count(1) // Get one item.
@@ -151,7 +152,7 @@ impl Messenger for RedisMessenger {
         };
 
         // Data vec that will be returned with parsed data from stream read reply.
-        let mut data_vec = Vec::<(i64, &[u8])>::new();
+        let mut data_vec = Vec::<(i64, Vec<u8>)>::new();
 
         // Parse data in stream read reply and store in Vec to return to caller.
         for StreamKey { key, ids } in self.stream_read_reply.keys.iter() {
@@ -167,14 +168,14 @@ impl Messenger for RedisMessenger {
                         continue;
                     };
                     let bytes = match data {
-                        Value::Data(bytes) => bytes,
+                        Value::Data(bytes) => bytes.clone(),
                         _ => {
                             println!("Redis data for ID {id} in wrong format");
                             continue;
                         }
                     };
 
-                    data_vec.push((pid, &bytes));
+                    data_vec.push((pid, bytes));
                 }
             }
         }
