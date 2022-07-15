@@ -16,6 +16,8 @@ log = "0.4.11"
 thiserror = "1.0.30"
 async-trait = "0.1.53"
 figment = "0.10.6"
+futures= "0.3"
+async-mutex = "1.4.0"
 serde = "1.0.137"
 
 [package.metadata.docs.rs]
