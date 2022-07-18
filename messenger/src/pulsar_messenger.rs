@@ -6,7 +6,7 @@ use {
     async_trait::async_trait,
     futures::TryStreamExt,
     log::*,
-    pulsar::{Authentication, Consumer, Producer, Pulsar, TokioExecutor},
+    pulsar::{consumer::Message, Authentication, Consumer, Producer, Pulsar, TokioExecutor},
     std::sync::Arc,
     std::{
         collections::HashMap,
@@ -18,8 +18,9 @@ use {
 pub struct PulsarMessenger {
     connection: Option<Pulsar<TokioExecutor>>,
     producers: HashMap<&'static str, Producer<TokioExecutor>>,
-    consumers: HashMap<&'static str, Arc<Mutex<Consumer<Vec<u8>, TokioExecutor>>>>,
+    pub consumers: HashMap<&'static str, Arc<Mutex<Consumer<Vec<u8>, TokioExecutor>>>>,
     max_buffer_size: HashMap<&'static str, usize>,
+    pub acquired_messages: HashMap<&'static str, Vec<Message<Vec<u8>>>>,
 }
 
 const PULSAR_CON_STR: &str = "pulsar_connection_str";
@@ -54,6 +55,7 @@ impl Messenger for PulsarMessenger {
             consumers:
                 HashMap::<&'static str, Arc<Mutex<Consumer<Vec<u8>, TokioExecutor>>>>::default(),
             max_buffer_size: HashMap::<&'static str, usize>::default(),
+            acquired_messages: HashMap::<&'static str, Vec<Message<Vec<u8>>>>::default(),
         })
     }
 
@@ -136,10 +138,11 @@ impl Messenger for PulsarMessenger {
         Ok(())
     }
 
+    /// Receive message from the Pulsar topic
     async fn recv(
         &mut self,
         stream_key: &'static str,
-    ) -> Result<Vec<(i64, Vec<u8>)>, MessengerError> {
+    ) -> Result<Vec<(i64, &[u8])>, MessengerError> {
         // Check if consumer is exists
         let mut consumer = if let Some(consumer) = self.consumers.get(stream_key) {
             consumer.lock().await
@@ -150,11 +153,27 @@ impl Messenger for PulsarMessenger {
             });
         };
 
-        let result = consumer.try_next().await.unwrap();
+        let next_message = consumer
+            .try_next()
+            .await
+            .map_err(|e| MessengerError::ReceiveError { msg: e.to_string() })?;
 
-        if let Some(msg) = result {
-            consumer.ack(&msg).await.unwrap();
-            let data = msg.deserialize();
+        if let Some(msg) = next_message {
+            if let Some(messages) = self.acquired_messages.get_mut(stream_key) {
+                messages.push(msg);
+            } else {
+                self.acquired_messages.insert(stream_key, vec![msg]);
+            }
+            let data = self
+                .acquired_messages
+                .get(stream_key)
+                .unwrap()
+                .last()
+                .unwrap()
+                .payload
+                .data
+                .as_ref(); // safe to use unwrap because we just pushed data to the HashMap
+
             return Ok(vec![(0, data)]); // TODO: it is not universal data type
         } else {
             return Err(MessengerError::ReceiveError {
@@ -162,6 +181,33 @@ impl Messenger for PulsarMessenger {
             });
         }
     }
+}
+
+/// Acknowledge reading message from the Pulsar by removing it from the HashMap and calling Pulsar.ack()
+/// Should be called after `recv()` method
+pub async fn ack_pulsar_message(
+    consumer: &Arc<Mutex<Consumer<Vec<u8>, TokioExecutor>>>,
+    all_messages: &mut HashMap<&str, Vec<Message<Vec<u8>>>>,
+    key: &str,
+) -> Result<(), MessengerError> {
+    let key_messages = all_messages
+        .get_mut(key)
+        .ok_or(MessengerError::ReceiveError {
+            msg: String::from("No message for requested key found"),
+        })?;
+
+    let mut consumer = consumer.lock().await;
+
+    for data in key_messages.iter() {
+        consumer
+            .ack(data)
+            .await
+            .map_err(|e| MessengerError::ReceiveError { msg: e.to_string() })?;
+    }
+
+    all_messages.remove(key);
+
+    Ok(())
 }
 
 impl Debug for PulsarMessenger {

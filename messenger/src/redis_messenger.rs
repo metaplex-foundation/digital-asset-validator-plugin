@@ -38,18 +38,19 @@ const REDIS_CON_STR: &str = "redis_connection_str";
 impl Messenger for RedisMessenger {
     //pub async fn new(stream_key: &'static str) -> Result<Self> {
     async fn new(config: MessengerConfig) -> Result<Self, MessengerError> {
-        let uri = config.get(&*REDIS_CON_STR)
+        let uri = config
+            .get(&*REDIS_CON_STR)
             .and_then(|u| u.clone().into_string())
-            .ok_or(MessengerError::ConfigurationError { msg: format!("Connection String Missing: {}", REDIS_CON_STR) })?;
+            .ok_or(MessengerError::ConfigurationError {
+                msg: format!("Connection String Missing: {}", REDIS_CON_STR),
+            })?;
         // Setup Redis client.
         let client = redis::Client::open(uri).unwrap();
 
         // Get connection.
         let connection = client.get_tokio_connection().await.map_err(|e| {
             error!("{}", e.to_string());
-            MessengerError::ConnectionError {
-                msg: e.to_string(),
-            }
+            MessengerError::ConnectionError { msg: e.to_string() }
         })?;
 
         Ok(Self {
@@ -115,9 +116,7 @@ impl Messenger for RedisMessenger {
 
         if let Err(e) = result {
             error!("Redis send error: {e}");
-            return Err(
-                MessengerError::SendError { msg: e.to_string() }
-            );
+            return Err(MessengerError::SendError { msg: e.to_string() });
         } else {
             info!("Data Sent");
         }
@@ -128,7 +127,7 @@ impl Messenger for RedisMessenger {
     async fn recv(
         &mut self,
         stream_key: &'static str,
-    ) -> Result<Vec<(i64, Vec<u8>)>, MessengerError> {
+    ) -> Result<Vec<(i64, &[u8])>, MessengerError> {
         let opts = StreamReadOptions::default()
             .block(0) // Block forever.
             .count(1) // Get one item.
@@ -145,14 +144,12 @@ impl Messenger for RedisMessenger {
             Ok(reply) => reply,
             Err(e) => {
                 error!("Redis receive error: {e}");
-                return Err(
-                    MessengerError::ReceiveError { msg: e.to_string() }
-                );
+                return Err(MessengerError::ReceiveError { msg: e.to_string() });
             }
         };
 
         // Data vec that will be returned with parsed data from stream read reply.
-        let mut data_vec = Vec::<(i64, Vec<u8>)>::new();
+        let mut data_vec = Vec::<(i64, &[u8])>::new();
 
         // Parse data in stream read reply and store in Vec to return to caller.
         for StreamKey { key, ids } in self.stream_read_reply.keys.iter() {
@@ -168,14 +165,14 @@ impl Messenger for RedisMessenger {
                         continue;
                     };
                     let bytes = match data {
-                        Value::Data(bytes) => bytes.clone(),
+                        Value::Data(bytes) => bytes,
                         _ => {
                             println!("Redis data for ID {id} in wrong format");
                             continue;
                         }
                     };
 
-                    data_vec.push((pid, bytes));
+                    data_vec.push((pid, &bytes));
                 }
             }
         }
