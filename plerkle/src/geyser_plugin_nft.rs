@@ -213,10 +213,10 @@ impl<T: 'static + Messenger + Default + Send + Sync> GeyserPlugin for Plerkle<'s
             // Create new Messenger connection.
 
             if let Ok(mut messenger) = T::new(config.messenger_config).await {
-                messenger.add_stream(ACCOUNT_STREAM).await;
-                messenger.add_stream(SLOT_STREAM).await;
-                messenger.add_stream(TRANSACTION_STREAM).await;
-                messenger.add_stream(BLOCK_STREAM).await;
+                messenger.add_stream(ACCOUNT_STREAM).await.unwrap();
+                messenger.add_stream(SLOT_STREAM).await.unwrap();
+                messenger.add_stream(TRANSACTION_STREAM).await.unwrap();
+                messenger.add_stream(BLOCK_STREAM).await.unwrap();
                 messenger.set_buffer_size(ACCOUNT_STREAM, 5000).await;
                 messenger.set_buffer_size(SLOT_STREAM, 5000).await;
                 messenger.set_buffer_size(TRANSACTION_STREAM, 5000).await;

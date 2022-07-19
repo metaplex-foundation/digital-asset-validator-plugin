@@ -60,7 +60,7 @@ impl Messenger for RedisMessenger {
         })
     }
 
-    async fn add_stream(&mut self, stream_key: &'static str) {
+    async fn add_stream(&mut self, stream_key: &'static str) -> Result<(), MessengerError> {
         // Add to streams hashmap.
         let _result = self
             .streams
@@ -75,8 +75,9 @@ impl Messenger for RedisMessenger {
             .await;
 
         if let Err(e) = result {
-            println!("Group already exists: {:?}", e)
+            info!("Group already exists: {:?}", e)
         }
+        Ok(())
     }
 
     async fn set_buffer_size(&mut self, stream_key: &'static str, max_buffer_size: usize) {

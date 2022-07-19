@@ -14,7 +14,7 @@ pub trait Messenger: Sync + Send {
     where
         Self: Sized;
 
-    async fn add_stream(&mut self, stream_key: &'static str);
+    async fn add_stream(&mut self, stream_key: &'static str) -> Result<(), MessengerError>;
     async fn set_buffer_size(&mut self, stream_key: &'static str, max_buffer_size: usize);
     async fn send(&mut self, stream_key: &'static str, bytes: &[u8]) -> Result<(), MessengerError>;
     async fn recv(&mut self, stream_key: &'static str)

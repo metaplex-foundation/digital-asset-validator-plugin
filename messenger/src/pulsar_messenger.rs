@@ -60,10 +60,10 @@ impl Messenger for PulsarMessenger {
     }
 
     /// Create new Producer for Pulsar topic
-    async fn add_stream(&mut self, stream_key: &'static str) {
+    async fn add_stream(&mut self, stream_key: &'static str) -> Result<(), MessengerError> {
         if self.producers.contains_key(stream_key) {
-            error!("Stream {stream_key} already exists");
-            return;
+            info!("Stream {stream_key} already exists");
+            return Ok(());
         }
 
         let producer = self
@@ -74,13 +74,15 @@ impl Messenger for PulsarMessenger {
             .with_topic(stream_key)
             .build()
             .await
-            .unwrap();
+            .map_err(|e| MessengerError::ConnectionError {
+                msg: String::from(format!("Cannot create Pulsar producer: {:?}", e)),
+            })?;
 
         self.producers.insert(stream_key, producer);
 
         if self.consumers.contains_key(stream_key) {
-            error!("Consumer for {stream_key} already exists");
-            return;
+            info!("Consumer for {stream_key} already exists");
+            return Ok(());
         }
 
         let consumer: Consumer<Vec<u8>, _> = self
@@ -91,10 +93,14 @@ impl Messenger for PulsarMessenger {
             .with_topic(stream_key)
             .build()
             .await
-            .unwrap();
+            .map_err(|e| MessengerError::ConnectionError {
+                msg: String::from(format!("Cannot create Pulsar consumer: {:?}", e)),
+            })?;
 
         self.consumers
             .insert(stream_key, Arc::new(Mutex::new(consumer)));
+
+        Ok(())
     }
 
     /// Set max buffer size for the stream
@@ -123,13 +129,27 @@ impl Messenger for PulsarMessenger {
             producer
         } else {
             error!("Cannot send data for topic {stream_key}, it is not configured");
-            return Ok(());
+            return Err(MessengerError::SendError {
+                msg: String::from(format!(
+                    "Cannot send data for topic {:?}, it is not configured",
+                    stream_key
+                )),
+            });
         };
 
-        let result = producer.send(bytes).await.unwrap().await;
+        let result = producer
+            .send(bytes)
+            .await
+            .map_err(|e| MessengerError::SendError {
+                msg: String::from(format!(
+                    "Error while sending message to the Pulsar: {:?}",
+                    e
+                )),
+            })?
+            .await;
 
         if let Err(e) = result {
-            error!("Pulsar send error: {e}");
+            error!("Did not get message receipt: {e}");
             return Err(MessengerError::SendError { msg: e.to_string() });
         } else {
             info!("Data sent");
