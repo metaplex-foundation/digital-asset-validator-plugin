@@ -25,6 +25,7 @@ pub struct PulsarMessenger {
     pub consumers: HashMap<&'static str, Arc<Mutex<Consumer<Vec<u8>, TokioExecutor>>>>,
     max_buffer_size: HashMap<&'static str, usize>,
     pub acquired_messages: HashMap<&'static str, Vec<Message<Vec<u8>>>>,
+    pub create_consumer_by_default: bool,
 }
 
 const PULSAR_CON_STR: &str = "pulsar_connection_str";
@@ -33,6 +34,7 @@ const PULSAR_OAUTH_CREDENTIALS_URL: &str = "oauth_credentials_url";
 const PULSAR_ISSUER_URL: &str = "issuer_url";
 const PULSAR_AUDIENCE: &str = "audience";
 const PULSAR_SCOPE: &str = "scope";
+const PULSAR_CONSUMER_BY_DEFAULT: &str = "create_consumer_by_default";
 
 #[async_trait]
 impl Messenger for PulsarMessenger {
@@ -83,6 +85,12 @@ impl Messenger for PulsarMessenger {
 
         let pulsar: Pulsar<_> = builder.build().await.unwrap();
 
+        let create_consumer_by_default = config
+            .get(&*PULSAR_CONSUMER_BY_DEFAULT)
+            .and_then(|u| u.clone().to_bool())
+            .or(Some(false))
+            .unwrap();
+
         Ok(Self {
             connection: Some(pulsar),
             producers: HashMap::<&'static str, Producer<TokioExecutor>>::default(),
@@ -90,6 +98,7 @@ impl Messenger for PulsarMessenger {
                 HashMap::<&'static str, Arc<Mutex<Consumer<Vec<u8>, TokioExecutor>>>>::default(),
             max_buffer_size: HashMap::<&'static str, usize>::default(),
             acquired_messages: HashMap::<&'static str, Vec<Message<Vec<u8>>>>::default(),
+            create_consumer_by_default,
         })
     }
 
@@ -100,39 +109,16 @@ impl Messenger for PulsarMessenger {
             return Ok(());
         }
 
-        let producer = self
-            .connection
-            .as_mut()
-            .unwrap()
-            .producer()
-            .with_topic(stream_key)
-            .build()
-            .await
-            .map_err(|e| MessengerError::ConnectionError {
-                msg: String::from(format!("Cannot create Pulsar producer: {:?}", e)),
-            })?;
+        self.create_producer(stream_key).await?;
 
-        self.producers.insert(stream_key, producer);
+        if self.create_consumer_by_default {
+            if self.consumers.contains_key(stream_key) {
+                info!("Consumer for {stream_key} already exists");
+                return Ok(());
+            }
 
-        if self.consumers.contains_key(stream_key) {
-            info!("Consumer for {stream_key} already exists");
-            return Ok(());
+            self.create_consumer(stream_key).await?;
         }
-
-        let consumer: Consumer<Vec<u8>, _> = self
-            .connection
-            .as_mut()
-            .unwrap()
-            .consumer()
-            .with_topic(stream_key)
-            .build()
-            .await
-            .map_err(|e| MessengerError::ConnectionError {
-                msg: String::from(format!("Cannot create Pulsar consumer: {:?}", e)),
-            })?;
-
-        self.consumers
-            .insert(stream_key, Arc::new(Mutex::new(consumer)));
 
         Ok(())
     }
@@ -201,10 +187,8 @@ impl Messenger for PulsarMessenger {
         let mut consumer = if let Some(consumer) = self.consumers.get(stream_key) {
             consumer.lock().await
         } else {
-            error!("Cannot get data from topic {stream_key}, consumer is not configured");
-            return Err(MessengerError::ReceiveError {
-                msg: String::from("Consumer for the requested topic wasn't created"),
-            });
+            self.create_consumer(stream_key).await?;
+            self.consumers.get(stream_key).unwrap().lock().await
         };
 
         let next_message = consumer
@@ -237,31 +221,76 @@ impl Messenger for PulsarMessenger {
     }
 }
 
-/// Acknowledge reading message from the Pulsar by removing it from the HashMap and calling Pulsar.ack()
-/// Should be called after `recv()` method
-pub async fn ack_pulsar_message(
-    consumer: &Arc<Mutex<Consumer<Vec<u8>, TokioExecutor>>>,
-    all_messages: &mut HashMap<&str, Vec<Message<Vec<u8>>>>,
-    key: &str,
-) -> Result<(), MessengerError> {
-    let key_messages = all_messages
-        .get_mut(key)
-        .ok_or(MessengerError::ReceiveError {
-            msg: String::from("No message for requested key found"),
-        })?;
-
-    let mut consumer = consumer.lock().await;
-
-    for data in key_messages.iter() {
-        consumer
-            .ack(data)
+impl PulsarMessenger {
+    /// Creates new Pulsar Producer and saves it to the HashMap
+    async fn create_producer(&mut self, topic: &'static str) -> Result<(), MessengerError> {
+        let producer = self
+            .connection
+            .as_mut()
+            .unwrap()
+            .producer()
+            .with_topic(topic)
+            .build()
             .await
-            .map_err(|e| MessengerError::ReceiveError { msg: e.to_string() })?;
+            .map_err(|e| MessengerError::ConnectionError {
+                msg: String::from(format!("Cannot create Pulsar producer: {:?}", e)),
+            })?;
+
+        self.producers.insert(topic, producer);
+
+        Ok(())
     }
 
-    all_messages.remove(key);
+    /// Creates new Pulsar Consumer and saves it to the HashMap
+    async fn create_consumer(&mut self, topic: &'static str) -> Result<(), MessengerError> {
+        let consumer: Consumer<Vec<u8>, _> = self
+            .connection
+            .as_mut()
+            .unwrap()
+            .consumer()
+            .with_topic(topic)
+            .build()
+            .await
+            .map_err(|e| MessengerError::ConnectionError {
+                msg: String::from(format!("Cannot create Pulsar consumer: {:?}", e)),
+            })?;
 
-    Ok(())
+        self.consumers.insert(topic, Arc::new(Mutex::new(consumer)));
+
+        Ok(())
+    }
+
+    /// Acknowledge reading message from the Pulsar by removing it from the HashMap and calling Pulsar.ack()
+    /// Should be called after `recv()` method
+    pub async fn ack_message(&mut self, key: &str) -> Result<(), MessengerError> {
+        let key_messages =
+            self.acquired_messages
+                .get_mut(key)
+                .ok_or(MessengerError::ReceiveError {
+                    msg: String::from("No message for requested key found"),
+                })?;
+
+        // Check if consumer is exists
+        let mut consumer = if let Some(consumer) = self.consumers.get(key) {
+            consumer.lock().await
+        } else {
+            error!("Cannot get data from topic {key}, consumer is not configured");
+            return Err(MessengerError::ReceiveError {
+                msg: String::from("Consumer for the requested topic wasn't created"),
+            });
+        };
+
+        for data in key_messages.iter() {
+            consumer
+                .ack(data)
+                .await
+                .map_err(|e| MessengerError::ReceiveError { msg: e.to_string() })?;
+        }
+
+        self.acquired_messages.remove(key);
+
+        Ok(())
+    }
 }
 
 impl Debug for PulsarMessenger {
