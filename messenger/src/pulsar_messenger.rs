@@ -6,7 +6,11 @@ use {
     async_trait::async_trait,
     futures::TryStreamExt,
     log::*,
-    pulsar::{consumer::Message, Authentication, Consumer, Producer, Pulsar, TokioExecutor},
+    pulsar::{
+        authentication::oauth2::{OAuth2Authentication, OAuth2Params},
+        consumer::Message,
+        Authentication, Consumer, Producer, Pulsar, TokioExecutor,
+    },
     std::sync::Arc,
     std::{
         collections::HashMap,
@@ -25,6 +29,10 @@ pub struct PulsarMessenger {
 
 const PULSAR_CON_STR: &str = "pulsar_connection_str";
 const PULSAR_AUTH_TOKEN: &str = "pulsar_auth_token";
+const PULSAR_OAUTH_CREDENTIALS_URL: &str = "oauth_credentials_url";
+const PULSAR_ISSUER_URL: &str = "issuer_url";
+const PULSAR_AUDIENCE: &str = "audience";
+const PULSAR_SCOPE: &str = "scope";
 
 #[async_trait]
 impl Messenger for PulsarMessenger {
@@ -45,6 +53,32 @@ impl Messenger for PulsarMessenger {
                 data: token.clone().into_string().unwrap().into_bytes(),
             };
             builder = builder.with_auth(authentication);
+        }
+
+        if let Some(credentials) = config.get(&*PULSAR_OAUTH_CREDENTIALS_URL) {
+            let issuer_url = config
+                .get(&*PULSAR_ISSUER_URL)
+                .and_then(|u| u.clone().into_string())
+                .ok_or(MessengerError::ConfigurationError {
+                    msg: format!("Issuer url Missing: {}", PULSAR_ISSUER_URL),
+                })?;
+            let audience = config
+                .get(&*PULSAR_AUDIENCE)
+                .map_or(None, |v| v.clone().into_string());
+            let scope = config
+                .get(&*PULSAR_SCOPE)
+                .map_or(None, |v| v.clone().into_string());
+
+            let oauth_params = OAuth2Params {
+                issuer_url: issuer_url,
+                credentials_url: credentials.clone().into_string().unwrap(),
+                audience: audience,
+                scope: scope,
+            };
+
+            let authentication = OAuth2Authentication::client_credentials(oauth_params);
+
+            builder = builder.with_auth_provider(authentication);
         }
 
         let pulsar: Pulsar<_> = builder.build().await.unwrap();
