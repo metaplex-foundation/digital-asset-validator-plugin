@@ -1,9 +1,5 @@
 use tokio::time::Instant;
 use {
-    figment::{
-        Figment,
-        providers::Env,
-    },
     crate::{
         accounts_selector::AccountsSelector,
         error::PlerkleError,
@@ -12,16 +8,24 @@ use {
         },
         transaction_selector::TransactionSelector,
     },
+    cadence::BufferedUdpMetricSink,
+    cadence::QueuingMetricSink,
+    cadence::StatsdClient,
+    cadence_macros::*,
+    figment::{providers::Env, Figment},
     flatbuffers::FlatBufferBuilder,
     log::*,
+    messenger::MessengerConfig,
     messenger::{
         Messenger, RedisMessenger, ACCOUNT_STREAM, BLOCK_STREAM, SLOT_STREAM, TRANSACTION_STREAM,
     },
+    serde::Deserialize,
     solana_geyser_plugin_interface::geyser_plugin_interface::{
         GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions, ReplicaBlockInfoVersions,
         ReplicaTransactionInfoVersions, Result, SlotStatus,
     },
     solana_sdk::{message::AccountKeys, pubkey::Pubkey},
+    std::net::UdpSocket,
     std::{
         fmt::{Debug, Formatter},
         fs::File,
@@ -33,13 +37,6 @@ use {
         runtime::{Builder, Runtime},
         sync::mpsc::{self as mpsc, Sender},
     },
-    serde::Deserialize,
-    messenger::MessengerConfig,
-    std::net::UdpSocket,
-    cadence::BufferedUdpMetricSink,
-    cadence::QueuingMetricSink,
-    cadence::StatsdClient,
-    cadence_macros::*,
 };
 
 struct SerializedData<'a> {
@@ -186,8 +183,8 @@ impl<T: 'static + Messenger + Default + Send + Sync> GeyserPlugin for Plerkle<'s
         match result {
             Ok(config) => {
                 self.accounts_selector = Some(Self::create_accounts_selector_from_config(&config));
-                self.transaction_selector = Some(Self::create_transaction_selector_from_config(&config));
-
+                self.transaction_selector =
+                    Some(Self::create_transaction_selector_from_config(&config));
 
                 if config["enable_metrics"].as_bool().unwrap_or(false) {
                     let uri = config["metrics_uri"].as_str().unwrap().to_string();
@@ -210,7 +207,6 @@ impl<T: 'static + Messenger + Default + Send + Sync> GeyserPlugin for Plerkle<'s
             }
         }
 
-
         let runtime = Builder::new_multi_thread()
             .enable_all()
             .thread_name("plerkle-runtime-worker")
@@ -224,11 +220,9 @@ impl<T: 'static + Messenger + Default + Send + Sync> GeyserPlugin for Plerkle<'s
         let config: PluginConfig = Figment::new()
             .join(Env::prefixed("PLUGIN_"))
             .extract()
-            .map_err(|config_error|
-                GeyserPluginError::ConfigFileReadError {
-                    msg: format!("Could not read messenger config: {:?}", config_error)
-                }
-            )?;
+            .map_err(|config_error| GeyserPluginError::ConfigFileReadError {
+                msg: format!("Could not read messenger config: {:?}", config_error),
+            })?;
         runtime.spawn(async move {
             // Create new Messenger connection.
 
@@ -343,7 +337,6 @@ impl<T: 'static + Messenger + Default + Send + Sync> GeyserPlugin for Plerkle<'s
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
         match transaction_info {
             ReplicaTransactionInfoVersions::V0_0_2(transaction_info) => {
-
                 // Don't log votes or transactions with error status.
                 if transaction_info.is_vote
                     || transaction_info.transaction_status_meta.status.is_err()

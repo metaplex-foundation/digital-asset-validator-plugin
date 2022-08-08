@@ -1,5 +1,5 @@
-
 use {
+    chrono::{Utc},
     flatbuffers::FlatBufferBuilder,
     plerkle_serialization::{
         account_info_generated::account_info::{AccountInfo, AccountInfoArgs},
@@ -10,11 +10,9 @@ use {
         },
     },
     solana_geyser_plugin_interface::geyser_plugin_interface::{
-        ReplicaBlockInfo, SlotStatus,
-        ReplicaAccountInfoV2, ReplicaTransactionInfoV2
+        ReplicaAccountInfoV2, ReplicaBlockInfo, ReplicaTransactionInfoV2, SlotStatus,
     },
     solana_runtime::bank::RewardType,
-    chrono::{DateTime, Utc}
 };
 
 pub fn serialize_account<'a>(
@@ -189,7 +187,7 @@ pub fn serialize_transaction<'a>(
             outer_instructions,
             slot,
             slot_index: Some(slot_idx),
-            seen_at: seen_at.timestamp_millis()
+            seen_at: seen_at.timestamp_millis(),
         },
     );
 

@@ -1,7 +1,6 @@
 use crate::error::MessengerError;
 use async_trait::async_trait;
 use figment::value::Dict;
-use serde::Deserialize;
 
 
 /// Some constants that can be used as stream key values.
