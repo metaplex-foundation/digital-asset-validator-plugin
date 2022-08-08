@@ -1,7 +1,11 @@
 #[cfg(feature = "redis")]
 pub use redis_messenger::*;
 
-pub mod error;
+#[cfg(feature = "pulsar")]
+pub use pulsar_messenger::*;
+
+mod error;
 mod messenger;
+mod pulsar_messenger;
 mod redis_messenger;
 pub use messenger::*;
