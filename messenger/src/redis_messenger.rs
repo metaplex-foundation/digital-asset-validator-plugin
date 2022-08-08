@@ -1,5 +1,4 @@
 #![cfg(feature = "redis")]
-
 use {
     crate::{error::MessengerError, Messenger, MessengerConfig},
     async_trait::async_trait,
@@ -89,7 +88,6 @@ impl Messenger for RedisMessenger {
         }
     }
 
-    //impl Future<Output = Result<()>> + 'a {
     async fn send(&mut self, stream_key: &'static str, bytes: &[u8]) -> Result<(), MessengerError> {
         // Check if stream is configured.
         let stream = if let Some(stream) = self.streams.get(stream_key) {
@@ -119,7 +117,7 @@ impl Messenger for RedisMessenger {
             error!("Redis send error: {e}");
             return Err(MessengerError::SendError { msg: e.to_string() });
         } else {
-            info!("Data Sent");
+            info!("Data Sent to {}", stream_key);
         }
 
         Ok(())

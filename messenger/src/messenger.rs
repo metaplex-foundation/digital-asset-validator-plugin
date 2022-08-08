@@ -2,6 +2,7 @@ use crate::error::MessengerError;
 use async_trait::async_trait;
 use figment::value::Dict;
 
+
 /// Some constants that can be used as stream key values.
 pub const ACCOUNT_STREAM: &str = "ACC";
 pub const SLOT_STREAM: &str = "SLT";
