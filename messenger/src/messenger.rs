@@ -1,6 +1,7 @@
-use crate::error::MessengerError;
-use async_trait::async_trait;
 use figment::value::Dict;
+use serde::Deserialize;
+use {async_trait::async_trait};
+use crate::error::MessengerError;
 
 /// Some constants that can be used as stream key values.
 pub const ACCOUNT_STREAM: &str = "ACC";
@@ -14,11 +15,10 @@ pub trait Messenger: Sync + Send {
     where
         Self: Sized;
 
-    async fn add_stream(&mut self, stream_key: &'static str) -> Result<(), MessengerError>;
+    async fn add_stream(&mut self, stream_key: &'static str);
     async fn set_buffer_size(&mut self, stream_key: &'static str, max_buffer_size: usize);
     async fn send(&mut self, stream_key: &'static str, bytes: &[u8]) -> Result<(), MessengerError>;
-    async fn recv(&mut self, stream_key: &'static str)
-        -> Result<Vec<(i64, &[u8])>, MessengerError>;
+    async fn recv(&mut self, stream_key: &'static str) -> Result<Vec<(i64, &[u8])>, MessengerError>;
 }
 
 pub type MessengerConfig = Dict;

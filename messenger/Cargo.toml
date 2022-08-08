@@ -8,16 +8,12 @@ homepage = "https://solana.com/"
 documentation = "https://docs.rs/solana-geyser-plugin-interface"
 
 [dependencies]
-solana-geyser-plugin-interface  = { version = "=1.10.10" }
 plerkle-serialization={path= "../plerkle_serialization"}
-redis = {version = "0.21.5", features = ["aio", "tokio-comp", "streams"], optional = true}
-pulsar={git = "https://github.com/VadimGrozinok/pulsar-rs.git", optional = true}
+redis = {version = "0.21.5", features = ["aio", "tokio-comp", "streams", 'cluster'], optional = true}
 log = "0.4.11"
 thiserror = "1.0.30"
 async-trait = "0.1.53"
 figment = "0.10.6"
-futures= "0.3"
-async-mutex = "1.4.0"
 serde = "1.0.137"
 
 [package.metadata.docs.rs]
@@ -26,4 +22,3 @@ targets = ["x86_64-unknown-linux-gnu"]
 [features]
 default = ["redis"]
 redis = ["dep:redis"]
-pulsar = ["dep:pulsar"]

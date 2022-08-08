@@ -1,5 +1,4 @@
 #![cfg(feature = "redis")]
-
 use {
     crate::{error::MessengerError, Messenger, MessengerConfig},
     async_trait::async_trait,
@@ -38,19 +37,18 @@ const REDIS_CON_STR: &str = "redis_connection_str";
 impl Messenger for RedisMessenger {
     //pub async fn new(stream_key: &'static str) -> Result<Self> {
     async fn new(config: MessengerConfig) -> Result<Self, MessengerError> {
-        let uri = config
-            .get(&*REDIS_CON_STR)
+        let uri = config.get(&*REDIS_CON_STR)
             .and_then(|u| u.clone().into_string())
-            .ok_or(MessengerError::ConfigurationError {
-                msg: format!("Connection String Missing: {}", REDIS_CON_STR),
-            })?;
+            .ok_or(MessengerError::ConfigurationError { msg: format!("Connection String Missing: {}", REDIS_CON_STR) })?;
         // Setup Redis client.
         let client = redis::Client::open(uri).unwrap();
 
         // Get connection.
         let connection = client.get_tokio_connection().await.map_err(|e| {
             error!("{}", e.to_string());
-            MessengerError::ConnectionError { msg: e.to_string() }
+            MessengerError::ConnectionError {
+                msg: e.to_string(),
+            }
         })?;
 
         Ok(Self {
@@ -60,7 +58,7 @@ impl Messenger for RedisMessenger {
         })
     }
 
-    async fn add_stream(&mut self, stream_key: &'static str) -> Result<(), MessengerError> {
+    async fn add_stream(&mut self, stream_key: &'static str) {
         // Add to streams hashmap.
         let _result = self
             .streams
@@ -75,9 +73,8 @@ impl Messenger for RedisMessenger {
             .await;
 
         if let Err(e) = result {
-            info!("Group already exists: {:?}", e)
+            println!("Group already exists: {:?}", e)
         }
-        Ok(())
     }
 
     async fn set_buffer_size(&mut self, stream_key: &'static str, max_buffer_size: usize) {
@@ -89,7 +86,6 @@ impl Messenger for RedisMessenger {
         }
     }
 
-    //impl Future<Output = Result<()>> + 'a {
     async fn send(&mut self, stream_key: &'static str, bytes: &[u8]) -> Result<(), MessengerError> {
         // Check if stream is configured.
         let stream = if let Some(stream) = self.streams.get(stream_key) {
@@ -117,18 +113,17 @@ impl Messenger for RedisMessenger {
 
         if let Err(e) = result {
             error!("Redis send error: {e}");
-            return Err(MessengerError::SendError { msg: e.to_string() });
+            return Err(
+                MessengerError::SendError { msg: e.to_string() }
+            );
         } else {
-            info!("Data Sent");
+            info!("Data Sent to {}", stream_key);
         }
 
         Ok(())
     }
 
-    async fn recv(
-        &mut self,
-        stream_key: &'static str,
-    ) -> Result<Vec<(i64, &[u8])>, MessengerError> {
+    async fn recv(&mut self, stream_key: &'static str) -> Result<Vec<(i64, &[u8])>, MessengerError> {
         let opts = StreamReadOptions::default()
             .block(0) // Block forever.
             .count(1) // Get one item.
@@ -145,7 +140,9 @@ impl Messenger for RedisMessenger {
             Ok(reply) => reply,
             Err(e) => {
                 error!("Redis receive error: {e}");
-                return Err(MessengerError::ReceiveError { msg: e.to_string() });
+                return Err(
+                    MessengerError::ReceiveError { msg: e.to_string() }
+                );
             }
         };
 
