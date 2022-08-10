@@ -1,0 +1,22 @@
+version: "3.9"
+services:
+  redis:
+    image: "redis:alpine"
+    ports:
+      - "6379:6379"
+  solana:
+    build:
+      context: .
+      dockerfile: Solana.Dockerfile
+    volumes:
+      - ./ledger:/config:rw
+    environment:
+      RUST_LOG: warn
+      PLUGIN_CONFIG_RELOAD_TTL: 300
+      PLUGIN_MESSENGER_CONFIG.messenger_type: "Redis"
+      PLUGIN_MESSENGER_CONFIG.connection_config: '{redis_connection_str="redis://redis"}'
+    ports:
+      - "8900:8900"
+      - "8001:8001"
+      - "8899:8899"
+      - "9900:9900"

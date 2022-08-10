@@ -1,4 +1,3 @@
-use tokio::time::Instant;
 use {
     crate::{
         accounts_selector::AccountsSelector,
@@ -17,7 +16,8 @@ use {
     log::*,
     messenger::MessengerConfig,
     messenger::{
-        Messenger, RedisMessenger, ACCOUNT_STREAM, BLOCK_STREAM, SLOT_STREAM, TRANSACTION_STREAM,
+        select_messenger,
+        Messenger, ACCOUNT_STREAM, BLOCK_STREAM, SLOT_STREAM, TRANSACTION_STREAM,
     },
     serde::Deserialize,
     solana_geyser_plugin_interface::geyser_plugin_interface::{
@@ -30,10 +30,10 @@ use {
         fmt::{Debug, Formatter},
         fs::File,
         io::Read,
-        marker::PhantomData,
     },
     tokio::{
         self as tokio,
+        time::Instant,
         runtime::{Builder, Runtime},
         sync::mpsc::{self as mpsc, Sender},
     },
@@ -45,11 +45,10 @@ struct SerializedData<'a> {
 }
 
 #[derive(Default)]
-pub(crate) struct Plerkle<'a, T: Messenger + Default> {
+pub(crate) struct Plerkle<'a> {
     runtime: Option<Runtime>,
     accounts_selector: Option<AccountsSelector>,
     transaction_selector: Option<TransactionSelector>,
-    messenger: PhantomData<T>,
     sender: Option<Sender<SerializedData<'a>>>,
     started_at: Option<Instant>,
 }
@@ -60,7 +59,7 @@ pub struct PluginConfig {
     pub config_reload_ttl: Option<i64>,
 }
 
-impl<'a, T: Messenger + Default> Plerkle<'a, T> {
+impl<'a> Plerkle<'a> {
     pub fn new() -> Self {
         Self::default()
     }
@@ -154,13 +153,13 @@ impl<'a, T: Messenger + Default> Plerkle<'a, T> {
     }
 }
 
-impl<'a, T: Messenger + Default> Debug for Plerkle<'a, T> {
+impl<'a> Debug for Plerkle<'a> {
     fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
         Ok(())
     }
 }
 
-impl<T: 'static + Messenger + Default + Send + Sync> GeyserPlugin for Plerkle<'static, T> {
+impl GeyserPlugin for Plerkle<'static> {
     fn name(&self) -> &'static str {
         "Plerkle"
     }
@@ -225,8 +224,7 @@ impl<T: 'static + Messenger + Default + Send + Sync> GeyserPlugin for Plerkle<'s
             })?;
         runtime.spawn(async move {
             // Create new Messenger connection.
-
-            if let Ok(mut messenger) = T::new(config.messenger_config).await {
+            if let Ok(mut messenger) = select_messenger(config.messenger_config).await {
                 messenger.add_stream(ACCOUNT_STREAM).await;
                 messenger.add_stream(SLOT_STREAM).await;
                 messenger.add_stream(TRANSACTION_STREAM).await;
@@ -426,7 +424,7 @@ impl<T: 'static + Messenger + Default + Send + Sync> GeyserPlugin for Plerkle<'s
 ///
 /// This function returns the GeyserPluginPostgres pointer as trait GeyserPlugin.
 pub unsafe extern "C" fn _create_plugin() -> *mut dyn GeyserPlugin {
-    let plugin = Plerkle::<RedisMessenger>::new();
+    let plugin = Plerkle::new();
     let plugin: Box<dyn GeyserPlugin> = Box::new(plugin);
     Box::into_raw(plugin)
 }

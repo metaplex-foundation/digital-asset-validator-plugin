@@ -14,6 +14,7 @@ use {
         pin::Pin,
     },
 };
+use crate::MessengerType;
 
 // Redis stream values.
 pub const GROUP_NAME: &str = "plerkle";
@@ -57,6 +58,10 @@ impl Messenger for RedisMessenger {
             streams: HashMap::<&'static str, RedisMessengerStream>::default(),
             stream_read_reply: StreamReadReply::default(),
         })
+    }
+
+    fn messenger_type(&self) -> MessengerType {
+        MessengerType::Redis
     }
 
     async fn add_stream(&mut self, stream_key: &'static str) -> Result<(), MessengerError> {
