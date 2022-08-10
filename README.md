@@ -61,7 +61,7 @@ The plugin config for plerkle must have this format
 }
 
 ```
-This config file points to where your plugin library file is, and what programs it is listening too. 
+This config file points to where your plugin library file is, and what programs it is listening to. 
 This is the standard Solana geyser plugin config file that the validator reads. 
 
 There are some other bits of configuration needed. Environment Variables.
