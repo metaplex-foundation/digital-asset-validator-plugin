@@ -1,5 +1,4 @@
 #![cfg(feature = "pulsar")]
-
 use {
     crate::{error::MessengerError, Messenger, MessengerConfig},
     async_mutex::Mutex,
@@ -17,6 +16,7 @@ use {
         fmt::{Debug, Formatter},
     },
 };
+use crate::MessengerType;
 
 #[derive(Default)]
 pub struct PulsarMessenger {
@@ -100,6 +100,10 @@ impl Messenger for PulsarMessenger {
             acquired_messages: HashMap::<&'static str, Vec<Message<Vec<u8>>>>::default(),
             create_consumer_by_default,
         })
+    }
+
+    fn messenger_type(&self) -> MessengerType {
+        MessengerType::Pulsar
     }
 
     /// Create new Producer for Pulsar topic
