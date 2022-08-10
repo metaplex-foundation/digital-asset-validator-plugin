@@ -8,7 +8,7 @@ built to serve the API's it was designed to allow any message bus tech to be use
 
 It is built on the following principles.
 * Do a little work in the validator process as possible.
-* Allow ay message bus tech to work.
+* Allow any message bus tech to work.
 * Opinionated and efficient Wire format as a standard.
 * Async first
 
