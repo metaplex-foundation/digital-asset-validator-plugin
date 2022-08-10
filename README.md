@@ -71,12 +71,17 @@ The process running the validator must have access to environment variables. Tho
 RUST_LOG=warn
 PLUGIN_CONFIG_RELOAD_TTL=300  
 PLUGIN_MESSENGER_CONFIG.messenger_type="Redis"
-PLUGIN_MESSENGER_CONFIG.connection_config={
-    redis_connection_str="redis://redis"
-}'
+PLUGIN_MESSENGER_CONFIG.connection_config={redis_connection_str="redis://redis"}'
 ```
 The PLUGIN_CONFIG_TTL_RELOAD tells the plugin how long to keep the geyser plugin file cached in seconds. This allows hot reloading of what programs you are listening to without restarting the validator.
 The PLUGIN_MESSENGER_CONFIG determins which compiled messenger to select and a specific configuration for the messenger.
  
 ### Building With Docker
-This repo contains a 
+This repo contains a docker File that allows you to run an test the plerkle plugin using a test validator.
+To test it you can build the container with```docker compose build .``` and run it with ```docker compose up```. 
+
+You will want to change the programs you are listening to in `./docker/runs.sh`. Once you spin up the validator send your transactions to the docker host as you would a normal RPC.
+If you want to add a custom program you will need to change `docker-compose.yml` to mount in a volume with your .so file of your built program and change `./docker/runs.sh` where you see the line that has
+```bash
+ --bpf-program metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s /so/mpl_token_metadata.so
+```
