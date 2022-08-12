@@ -22,12 +22,12 @@ jobs:
             context.repo.repo
           })
           
-          const tagName = latestRelease.tagName || "0.0.0"
+          const tagName = latestRelease.tagName || '0.0.0'
           
-          let parts = tagName.split(".")
+          let parts = tagName.split('.')
           let dummyEnd = parseInt(parts[2],10) + 1
-          parts[2] = dummyEnd + ""
-          const dummyTagName = parts.join(".")
+          parts[2] = dummyEnd + ''
+          const dummyTagName = parts.join('.')
           
           const releaseNotes = await github.rest.repos.generateReleaseNotes({
             context.repo.owner,
@@ -39,19 +39,19 @@ jobs:
           const feat = releaseNotes.body.match(/Exciting New Features/i)
           const patch = releaseNotes.body.match(/Bug Fix/i)
           
-          parts = tagName.split(".")
+          parts = tagName.split('.')
           if(break) {
             let d = parseInt(parts[0],10) + 1
-            parts[0] = d + ""
+            parts[0] = d + ''
           } else if(feat) {
             let d = parseInt(parts[1],10) + 1
-            parts[1] = d + ""
+            parts[1] = d + ''
           } else {
             let d = parseInt(parts[2],10) + 1
-            parts[2] = d + ""
+            parts[2] = d + ''
           }
           
-          const tag = parts.join(".")
+          const tag = parts.join('.')
           await github.rest.repos.createRelease({
             context.repo.owner,
             context.repo.repo,
@@ -74,9 +74,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Build image
-        run: docker build . --file Dockerfile --tag $IMAGE_NAME --label "runnumber=${GITHUB_RUN_ID}"
+        run: docker build . --file Dockerfile --tag $IMAGE_NAME --label 'runnumber=${GITHUB_RUN_ID}'
       - name: Log in to registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $ --password-stdin
+        run: echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u $ --password-stdin
       - name: Push image
         run: |
           IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
