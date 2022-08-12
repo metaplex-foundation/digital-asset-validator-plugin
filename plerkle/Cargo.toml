@@ -32,9 +32,9 @@ chrono = "0.4.19" # did anyone say leftpad ?
 solana-runtime = "1.11.3"
 tracing = "0.1.35"
 hex = "0.4.3"
-plerkle_messenger = { path = "../plerkle_messenger" }
+plerkle_messenger = { version = "0.0.1" }
 flatbuffers = "2.1.2"
-plerkle-serialization = { path = "../plerkle_serialization" }
+plerkle-serialization = { version = "0.0.1" }
 tokio = { version = "1.17.0", features = ["full"] }
 figment = { version = "0.10.6", features = ["env", "test"] }
 
