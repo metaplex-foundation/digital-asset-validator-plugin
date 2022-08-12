@@ -19,7 +19,7 @@ solana-transaction-status = { version = "=1.11.3" }
 thiserror = "1.0.30"
 base64 = "0.13.0"
 lazy_static = "1.4.0"
-solana-geyser-plugin-interface  = { version = "=1.11.3" }
+solana-geyser-plugin-interface = { version = "=1.11.3" }
 solana-logger = { version = "=1.11.3" }
 bs58 = "0.4.0"
 bytemuck = "1.7.2"
@@ -32,11 +32,11 @@ chrono = "0.4.19" # did anyone say leftpad ?
 solana-runtime = "1.11.3"
 tracing = "0.1.35"
 hex = "0.4.3"
-messenger={path= "../messenger"}
+plerkle_messenger = { path = "../plerkle_messenger" }
 flatbuffers = "2.1.2"
-plerkle-serialization={path= "../plerkle_serialization"}
+plerkle-serialization = { path = "../plerkle_serialization" }
 tokio = { version = "1.17.0", features = ["full"] }
-figment = { version = "0.10.6", features = ["env","test"] }
+figment = { version = "0.10.6", features = ["env", "test"] }
 
 [dependencies.num-integer]
 version = "0.1.44"

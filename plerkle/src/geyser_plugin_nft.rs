@@ -14,8 +14,8 @@ use {
     figment::{providers::Env, Figment},
     flatbuffers::FlatBufferBuilder,
     log::*,
-    messenger::MessengerConfig,
-    messenger::{
+    plerkle_messenger::MessengerConfig,
+    plerkle_messenger::{
         select_messenger,
         Messenger, ACCOUNT_STREAM, BLOCK_STREAM, SLOT_STREAM, TRANSACTION_STREAM,
     },

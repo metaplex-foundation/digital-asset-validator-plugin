@@ -8,7 +8,7 @@ pub use crate::redis_messenger::*;
 pub use crate::pulsar_messenger::*;
 
 mod error;
-mod messenger;
+mod plerkle_messenger;
 mod redis_messenger;
 mod pulsar_messenger;
-pub use crate::messenger::*;
+pub use crate::plerkle_messenger::*;

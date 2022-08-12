@@ -1,5 +1,5 @@
 [package]
-name = "messenger"
+name = "plerkle_messenger"
 description = "Metaplex Messenger trait for Geyser plugin producer/consumer patterns."
 version = "0.0.1"
 authors = ["Metaplex Developers <dev@metaplex.com>"]
