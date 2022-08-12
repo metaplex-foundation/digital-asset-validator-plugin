@@ -15,12 +15,7 @@ jobs:
         id: make-release
         with:
           script: |
-            github.rest.repos.getLatestRelease({
-              context.repo.owner,
-              context.repo.repo
-            })
-            
-            
+            github.rest.repos.getLatestRelease({context.repo.owner, context.repo.repo})
 
       - name: Publish to crates registry
         run: |
