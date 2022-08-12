@@ -25,39 +25,39 @@ jobs:
           const tagName = latestRelease.tagName || "0.0.0"
           
           let parts = tagName.split(".")
-          let dummyEnd = parseInt(parts[2],10) + 1;
-          parts[2] = dummyEnd + "";
-          const dummyTagName = parts.join(".");
+          let dummyEnd = parseInt(parts[2],10) + 1
+          parts[2] = dummyEnd + ""
+          const dummyTagName = parts.join(".")
           
           const releaseNotes = await github.rest.repos.generateReleaseNotes({
             context.repo.owner,
             context.repo.repo,
             dummyTagName
-          });
+          })
           
-          const break = releaseNotes.body.match(/Breaking Changes/i);
-          const feat = releaseNotes.body.match(/Exciting New Features/i);
-          const patch = releaseNotes.body.match(/Bug Fix/i);
+          const break = releaseNotes.body.match(/Breaking Changes/i)
+          const feat = releaseNotes.body.match(/Exciting New Features/i)
+          const patch = releaseNotes.body.match(/Bug Fix/i)
           
           parts = tagName.split(".")
           if(break) {
-            let d = parseInt(parts[0],10) + 1;
-            parts[0] = d + "";
+            let d = parseInt(parts[0],10) + 1
+            parts[0] = d + ""
           } else if(feat) {
-            let d = parseInt(parts[1],10) + 1;
-            parts[1] = d + "";
+            let d = parseInt(parts[1],10) + 1
+            parts[1] = d + ""
           } else {
-            let d = parseInt(parts[2],10) + 1;
-            parts[2] = d + "";
+            let d = parseInt(parts[2],10) + 1
+            parts[2] = d + ""
           }
         
-          const tag = parts.join(".");
+          const tag = parts.join(".")
           await github.rest.repos.createRelease({
             context.repo.owner,
             context.repo.repo,
-            tag,
-          });
-          return tag;
+            tag
+          })
+          return tag
     - name: Publish to crates registry
       run: |
         cargo publish --all --token $CARGO_TOKEN
