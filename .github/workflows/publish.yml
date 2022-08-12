@@ -19,7 +19,7 @@ jobs:
         script: |
           const latestRelease = await github.rest.repos.getLatestRelease({
             context.repo.owner,
-            context.repo.repo,
+            context.repo.repo
           })
           
           const tagName = latestRelease.tagName || "0.0.0"
