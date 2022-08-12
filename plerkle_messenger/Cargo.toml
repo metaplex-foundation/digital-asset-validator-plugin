@@ -10,7 +10,7 @@ readme = "Readme.md"
 
 [dependencies]
 solana-geyser-plugin-interface = { version = "=1.11.3" }
-plerkle-serialization = { version = "0.0.1" }
+plerkle_serialization = { version = "0.0.1" }
 redis = { version = "0.21.5", features = ["aio", "tokio-comp", "streams"], optional = true }
 metaplex-pulsar = { version = "4.1.1", optional = true }
 log = "0.4.11"
@@ -27,7 +27,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [features]
 default = ["redis", "pulsar"]
 redis = ["dep:redis"]
-pulsar = ["dep:pulsar"]
+pulsar = ["dep:metaplex-pulsar"]
 
 [dev-dependencies]
 tokio = { version = "1.20.1", features = ["full"] }
