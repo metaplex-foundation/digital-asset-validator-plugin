@@ -34,12 +34,12 @@ jobs:
               tag_name: dummyTagName
             })
             
-            const break = releaseNotes.body.match(/Breaking Changes/i)
+            const breaking = releaseNotes.body.match(/Breaking Changes/i)
             const feat = releaseNotes.body.match(/Exciting New Features/i)
             const patch = releaseNotes.body.match(/Bug Fix/i)
             
             parts = tagName.split('.')
-            if(break) {
+            if(breaking) {
               let d = parseInt(parts[0],10) + 1
               parts[0] = d + ''
             } else if(feat) {
