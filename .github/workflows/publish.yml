@@ -15,7 +15,6 @@ jobs:
       - uses: actions/github-script@v6
         id: make-release
         with:
-          result-encoding: string
           script: |
             const latestRelease = await github.rest.repos.getLatestRelease({
               context.repo.owner,
@@ -58,6 +57,7 @@ jobs:
               tag
             })
             return tag
+          result-encoding: string
       - name: Publish to crates registry
         run: |
           cargo publish --all --token $CARGO_TOKEN
