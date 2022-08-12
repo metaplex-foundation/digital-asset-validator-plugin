@@ -12,7 +12,7 @@ readme = "Readme.md"
 solana-geyser-plugin-interface = { version = "=1.11.3" }
 plerkle-serialization = { path = "../plerkle_serialization" }
 redis = { version = "0.21.5", features = ["aio", "tokio-comp", "streams"], optional = true }
-pulsar = { git = "https://github.com/VadimGrozinok/pulsar-rs.git", optional = true }
+metaplex-pulsar = { version="4.1.1", optional = true }
 log = "0.4.11"
 thiserror = "1.0.30"
 async-trait = "0.1.53"
