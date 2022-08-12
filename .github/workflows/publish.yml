@@ -33,7 +33,7 @@ jobs:
               repo: context.repo.repo,
               tag_name: dummyTagName
             })
-            
+            console.log(releaseNotes);
             const breaking = releaseNotes.body.match(/Breaking Changes/i)
             const feat = releaseNotes.body.match(/Exciting New Features/i)
             const patch = releaseNotes.body.match(/Bug Fix/i)
