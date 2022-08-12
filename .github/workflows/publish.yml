@@ -35,7 +35,7 @@ jobs:
             })
     
             const breaking = releaseNotes.data.body.match(/Breaking Changes/i)
-            const feat = releaseNotes.data..body.match(/Exciting New Features/i)
+            const feat = releaseNotes.data.body.match(/Exciting New Features/i)
             const patch = releaseNotes.data.body.match(/Bug Fix/i)
             
             parts = tagName.split('.')
