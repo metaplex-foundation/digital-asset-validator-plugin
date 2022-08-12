@@ -8,8 +8,7 @@ env:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    outputs:
-      tag: ${{steps.make-release.outputs.result}}
+
     steps:
       - uses: actions/checkout@v3
       - uses: actions/github-script@v6
