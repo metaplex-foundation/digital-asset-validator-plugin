@@ -1,11 +1,12 @@
 [package]
 name = "messenger"
 description = "Metaplex Messenger trait for Geyser plugin producer/consumer patterns."
-version = "0.1.0"
+version = "0.0.0"
+authors = ["Metaplex Developers <dev@metaplex.com>"]
+repository = "https://github.com/metaplex-foundation/digital-asset-validator-plugin"
+license = "AGPL-3.0"
 edition = "2021"
-license = "AGPL3"
-homepage = "https://solana.com/"
-documentation = "https://docs.rs/solana-geyser-plugin-interface"
+readme = "README.md"
 
 [dependencies]
 solana-geyser-plugin-interface = { version = "=1.11.3" }

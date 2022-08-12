@@ -1,0 +1,93 @@
+name: Sync versions on PR merge
+on:
+  push:
+    branches: [main]
+env:
+  RUST_TOOLCHAIN: stable
+  IMAGE_NAME: plerkle-test-validator
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{steps.make-release.outputs.result}}
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/github-script@v6
+      id: make-release
+      with:
+        result-encoding: string
+        script: |
+          const latestRelease = await octokit.rest.repos.getLatestRelease({
+            context.repo.owner,
+            context.repo.repo,
+          });
+          
+          const tagName = latestRelease.tagName || "0.0.0"; 
+          
+          let parts = tagname.split(".")
+          let dummyEnd = parseInt(parts[2],10) + 1;
+          parts[2] = dummyEnd + "";
+          const dummyTagName = parts.join(".");
+          
+          const releaseNotes = await octokit.rest.repos.generateReleaseNotes({
+            context.repo.owner,
+            context.repo.repo,
+            dummyTagName,
+          });
+          
+          const break = releaseNotes.body.match(/Breaking Changes/i);
+          const feat = releaseNotes.body.match(/Exciting New Features/i);
+          const patch = releaseNotes.body.match(/Bug Fix/i);
+          
+          parts = tagname.split(".")
+          if(break) {
+            let d = parseInt(parts[0],10) + 1;
+            parts[0] = d + "";
+          } else if(feat) {
+            let d = parseInt(parts[1],10) + 1;
+            parts[1] = d + "";
+          } else {
+            let d = parseInt(parts[2],10) + 1;
+            parts[2] = d + "";
+          }
+        
+          const tag = parts.join(".");
+          await octokit.rest.repos.createRelease({
+            context.repo.owner,
+            context.repo.repo,
+            tag,
+          });
+          return tag;
+    - name: Publish to crates registry
+      run: |
+        cargo publish --all --token $CARGO_TOKEN
+      shell: bash
+      env:
+        CARGO_TOKEN: ${{ secrets.CARGO_TOKEN }}
+  push:
+    runs-on: ubuntu-latest
+    needs: publish
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build image
+        run: docker build . --file Dockerfile --tag $IMAGE_NAME --label "runnumber=${GITHUB_RUN_ID}"
+      - name: Log in to registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $ --password-stdin
+      - name: Push image
+        run: |
+          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
+          # Change all uppercase to lowercase
+          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
+          # Strip git ref prefix from version
+          VERSION=${{needs.publish.outputs.tag}}
+          echo IMAGE_ID=$IMAGE_ID
+          echo VERSION=$VERSION
+          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
+          docker push $IMAGE_ID:$VERSION
+
+
+
+
