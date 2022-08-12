@@ -1,5 +1,5 @@
 [package]
-name = "plerkle-serialization"
+name = "plerkle_serialization"
 description = "Metaplex Flatbuffers Plerkle Serialization for Geyser plugin producer/consumer patterns."
 version = "0.0.1"
 authors = ["Metaplex Developers <dev@metaplex.com>"]
