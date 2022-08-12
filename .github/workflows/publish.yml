@@ -50,7 +50,7 @@ jobs:
             let d = parseInt(parts[2],10) + 1
             parts[2] = d + ""
           }
-        
+          
           const tag = parts.join(".")
           await github.rest.repos.createRelease({
             context.repo.owner,
@@ -58,6 +58,7 @@ jobs:
             tag
           })
           return tag
+
     - name: Publish to crates registry
       run: |
         cargo publish --all --token $CARGO_TOKEN
