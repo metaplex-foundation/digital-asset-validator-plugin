@@ -54,7 +54,8 @@ jobs:
             await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag_name: tag
+              tag_name: tag,
+              generate_release_notes: true
             })
             return tag
           result-encoding: string
