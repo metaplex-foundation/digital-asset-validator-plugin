@@ -5,7 +5,7 @@ use {
     async_trait::async_trait,
     futures::TryStreamExt,
     log::*,
-    pulsar::{
+    metaplex_pulsar::{
         authentication::oauth2::{OAuth2Authentication, OAuth2Params},
         consumer::Message,
         Authentication, Consumer, Producer, Pulsar, TokioExecutor,

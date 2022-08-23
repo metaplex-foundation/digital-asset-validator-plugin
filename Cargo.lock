@@ -1719,6 +1719,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "metaplex-pulsar"
+version = "4.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "80564777bb179348510586d25b23948950d91f53ae76c9bf6539ddfb908abfd8"
+dependencies = [
+ "async-native-tls",
+ "async-std",
+ "async-trait",
+ "asynchronous-codec",
+ "bit-vec",
+ "bytes",
+ "chrono",
+ "crc",
+ "data-url",
+ "flate2",
+ "futures",
+ "futures-io",
+ "futures-timer",
+ "log",
+ "lz4",
+ "native-tls",
+ "nom",
+ "oauth2",
+ "openidconnect",
+ "pem",
+ "prost",
+ "prost-build",
+ "prost-derive",
+ "rand 0.8.5",
+ "regex",
+ "serde",
+ "serde_json",
+ "snap",
+ "tokio",
+ "tokio-native-tls",
+ "tokio-util 0.7.1",
+ "url",
+ "zstd",
+]
+
+[[package]]
 name = "mime"
 version = "0.3.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2187,8 +2228,8 @@ dependencies = [
  "lazy_static",
  "log",
  "num-integer",
- "plerkle-serialization",
  "plerkle_messenger",
+ "plerkle_serialization",
  "serde",
  "serde_derive",
  "serde_json",
@@ -2203,13 +2244,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "plerkle-serialization"
-version = "0.0.1"
-dependencies = [
- "flatbuffers",
-]
-
-[[package]]
 name = "plerkle_messenger"
 version = "0.0.1"
 dependencies = [
@@ -2218,13 +2252,20 @@ dependencies = [
  "figment",
  "futures",
  "log",
- "plerkle-serialization",
- "pulsar",
+ "metaplex-pulsar",
+ "plerkle_serialization",
  "redis",
  "serde",
  "solana-geyser-plugin-interface",
  "thiserror",
  "tokio",
+]
+
+[[package]]
+name = "plerkle_serialization"
+version = "0.0.1"
+dependencies = [
+ "flatbuffers",
 ]
 
 [[package]]
@@ -2376,46 +2417,6 @@ checksum = "2d0a014229361011dc8e69c8a1ec6c2e8d0f2af7c91e3ea3f5b2170298461e68"
 dependencies = [
  "bytes",
  "prost",
-]
-
-[[package]]
-name = "pulsar"
-version = "4.1.1"
-source = "git+https://github.com/VadimGrozinok/pulsar-rs.git#b11ee506b5216d31a834c12881b5d022d5cb6580"
-dependencies = [
- "async-native-tls",
- "async-std",
- "async-trait",
- "asynchronous-codec",
- "bit-vec",
- "bytes",
- "chrono",
- "crc",
- "data-url",
- "flate2",
- "futures",
- "futures-io",
- "futures-timer",
- "log",
- "lz4",
- "native-tls",
- "nom",
- "oauth2",
- "openidconnect",
- "pem",
- "prost",
- "prost-build",
- "prost-derive",
- "rand 0.8.5",
- "regex",
- "serde",
- "serde_json",
- "snap",
- "tokio",
- "tokio-native-tls",
- "tokio-util 0.7.1",
- "url",
- "zstd",
 ]
 
 [[package]]
