@@ -280,7 +280,7 @@ impl GeyserPlugin for Plerkle<'static> {
                     };
                     let _ = sender.send(data).await;
                 });
-                statsd_count!("account_seen_event", 1, "owner" => &owner);
+                // statsd_count!("account_seen_event", 1, "owner" => &owner);
             }
             _ => {
                 error!("Old Transaction Replica Object")
@@ -365,7 +365,7 @@ impl GeyserPlugin for Plerkle<'static> {
                     };
                     let _ = sender.send(data).await;
                 });
-                statsd_count!("transaction_seen_event", 1, "slot-idx" => &slt_idx);
+                // statsd_count!("transaction_seen_event", 1, "slot-idx" => &slt_idx);
             }
             _ => {
                 error!("Old Transaction Replica Object")
