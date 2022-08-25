@@ -9,7 +9,8 @@ RUN apt-get update \
            libelf-dev \
            linux-headers-generic \
            pkg-config \
-           curl
+           curl \
+           cmake
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 WORKDIR /rust/
