@@ -255,8 +255,10 @@ impl GeyserPlugin for Plerkle<'static> {
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
         match account {
             ReplicaAccountInfoVersions::V0_0_2(account) => {
+                info!("ReplicaAccountInfoVersions::V0_0_2");
                 // Check if account was selected in config.
                 if let Some(accounts_selector) = &self.accounts_selector {
+                    info!("Accounts selector enabled");
                     if !accounts_selector.is_account_selected(account.pubkey, account.owner) {
                         return Ok(());
                     }
@@ -282,8 +284,8 @@ impl GeyserPlugin for Plerkle<'static> {
                 });
                 // statsd_count!("account_seen_event", 1, "owner" => &owner);
             }
-            _ => {
-                error!("Old Transaction Replica Object")
+            ReplicaAccountInfoVersions::V0_0_1(_account) => {
+                error!("Old Account Replica Object V0_0_1");
             }
         }
 

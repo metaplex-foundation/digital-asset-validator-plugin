@@ -14,13 +14,13 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 log = "0.4.11"
 async-trait = "0.1.53"
-solana-sdk = { version = "=1.11.3" }
-solana-transaction-status = { version = "=1.11.3" }
+solana-sdk = { version = "=1.11.7" }
+solana-transaction-status = { version = "=1.11.7" }
 thiserror = "1.0.30"
 base64 = "0.13.0"
 lazy_static = "1.4.0"
-solana-geyser-plugin-interface = { version = "=1.11.3" }
-solana-logger = { version = "=1.11.3" }
+solana-geyser-plugin-interface = { version = "=1.11.7" }
+solana-logger = { version = "=1.11.7" }
 bs58 = "0.4.0"
 bytemuck = "1.7.2"
 serde = "1.0.133"
@@ -29,7 +29,7 @@ serde_json = "1.0.74"
 cadence = "0.29.0"
 cadence-macros = "0.29.0"
 chrono = "0.4.19" # did anyone say leftpad ?
-solana-runtime = "1.11.3"
+solana-runtime = "1.11.7"
 tracing = "0.1.35"
 hex = "0.4.3"
 plerkle_messenger = { path="../plerkle_messenger", version = "0.0.1" }
