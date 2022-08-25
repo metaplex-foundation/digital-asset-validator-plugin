@@ -37,6 +37,12 @@ cat << EOL > accountsdb-plugin-config.json
     }
 }
 EOL
+cat << EOL > config.toml
+config_reload_ttl = 300
+[messenger_config]
+messenger_type = "Redis"
+connection_config = { redis_connection_str = "redis://redis" }
+EOL
 export RUST_BACKTRACE=1
 dataDir=$PWD/config/"$(basename "$0" .sh)"
 ledgerDir=$PWD/config/ledger
