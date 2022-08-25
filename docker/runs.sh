@@ -43,7 +43,7 @@ ledgerDir=$PWD/config/ledger
 mkdir -p "$dataDir" "$ledgerDir"
 echo $ledgerDir
 echo $dataDir
-ls -la /so/
+# ls -la /so/
 args=(
   --config config.yaml
   --log
