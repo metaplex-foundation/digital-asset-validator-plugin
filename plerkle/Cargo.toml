@@ -37,6 +37,7 @@ flatbuffers = "2.1.2"
 plerkle_serialization = { path="../plerkle_serialization", version = "0.0.1" }
 tokio = { version = "1.17.0", features = ["full"] }
 figment = { version = "0.10.6", features = ["env", "test"] }
+toml = "0.5.9"
 
 [dependencies.num-integer]
 version = "0.1.44"
