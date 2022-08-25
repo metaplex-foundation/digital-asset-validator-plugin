@@ -1,4 +1,4 @@
 config_reload_ttl = 300
 [messenger_config]
 messenger_type = "Redis"
-connection_config = { redis_connection_str = "redis://redis" }
+connection_config = { redis_connection_str = "redis://localhost" }
