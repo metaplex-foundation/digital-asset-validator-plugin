@@ -216,7 +216,7 @@ impl GeyserPlugin for Plerkle<'static> {
         let (sender, mut receiver) = mpsc::channel::<SerializedData>(32);
         self.sender = Some(sender);
         let config: PluginConfig =
-            toml::from_str(&std::fs::read_to_string("Config.toml").unwrap()).unwrap();
+            toml::from_str(&std::fs::read_to_string("config.toml").unwrap()).unwrap();
         println!("config: {:#?}", config);
         runtime.spawn(async move {
             // Create new Messenger connection.

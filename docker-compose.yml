@@ -16,7 +16,7 @@ services:
       PLUGIN_MESSENGER_CONFIG.messenger_type: "Redis"
       PLUGIN_MESSENGER_CONFIG.connection_config: '{redis_connection_str="redis://redis"}'
     ports:
-      - "8900:8900"
-      - "8001:8001"
-      - "8899:8899"
-      - "9900:9900"
+      - "2900:2910"
+      - "2001:2010"
+      - "2899:2999"
+      - "3900:3900"
