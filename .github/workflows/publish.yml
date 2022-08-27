@@ -22,7 +22,7 @@ jobs:
             })
             
             const tagName = latestRelease.tagName || '0.0.0'
-            
+            console.log("release tag", tagName);
             let parts = tagName.split('.')
             let dummyEnd = parseInt(parts[2],10) + 1
             parts[2] = dummyEnd + ''
@@ -62,6 +62,8 @@ jobs:
 
       - name: Publish to crates registry
         run: |
+          cargo install cargo-bump
+          
           cargo publish -p plerkle_serialization --token $CARGO_TOKEN && true
           cargo publish -p plerkle_messenger --token $CARGO_TOKEN && true
           cargo publish -p plerkle --token $CARGO_TOKEN && true
