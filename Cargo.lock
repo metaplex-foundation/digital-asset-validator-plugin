@@ -2256,7 +2256,6 @@ dependencies = [
  "plerkle_serialization",
  "redis",
  "serde",
- "solana-geyser-plugin-interface",
  "thiserror",
  "tokio",
 ]

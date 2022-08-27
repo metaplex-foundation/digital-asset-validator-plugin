@@ -15,7 +15,7 @@ It is built on the following principles.
 ### Components
 1. Plerkle -> Geyser Plugin that sends raw information to a message bus using Messenger
 2. Messenger -> A message bus agnostic Messaging Library that sends Transaction, Account, Block and Slot updates in the Plerkle Serialization format.
-2. Plerkle Serialization -> FlatBuffers based serialization code and schemas. This is the wire-format of Plerkle.
+3. Plerkle Serialization -> FlatBuffers based serialization code and schemas. This is the wire-format of Plerkle.
 
 
 ## Developing
