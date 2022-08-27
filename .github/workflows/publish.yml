@@ -20,6 +20,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo
             })
+                        console.log("release tag", latestRelease);
             
             const tagName = latestRelease.tagName || '0.0.0'
             console.log("release tag", tagName);
