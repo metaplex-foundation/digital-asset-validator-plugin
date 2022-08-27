@@ -21,7 +21,7 @@ jobs:
               repo: context.repo.repo
             })
             
-            const tagName = latestRelease.data.body.tag_name || '0.0.0'
+            const tagName = latestRelease.data.tag_name || '0.0.0'
             console.log("release tag", tagName);
             let parts = tagName.split('.')
             let dummyEnd = parseInt(parts[2],10) + 1
