@@ -63,6 +63,7 @@ jobs:
       - name: Publish to crates registry
         run: |
           cargo install cargo-edit
+          echo ${{needs.publish.outputs.tag}}
           cargo set-version ${{needs.publish.outputs.tag}}
           cargo publish -p plerkle_serialization --token $CARGO_TOKEN && true
           cargo publish -p plerkle_messenger --token $CARGO_TOKEN && true
