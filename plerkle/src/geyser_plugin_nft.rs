@@ -38,6 +38,7 @@ use {
         sync::mpsc::{self as mpsc, Sender},
     },
 };
+use crate::metrics::safe_metric;
 
 struct SerializedData<'a> {
     stream: &'static str,
@@ -284,7 +285,9 @@ impl GeyserPlugin for Plerkle<'static> {
                     };
                     let _ = sender.send(data).await;
                 });
-                statsd_count!("account_seen_event", 1, "owner" => &owner);
+                safe_metric(|| {
+                    statsd_count!("account_seen_event", 1, "owner" => &owner);
+                });
             }
             _ => {
                 error!("Old Transaction Replica Object")
@@ -297,7 +300,9 @@ impl GeyserPlugin for Plerkle<'static> {
     fn notify_end_of_startup(
         &mut self,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
-        statsd_time!("startup.timer", self.started_at.unwrap().elapsed());
+        safe_metric(|| {
+            statsd_time!("startup.timer", self.started_at.unwrap().elapsed());
+        });
         info!("END OF STARTUP");
         Ok(())
     }
@@ -369,7 +374,9 @@ impl GeyserPlugin for Plerkle<'static> {
                     };
                     let _ = sender.send(data).await;
                 });
-                statsd_count!("transaction_seen_event", 1, "slot-idx" => &slt_idx);
+                safe_metric(|| {
+                    statsd_count!("transaction_seen_event", 1, "slot-idx" => &slt_idx);
+                })
             }
             _ => {
                 error!("Old Transaction Replica Object")

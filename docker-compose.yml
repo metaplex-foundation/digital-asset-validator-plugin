@@ -10,6 +10,7 @@ services:
       dockerfile: Solana.Dockerfile
     volumes:
       - ./ledger:/config:rw
+      - ./programs:/so/:ro
     environment:
       RUST_LOG: warn
       PLUGIN_CONFIG_RELOAD_TTL: 300

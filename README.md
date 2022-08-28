@@ -81,8 +81,16 @@ This repo contains a docker File that allows you to run an test the plerkle plug
 To test it you can build the container with```docker compose build .``` and run it with ```docker compose up```. 
 
 You will want to change the programs you are listening to in `./docker/runs.sh`. Once you spin up the validator send your transactions to the docker host as you would a normal RPC.
-If you want to add a custom program you will need to change `docker-compose.yml` to mount in a volume with your .so file of your built program and change `./docker/runs.sh` where you see the line that has
+
+Any program .so files you add to the /so/ file upon running the docker compose system will be added to the local validator.
+
+You need to name the so file what you want the public key to be:
 ```bash
- --bpf-program metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s /so/mpl_token_metadata.so
+metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s.so
+```
+This is because of this line in the ``docker-compose.yml`` file. 
+```yaml
+      - ./programs:/so/:ro
 ```
 
+You can comment this out if you dont want it.

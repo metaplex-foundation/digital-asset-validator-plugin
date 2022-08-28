@@ -19,3 +19,4 @@ test-ledger
 *.swp
 *error.log
 *iml
+programs
