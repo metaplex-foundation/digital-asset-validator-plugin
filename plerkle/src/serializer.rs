@@ -87,11 +87,7 @@ pub fn serialize_transaction<'a>(
     let account_keys = if account_keys_len > 0 {
         let mut account_keys_fb_vec = Vec::with_capacity(account_keys_len);
         for key in account_keys.iter() {
-            let key = builder.create_vector(&key.to_bytes());
-            let pubkey = transaction_info::Pubkey::create(
-                &mut builder,
-                &transaction_info::PubkeyArgs { key: Some(key) },
-            );
+            let pubkey = transaction_info::Pubkey::new(&key.to_bytes());
             account_keys_fb_vec.push(pubkey);
         }
         Some(builder.create_vector(&account_keys_fb_vec))
