@@ -12,6 +12,12 @@ jobs:
       tag: ${{steps.make-release.outputs.result}}
     steps:
       - uses: actions/checkout@v3
+        name: Build
+        run: |
+          cargo build
+        shell: bash
+        env:
+          CARGO_TOKEN: ${{ secrets.CARGO_TOKEN }}
       - uses: actions/github-script@v6
         id: make-release
         with:
@@ -62,9 +68,11 @@ jobs:
 
       - name: Publish to crates registry
         run: |
-          cargo publish -p plerkle_serialization --token $CARGO_TOKEN || true
-          cargo publish -p plerkle_messenger --token $CARGO_TOKEN || true
-          cargo publish -p plerkle --token $CARGO_TOKEN || true
+          cargo publish -p plerkle_serialization --token $CARGO_TOKEN --no-verify || true
+          sleep 30
+          cargo publish -p plerkle_messenger --token $CARGO_TOKEN --no-verify || true
+          sleep 30
+          cargo publish -p plerkle --token $CARGO_TOKEN --no-verify || true
         shell: bash
         env:
           CARGO_TOKEN: ${{ secrets.CARGO_TOKEN }}
