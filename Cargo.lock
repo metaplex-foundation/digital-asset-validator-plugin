@@ -2265,7 +2265,6 @@ name = "plerkle_serialization"
 version = "0.0.4"
 dependencies = [
  "flatbuffers",
- "solana-sdk",
 ]
 
 [[package]]
