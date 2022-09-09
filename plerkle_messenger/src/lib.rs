@@ -1,4 +1,3 @@
-extern crate core;
 mod redis_messenger;
 mod pulsar_messenger;
 

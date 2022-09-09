@@ -1,7 +1,9 @@
+use std::collections::BTreeMap;
 use crate::error::MessengerError;
 use async_trait::async_trait;
 use figment::value::{Dict, Value};
 use serde::Deserialize;
+
 #[cfg(feature = "redis")]
 use crate::RedisMessenger;
 #[cfg(feature = "pulsar")]
@@ -42,7 +44,7 @@ pub async fn select_messenger(config: MessengerConfig) -> Result<Box<dyn Messeng
     }
 }
 
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Debug, PartialEq, Clone)]
 pub enum MessengerType {
     Redis,
     Pulsar,
@@ -59,6 +61,19 @@ impl Default for MessengerType {
 pub struct MessengerConfig {
     pub messenger_type: MessengerType,
     pub connection_config: Dict,
+}
+
+impl Clone for MessengerConfig {
+    fn clone(&self) -> Self {
+        let mut d: BTreeMap<String, Value> = BTreeMap::new();
+        for (k,i) in self.connection_config.iter() {
+            d.insert(k.clone(),i.clone());
+        }
+        MessengerConfig {
+            messenger_type: self.messenger_type.clone(),
+            connection_config: d
+        }
+    }
 }
 
 impl MessengerConfig {
