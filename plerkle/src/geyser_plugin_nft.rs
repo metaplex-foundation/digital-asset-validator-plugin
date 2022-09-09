@@ -259,10 +259,11 @@ impl GeyserPlugin for Plerkle<'static> {
         slot: u64,
         is_startup: bool,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
+        let acct: ReplicaAccountInfoV2;
         let account = match account {
             ReplicaAccountInfoVersions::V0_0_2(a) => a,
             ReplicaAccountInfoVersions::V0_0_1(a) => {
-                &ReplicaAccountInfoV2 {
+                acct = ReplicaAccountInfoV2 {
                     pubkey: a.pubkey,
                     lamports: a.lamports,
                     owner: a.owner,
@@ -271,7 +272,8 @@ impl GeyserPlugin for Plerkle<'static> {
                     data: a.data,
                     write_version: a.write_version,
                     txn_signature: None,
-                }
+                };
+                &acct
             }
         };
 
@@ -347,16 +349,18 @@ impl GeyserPlugin for Plerkle<'static> {
         transaction_info: ReplicaTransactionInfoVersions,
         slot: u64,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
+        let rep: ReplicaTransactionInfoV2;
         let transaction_info = match transaction_info {
             ReplicaTransactionInfoVersions::V0_0_2(ti) => ti,
             ReplicaTransactionInfoVersions::V0_0_1(ti) => {
-                &ReplicaTransactionInfoV2 {
+                rep = ReplicaTransactionInfoV2 {
                     signature: ti.signature,
                     is_vote: ti.is_vote,
                     transaction: ti.transaction,
                     transaction_status_meta: ti.transaction_status_meta,
                     index: 0,
-                }
+                };
+                &rep
             }
         };
 
@@ -395,7 +399,7 @@ impl GeyserPlugin for Plerkle<'static> {
         });
         safe_metric(|| {
             statsd_count!("transaction_seen_event", 1, "slot-idx" => &slt_idx);
-        })
+        });
 
         Ok(())
     }
