@@ -13,6 +13,7 @@ pub mod transaction_info {
 
   use core::mem;
   use core::cmp::Ordering;
+  use flatbuffers::VerifierOptions;
 
   extern crate flatbuffers;
   use self::flatbuffers::{EndianScalar, Follow};

@@ -1,3 +1,4 @@
+use solana_geyser_plugin_interface::geyser_plugin_interface::{ReplicaAccountInfoV2, ReplicaTransactionInfo, ReplicaTransactionInfoV2};
 use {
     crate::{
         accounts_selector::AccountsSelector,
@@ -258,41 +259,51 @@ impl GeyserPlugin for Plerkle<'static> {
         slot: u64,
         is_startup: bool,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
-        match account {
-            ReplicaAccountInfoVersions::V0_0_2(account) => {
-                // Check if account was selected in config.
-                if let Some(accounts_selector) = &self.accounts_selector {
-                    if !accounts_selector.is_account_selected(account.pubkey, account.owner) {
-                        return Ok(());
-                    }
-                } else {
-                    return Ok(());
-                }
-
-                // Get runtime and sender channel.
-                let runtime = self.get_runtime()?;
-                let sender = self.get_sender_clone()?;
-
-                // Serialize data.
-                let builder = FlatBufferBuilder::new();
-                let builder = serialize_account(builder, &account, slot, is_startup);
-                let owner = bs58::encode(account.owner).into_string();
-                // Send account info over channel.
-                runtime.spawn(async move {
-                    let data = SerializedData {
-                        stream: ACCOUNT_STREAM,
-                        builder,
-                    };
-                    let _ = sender.send(data).await;
-                });
-                safe_metric(|| {
-                    statsd_count!("account_seen_event", 1, "owner" => &owner);
-                });
+        let acct: ReplicaAccountInfoV2;
+        let account = match account {
+            ReplicaAccountInfoVersions::V0_0_2(a) => a,
+            ReplicaAccountInfoVersions::V0_0_1(a) => {
+                acct = ReplicaAccountInfoV2 {
+                    pubkey: a.pubkey,
+                    lamports: a.lamports,
+                    owner: a.owner,
+                    executable: a.executable,
+                    rent_epoch: a.rent_epoch,
+                    data: a.data,
+                    write_version: a.write_version,
+                    txn_signature: None,
+                };
+                &acct
             }
-            _ => {
-                error!("Old Transaction Replica Object")
+        };
+
+        if let Some(accounts_selector) = &self.accounts_selector {
+            if !accounts_selector.is_account_selected(account.pubkey, account.owner) {
+                return Ok(());
             }
+        } else {
+            return Ok(());
         }
+
+        // Get runtime and sender channel.
+        let runtime = self.get_runtime()?;
+        let sender = self.get_sender_clone()?;
+
+        // Serialize data.
+        let builder = FlatBufferBuilder::new();
+        let builder = serialize_account(builder, &account, slot, is_startup);
+        let owner = bs58::encode(account.owner).into_string();
+        // Send account info over channel.
+        runtime.spawn(async move {
+            let data = SerializedData {
+                stream: ACCOUNT_STREAM,
+                builder,
+            };
+            let _ = sender.send(data).await;
+        });
+        safe_metric(|| {
+            statsd_count!("account_seen_event", 1, "owner" => &owner);
+        });
 
         Ok(())
     }
@@ -338,50 +349,57 @@ impl GeyserPlugin for Plerkle<'static> {
         transaction_info: ReplicaTransactionInfoVersions,
         slot: u64,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
-        match transaction_info {
-            ReplicaTransactionInfoVersions::V0_0_2(transaction_info) => {
-                // Don't log votes or transactions with error status.
-                if transaction_info.is_vote
-                    || transaction_info.transaction_status_meta.status.is_err()
-                {
-                    return Ok(());
-                }
-
-                // Check if transaction was selected in config.
-                if let Some(transaction_selector) = &self.transaction_selector {
-                    if !transaction_selector.is_transaction_selected(
-                        transaction_info.is_vote,
-                        Box::new(transaction_info.transaction.message().account_keys().iter()),
-                    ) {
-                        return Ok(());
-                    }
-                } else {
-                    return Ok(());
-                }
-                // Get runtime and sender channel.
-                let runtime = self.get_runtime()?;
-                let sender = self.get_sender_clone()?;
-
-                // Serialize data.
-                let builder = FlatBufferBuilder::new();
-                let builder = serialize_transaction(builder, transaction_info, slot);
-                let slt_idx = format!("{}-{}", slot, transaction_info.index);
-                // Send transaction info over channel.
-                runtime.spawn(async move {
-                    let data = SerializedData {
-                        stream: TRANSACTION_STREAM,
-                        builder,
-                    };
-                    let _ = sender.send(data).await;
-                });
-                safe_metric(|| {
-                    statsd_count!("transaction_seen_event", 1, "slot-idx" => &slt_idx);
-                })
+        let rep: ReplicaTransactionInfoV2;
+        let transaction_info = match transaction_info {
+            ReplicaTransactionInfoVersions::V0_0_2(ti) => ti,
+            ReplicaTransactionInfoVersions::V0_0_1(ti) => {
+                rep = ReplicaTransactionInfoV2 {
+                    signature: ti.signature,
+                    is_vote: ti.is_vote,
+                    transaction: ti.transaction,
+                    transaction_status_meta: ti.transaction_status_meta,
+                    index: 0,
+                };
+                &rep
             }
-            _ => {
-                error!("Old Transaction Replica Object")
-            }
+        };
+
+        if transaction_info.is_vote
+            || transaction_info.transaction_status_meta.status.is_err()
+        {
+            return Ok(());
         }
+
+        // Check if transaction was selected in config.
+        if let Some(transaction_selector) = &self.transaction_selector {
+            if !transaction_selector.is_transaction_selected(
+                transaction_info.is_vote,
+                Box::new(transaction_info.transaction.message().account_keys().iter()),
+            ) {
+                return Ok(());
+            }
+        } else {
+            return Ok(());
+        }
+        // Get runtime and sender channel.
+        let runtime = self.get_runtime()?;
+        let sender = self.get_sender_clone()?;
+
+        // Serialize data.
+        let builder = FlatBufferBuilder::new();
+        let builder = serialize_transaction(builder, transaction_info, slot);
+        let slt_idx = format!("{}-{}", slot, transaction_info.index);
+        // Send transaction info over channel.
+        runtime.spawn(async move {
+            let data = SerializedData {
+                stream: TRANSACTION_STREAM,
+                builder,
+            };
+            let _ = sender.send(data).await;
+        });
+        safe_metric(|| {
+            statsd_count!("transaction_seen_event", 1, "slot-idx" => &slt_idx);
+        });
 
         Ok(())
     }
