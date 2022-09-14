@@ -2213,7 +2213,7 @@ checksum = "1df8c4ec4b0627e53bdf214615ad287367e482558cf84b109250b37464dc03ae"
 
 [[package]]
 name = "plerkle"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "async-trait",
  "base64 0.13.0",
@@ -2262,7 +2262,7 @@ dependencies = [
 
 [[package]]
 name = "plerkle_serialization"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "flatbuffers",
 ]
