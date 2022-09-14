@@ -2,6 +2,7 @@
 use crate::{error::MessengerError, Messenger, MessengerConfig, MessengerType};
 use async_trait::async_trait;
 use log::*;
+use serde::Deserialize;
 use redis::{
     aio::AsyncStream,
     streams::{StreamId, StreamKey, StreamMaxlen, StreamReadOptions, StreamReadReply},

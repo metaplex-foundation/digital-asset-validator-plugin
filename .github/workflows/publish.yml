@@ -48,9 +48,12 @@ jobs:
             if(breaking) {
               let d = parseInt(parts[0],10) + 1
               parts[0] = d + ''
+              parts[1] = 0 + ''
+              parts[2] = 0 + ''
             } else if(feat) {
               let d = parseInt(parts[1],10) + 1
               parts[1] = d + ''
+              parts[2] = 0 + ''
             } else {
               let d = parseInt(parts[2],10) + 1
               parts[2] = d + ''
