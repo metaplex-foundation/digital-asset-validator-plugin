@@ -1,4 +1,5 @@
-use {log::*, std::collections::HashSet};
+use log::*;
+use std::collections::HashSet;
 
 #[derive(Debug)]
 pub(crate) struct AccountsSelector {

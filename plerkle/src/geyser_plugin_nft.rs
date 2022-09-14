@@ -1,45 +1,40 @@
-use solana_geyser_plugin_interface::geyser_plugin_interface::{ReplicaAccountInfoV2, ReplicaTransactionInfo, ReplicaTransactionInfoV2};
-use {
-    crate::{
-        accounts_selector::AccountsSelector,
-        error::PlerkleError,
-        serializer::{
-            serialize_account, serialize_block, serialize_slot_status, serialize_transaction,
-        },
-        transaction_selector::TransactionSelector,
+use crate::{
+    accounts_selector::AccountsSelector,
+    error::PlerkleError,
+    metrics::safe_metric,
+    serializer::{
+        serialize_account, serialize_block, serialize_slot_status, serialize_transaction,
     },
-    cadence::BufferedUdpMetricSink,
-    cadence::QueuingMetricSink,
-    cadence::StatsdClient,
-    cadence_macros::*,
-    figment::{providers::Env, Figment},
-    flatbuffers::FlatBufferBuilder,
-    log::*,
-    plerkle_messenger::MessengerConfig,
-    plerkle_messenger::{
-        select_messenger,
-        Messenger, ACCOUNT_STREAM, BLOCK_STREAM, SLOT_STREAM, TRANSACTION_STREAM,
-    },
-    serde::Deserialize,
-    solana_geyser_plugin_interface::geyser_plugin_interface::{
-        GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions, ReplicaBlockInfoVersions,
-        ReplicaTransactionInfoVersions, Result, SlotStatus,
-    },
-    solana_sdk::{message::AccountKeys, pubkey::Pubkey},
-    std::net::UdpSocket,
-    std::{
-        fmt::{Debug, Formatter},
-        fs::File,
-        io::Read,
-    },
-    tokio::{
-        self as tokio,
-        time::Instant,
-        runtime::{Builder, Runtime},
-        sync::mpsc::{self as mpsc, Sender},
-    },
+    transaction_selector::TransactionSelector,
 };
-use crate::metrics::safe_metric;
+use cadence::{BufferedUdpMetricSink, QueuingMetricSink, StatsdClient};
+use cadence_macros::*;
+use figment::{providers::Env, Figment};
+use flatbuffers::FlatBufferBuilder;
+use log::*;
+use plerkle_messenger::{
+    select_messenger, Messenger, MessengerConfig, ACCOUNT_STREAM, BLOCK_STREAM, SLOT_STREAM,
+    TRANSACTION_STREAM,
+};
+use serde::Deserialize;
+use solana_geyser_plugin_interface::geyser_plugin_interface::{
+    GeyserPlugin, GeyserPluginError, ReplicaAccountInfoV2, ReplicaAccountInfoVersions,
+    ReplicaBlockInfoVersions, ReplicaTransactionInfoV2,
+    ReplicaTransactionInfoVersions, Result, SlotStatus,
+};
+use solana_sdk::{message::AccountKeys, pubkey::Pubkey};
+use std::{
+    fmt::{Debug, Formatter},
+    fs::File,
+    io::Read,
+    net::UdpSocket,
+};
+use tokio::{
+    self as tokio,
+    runtime::{Builder, Runtime},
+    sync::mpsc::{self as mpsc, Sender},
+    time::Instant,
+};
 
 struct SerializedData<'a> {
     stream: &'static str,
@@ -364,9 +359,7 @@ impl GeyserPlugin for Plerkle<'static> {
             }
         };
 
-        if transaction_info.is_vote
-            || transaction_info.transaction_status_meta.status.is_err()
-        {
+        if transaction_info.is_vote || transaction_info.transaction_status_meta.status.is_err() {
             return Ok(());
         }
 

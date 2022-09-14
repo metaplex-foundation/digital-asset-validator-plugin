@@ -1,6 +1,6 @@
 // Flatbuffer IDL for Slot Status Info schema.
 
-namespace SlotStatusInfo;
+
 
 enum Status:byte { Processed, Rooted, Confirmed }
 

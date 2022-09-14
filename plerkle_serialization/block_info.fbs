@@ -1,6 +1,6 @@
 // Flatbuffer IDL for Block Info schema.
 
-namespace BlockInfo;
+
 
 enum RewardType:uint8 {
     Fee,

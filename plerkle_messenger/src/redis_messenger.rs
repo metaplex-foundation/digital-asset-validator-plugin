@@ -1,20 +1,17 @@
 #![cfg(feature = "redis")]
-use {
-    crate::{error::MessengerError, Messenger, MessengerConfig},
-    async_trait::async_trait,
-    log::*,
-    redis::{
-        aio::AsyncStream,
-        streams::{StreamId, StreamKey, StreamMaxlen, StreamReadOptions, StreamReadReply},
-        AsyncCommands, RedisResult, Value,
-    },
-    std::{
-        collections::HashMap,
-        fmt::{Debug, Formatter},
-        pin::Pin,
-    },
+use crate::{error::MessengerError, Messenger, MessengerConfig, MessengerType};
+use async_trait::async_trait;
+use log::*;
+use redis::{
+    aio::AsyncStream,
+    streams::{StreamId, StreamKey, StreamMaxlen, StreamReadOptions, StreamReadReply},
+    AsyncCommands, RedisResult, Value,
 };
-use crate::MessengerType;
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Formatter},
+    pin::Pin,
+};
 
 // Redis stream values.
 pub const GROUP_NAME: &str = "plerkle";
