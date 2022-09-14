@@ -1,22 +1,19 @@
 #![cfg(feature = "pulsar")]
-use {
-    crate::{error::MessengerError, Messenger, MessengerConfig},
-    async_mutex::Mutex,
-    async_trait::async_trait,
-    futures::TryStreamExt,
-    log::*,
-    metaplex_pulsar::{
-        authentication::oauth2::{OAuth2Authentication, OAuth2Params},
-        consumer::Message,
-        Authentication, Consumer, Producer, Pulsar, TokioExecutor,
-    },
-    std::sync::Arc,
-    std::{
-        collections::HashMap,
-        fmt::{Debug, Formatter},
-    },
+use crate::{error::MessengerError, Messenger, MessengerConfig, MessengerType};
+use async_mutex::Mutex;
+use async_trait::async_trait;
+use futures::TryStreamExt;
+use log::*;
+use metaplex_pulsar::{
+    authentication::oauth2::{OAuth2Authentication, OAuth2Params},
+    consumer::Message,
+    Authentication, Consumer, Producer, Pulsar, TokioExecutor,
 };
-use crate::MessengerType;
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Formatter},
+    sync::Arc,
+};
 
 #[derive(Default)]
 pub struct PulsarMessenger {

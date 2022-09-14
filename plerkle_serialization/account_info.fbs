@@ -1,6 +1,6 @@
 // Flatbuffer IDL for Account Info schema.
 
-namespace AccountInfo;
+
 
 table AccountInfo {
   pubkey:[uint8];

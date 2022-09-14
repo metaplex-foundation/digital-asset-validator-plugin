@@ -1,13 +1,14 @@
 // Flatbuffer IDL for selected Transaction Info schema.
+include "./compiled_instruction.fbs";
 
-namespace TransactionInfo;
+
 
 table TransactionInfo {
   is_vote: bool;
   account_keys:[Pubkey];
   log_messages:[string];
   inner_instructions:[InnerInstructions];
-  outer_instructions:[CompiledInstruction];
+  outer_instructions: [CompiledInstruction];
   slot: uint64;
   slot_index: string;
   seen_at: int64;
@@ -17,20 +18,11 @@ struct Pubkey {
     key:[uint8:32];
 }
 
-table CompiledInstruction {
-    // Index into the transaction keys array indicating the program account that executes this instruction.
-    program_id_index:uint8;
-    // Ordered indices into the transaction keys array indicating which accounts to pass to the program.
-    accounts:[uint8];
-    // The program input data.
-    data:[uint8];
-}
-
 table InnerInstructions {
     // Transaction instruction index.
     index:uint8;
     // List of inner instructions.
-    instructions:[CompiledInstruction];
+    instructions: [CompiledInstruction];
 }
 
 root_type TransactionInfo;

@@ -1,0 +1,13 @@
+
+
+table CompiledInstruction {
+    // Index into the transaction keys array indicating the program account that executes this instruction.
+    program_id_index:uint8;
+    // Ordered indices into the transaction keys array indicating which accounts to pass to the program.
+    accounts:[uint8];
+    // The program input data.
+    data:[uint8];
+}
+
+
+root_type CompiledInstruction;

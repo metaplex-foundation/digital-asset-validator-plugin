@@ -1,19 +1,15 @@
-use {
-    chrono::{Utc},
-    flatbuffers::FlatBufferBuilder,
-    plerkle_serialization::{
-        account_info_generated::account_info::{AccountInfo, AccountInfoArgs},
-        block_info_generated,
-        slot_status_info_generated::slot_status_info::{self, SlotStatusInfo, SlotStatusInfoArgs},
-        transaction_info_generated::transaction_info::{
-            self, TransactionInfo, TransactionInfoArgs,
-        },
-    },
-    solana_geyser_plugin_interface::geyser_plugin_interface::{
-        ReplicaAccountInfoV2, ReplicaBlockInfo, ReplicaTransactionInfoV2, SlotStatus,
-    },
-    solana_runtime::bank::RewardType,
+use chrono::Utc;
+use flatbuffers::FlatBufferBuilder;
+use plerkle_serialization::{
+    AccountInfo, AccountInfoArgs, BlockInfo, BlockInfoArgs, CompiledInstruction,
+    CompiledInstructionArgs, InnerInstructions, InnerInstructionsArgs, Pubkey as FBPubkey, Reward,
+    RewardArgs, RewardType as FBRewardType, SlotStatusInfo, SlotStatusInfoArgs,
+    Status as FBSlotStatus, TransactionInfo, TransactionInfoArgs,
 };
+use solana_geyser_plugin_interface::geyser_plugin_interface::{
+    ReplicaAccountInfoV2, ReplicaBlockInfo, ReplicaTransactionInfoV2, SlotStatus,
+};
+use solana_runtime::bank::RewardType;
 
 pub fn serialize_account<'a>(
     mut builder: FlatBufferBuilder<'a>,
@@ -55,9 +51,9 @@ pub fn serialize_slot_status<'a>(
 ) -> FlatBufferBuilder<'a> {
     // Convert to flatbuffer enum.
     let status = match status {
-        SlotStatus::Confirmed => slot_status_info::Status::Confirmed,
-        SlotStatus::Processed => slot_status_info::Status::Processed,
-        SlotStatus::Rooted => slot_status_info::Status::Rooted,
+        SlotStatus::Confirmed => FBSlotStatus::Confirmed,
+        SlotStatus::Processed => FBSlotStatus::Processed,
+        SlotStatus::Rooted => FBSlotStatus::Rooted,
     };
 
     // Serialize everything into Slot Status Info table.
@@ -87,7 +83,7 @@ pub fn serialize_transaction<'a>(
     let account_keys = if account_keys_len > 0 {
         let mut account_keys_fb_vec = Vec::with_capacity(account_keys_len);
         for key in account_keys.iter() {
-            let pubkey = transaction_info::Pubkey::new(&key.to_bytes());
+            let pubkey = FBPubkey::new(&key.to_bytes());
             account_keys_fb_vec.push(pubkey);
         }
         Some(builder.create_vector(&account_keys_fb_vec))
@@ -124,9 +120,9 @@ pub fn serialize_transaction<'a>(
                 let program_id_index = compiled_instruction.program_id_index;
                 let accounts = Some(builder.create_vector(&compiled_instruction.accounts));
                 let data = Some(builder.create_vector(&compiled_instruction.data));
-                instructions_fb_vec.push(transaction_info::CompiledInstruction::create(
+                instructions_fb_vec.push(CompiledInstruction::create(
                     &mut builder,
-                    &transaction_info::CompiledInstructionArgs {
+                    &CompiledInstructionArgs {
                         program_id_index,
                         accounts,
                         data,
@@ -135,9 +131,9 @@ pub fn serialize_transaction<'a>(
             }
 
             let instructions = Some(builder.create_vector(&instructions_fb_vec));
-            overall_fb_vec.push(transaction_info::InnerInstructions::create(
+            overall_fb_vec.push(InnerInstructions::create(
                 &mut builder,
-                &transaction_info::InnerInstructionsArgs {
+                &InnerInstructionsArgs {
                     index,
                     instructions,
                 },
@@ -157,9 +153,9 @@ pub fn serialize_transaction<'a>(
             let program_id_index = compiled_instruction.program_id_index;
             let accounts = Some(builder.create_vector(&compiled_instruction.accounts));
             let data = Some(builder.create_vector(&compiled_instruction.data));
-            instructions_fb_vec.push(transaction_info::CompiledInstruction::create(
+            instructions_fb_vec.push(CompiledInstruction::create(
                 &mut builder,
-                &transaction_info::CompiledInstructionArgs {
+                &CompiledInstructionArgs {
                     program_id_index,
                     accounts,
                     data,
@@ -209,14 +205,10 @@ pub fn serialize_block<'a>(
 
             let reward_type = if let Some(reward) = reward.reward_type {
                 match reward {
-                    RewardType::Fee => Some(block_info_generated::block_info::RewardType::Fee),
-                    RewardType::Rent => Some(block_info_generated::block_info::RewardType::Rent),
-                    RewardType::Staking => {
-                        Some(block_info_generated::block_info::RewardType::Staking)
-                    }
-                    RewardType::Voting => {
-                        Some(block_info_generated::block_info::RewardType::Voting)
-                    }
+                    RewardType::Fee => Some(FBRewardType::Fee),
+                    RewardType::Rent => Some(FBRewardType::Rent),
+                    RewardType::Staking => Some(FBRewardType::Staking),
+                    RewardType::Voting => Some(FBRewardType::Voting),
                 }
             } else {
                 None
@@ -224,9 +216,9 @@ pub fn serialize_block<'a>(
 
             let commission = reward.commission;
 
-            rewards_fb_vec.push(block_info_generated::block_info::Reward::create(
+            rewards_fb_vec.push(Reward::create(
                 &mut builder,
-                &block_info_generated::block_info::RewardArgs {
+                &RewardArgs {
                     pubkey,
                     lamports,
                     post_balance,
@@ -241,9 +233,9 @@ pub fn serialize_block<'a>(
     };
 
     // Serialize everything into Block Info table.
-    let block_info = block_info_generated::block_info::BlockInfo::create(
+    let block_info = BlockInfo::create(
         &mut builder,
-        &block_info_generated::block_info::BlockInfoArgs {
+        &BlockInfoArgs {
             slot: block_info.slot,
             blockhash,
             rewards,
