@@ -2,9 +2,6 @@ use crate::{
     accounts_selector::AccountsSelector,
     error::PlerkleError,
     metrics::safe_metric,
-    serializer::{
-        serialize_account, serialize_block, serialize_slot_status, serialize_transaction,
-    },
     transaction_selector::TransactionSelector,
 };
 use cadence::{BufferedUdpMetricSink, QueuingMetricSink, StatsdClient};
@@ -18,8 +15,8 @@ use plerkle_messenger::{
 };
 use serde::Deserialize;
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
-    GeyserPlugin, GeyserPluginError, ReplicaAccountInfoV2, ReplicaAccountInfoVersions,
-    ReplicaBlockInfoVersions, ReplicaTransactionInfoV2,
+    GeyserPlugin, GeyserPluginError, ReplicaAccountInfo, ReplicaAccountInfoVersions,
+    ReplicaBlockInfoVersions, ReplicaTransactionInfo,
     ReplicaTransactionInfoVersions, Result, SlotStatus,
 };
 use solana_sdk::{message::AccountKeys, pubkey::Pubkey};
@@ -35,6 +32,7 @@ use tokio::{
     sync::mpsc::{self as mpsc, Sender},
     time::Instant,
 };
+use plerkle_serialization::serializer::{serialize_account, serialize_block, serialize_slot_status, serialize_transaction};
 
 struct SerializedData<'a> {
     stream: &'static str,
@@ -254,11 +252,11 @@ impl GeyserPlugin for Plerkle<'static> {
         slot: u64,
         is_startup: bool,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
-        let acct: ReplicaAccountInfoV2;
+        let acct: ReplicaAccountInfo;
         let account = match account {
-            ReplicaAccountInfoVersions::V0_0_2(a) => a,
+           // ReplicaAccountInfoVersions::V0_0_2(a) => a, removed because dependency hell
             ReplicaAccountInfoVersions::V0_0_1(a) => {
-                acct = ReplicaAccountInfoV2 {
+                acct = ReplicaAccountInfo {
                     pubkey: a.pubkey,
                     lamports: a.lamports,
                     owner: a.owner,
@@ -266,7 +264,6 @@ impl GeyserPlugin for Plerkle<'static> {
                     rent_epoch: a.rent_epoch,
                     data: a.data,
                     write_version: a.write_version,
-                    txn_signature: None,
                 };
                 &acct
             }
@@ -344,16 +341,15 @@ impl GeyserPlugin for Plerkle<'static> {
         transaction_info: ReplicaTransactionInfoVersions,
         slot: u64,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
-        let rep: ReplicaTransactionInfoV2;
+        let rep: ReplicaTransactionInfo;
         let transaction_info = match transaction_info {
-            ReplicaTransactionInfoVersions::V0_0_2(ti) => ti,
+            // ReplicaTransactionInfoVersions::V0_0_2(ti) => ti,
             ReplicaTransactionInfoVersions::V0_0_1(ti) => {
-                rep = ReplicaTransactionInfoV2 {
+                rep = ReplicaTransactionInfo {
                     signature: ti.signature,
                     is_vote: ti.is_vote,
                     transaction: ti.transaction,
                     transaction_status_meta: ti.transaction_status_meta,
-                    index: 0,
                 };
                 &rep
             }
@@ -381,7 +377,7 @@ impl GeyserPlugin for Plerkle<'static> {
         // Serialize data.
         let builder = FlatBufferBuilder::new();
         let builder = serialize_transaction(builder, transaction_info, slot);
-        let slt_idx = format!("{}-{}", slot, transaction_info.index);
+        let slt_idx = format!("{}-{}", slot, 0);
         // Send transaction info over channel.
         runtime.spawn(async move {
             let data = SerializedData {

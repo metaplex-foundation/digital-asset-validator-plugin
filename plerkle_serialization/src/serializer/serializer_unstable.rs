@@ -1,14 +1,12 @@
 use chrono::Utc;
 use flatbuffers::FlatBufferBuilder;
-use plerkle_serialization::{
+use crate::{
     AccountInfo, AccountInfoArgs, BlockInfo, BlockInfoArgs, CompiledInstruction,
     CompiledInstructionArgs, InnerInstructions, InnerInstructionsArgs, Pubkey as FBPubkey, Reward,
     RewardArgs, RewardType as FBRewardType, SlotStatusInfo, SlotStatusInfoArgs,
     Status as FBSlotStatus, TransactionInfo, TransactionInfoArgs,
 };
-use solana_geyser_plugin_interface::geyser_plugin_interface::{
-    ReplicaAccountInfoV2, ReplicaBlockInfo, ReplicaTransactionInfoV2, SlotStatus,
-};
+
 use solana_runtime::bank::RewardType;
 
 pub fn serialize_account<'a>(
@@ -92,10 +90,9 @@ pub fn serialize_transaction<'a>(
     };
 
     // Serialize log messages.
-    let log_messages = if let Some(log_messages) = transaction_info
+    let log_messages = if let Some(log_messages) = &transaction_info
         .transaction_status_meta
         .log_messages
-        .as_ref()
     {
         let mut log_messages_fb_vec = Vec::with_capacity(log_messages.len());
         for message in log_messages {
