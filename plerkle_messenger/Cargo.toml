@@ -9,8 +9,8 @@ edition = "2021"
 readme = "Readme.md"
 
 [dependencies]
-redis = { version = "0.21.5", features = ["aio", "tokio-comp", "streams"], optional = true }
-metaplex-pulsar = { version = "4.1.1", optional = true }
+redis = { version = "0.21.5", features = ["aio", "tokio-comp", "streams"], optional = true}
+metaplex-pulsar = { version = "4.1.1", optional = true}
 log = "0.4.11"
 thiserror = "1.0.30"
 async-trait = "0.1.53"
@@ -22,10 +22,7 @@ serde = "1.0.137"
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
-[features]
-default = ["redis"]
-redis = ["dep:redis"]
-pulsar = ["dep:metaplex-pulsar"]
+
 
 [dev-dependencies]
 tokio = { version = "1.20.1", features = ["full"] }
