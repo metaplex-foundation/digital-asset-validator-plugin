@@ -1,4 +1,4 @@
-FROM solanalabs/solana:v1.11.3 as builder
+FROM solanalabs/solana:v1.10.38 as builder
 RUN apt-get update \
       && apt-get -y install \
            wget \
@@ -22,7 +22,7 @@ COPY plerkle /rust/plerkle
 WORKDIR /rust/plerkle
 RUN cargo build
 
-FROM solanalabs/solana:v1.11.3
+FROM solanalabs/solana:v1.10.38
 COPY --from=builder /rust/plerkle/target/debug/libplerkle.so /plugin/plugin.so
 COPY ./docker .
 RUN chmod +x ./*.sh
