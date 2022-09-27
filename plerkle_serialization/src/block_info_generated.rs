@@ -96,7 +96,6 @@ impl<'a> flatbuffers::Verifiable for RewardType {
         v: &mut flatbuffers::Verifier,
         pos: usize,
     ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
-        use self::flatbuffers::Verifiable;
         u8::run_verifier(v, pos)
     }
 }
