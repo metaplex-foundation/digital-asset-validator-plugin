@@ -8,13 +8,12 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-
+  IMAGE_NAME: plerkle-test-validator
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: buildjet-4vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v2
-
       - name: Set rust version
         run: |
           source ci/rust-version.sh
@@ -49,7 +48,16 @@ jobs:
 
       - name: Build release tarball
         run: ./ci/create-tarball.sh
-
+      - name: Publish to crates registry
+        run: |
+          cargo publish -p plerkle_serialization --token $CARGO_TOKEN --no-verify || true
+          sleep 30
+          cargo publish -p plerkle_messenger --token $CARGO_TOKEN --no-verify || true
+          sleep 30
+          cargo publish -p plerkle --token $CARGO_TOKEN --no-verify || true
+        shell: bash
+        env:
+          CARGO_TOKEN: ${{ secrets.CARGO_TOKEN }}
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -60,4 +68,26 @@ jobs:
             rust ${{ env.RUST_STABLE }}
           files: |
             ${{ env.GEYSER_PLUGIN_NAME }}-release-*
-
+  push:
+    runs-on: ubuntu-latest
+    needs: release
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build image
+        run: docker build . --file Solana.Dockerfile --tag $IMAGE_NAME --label 'runnumber=${GITHUB_RUN_ID}'
+      - name: Log in to registry
+        run: echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u $ --password-stdin
+      - name: Push image
+        run: |
+          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
+          # Change all uppercase to lowercase
+          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
+          # Strip git ref prefix from version
+          VERSION=${{ env.CI_TAG }}
+          echo IMAGE_ID=$IMAGE_ID
+          echo VERSION=$VERSION
+          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
+          docker push $IMAGE_ID:$VERSION

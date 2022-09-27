@@ -3,17 +3,20 @@
 
 on:
   push:
+    branches:
+      - main
   pull_request:
+    branches:
+      - main
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: buildjet-4vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v2
-
       - name: Set rust version
         run: |
           source ci/rust-version.sh
