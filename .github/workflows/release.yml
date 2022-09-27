@@ -88,11 +88,12 @@ jobs:
         run: echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u $ --password-stdin
       - name: Push image
         run: |
+          echo "CI_TAG=${GITHUB_REF#refs/*/}" 
           IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
           # Change all uppercase to lowercase
           IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
           # Strip git ref prefix from version
-          VERSION=${{ env.CI_TAG }}
+          VERSION=$CI_TAG
           echo IMAGE_ID=$IMAGE_ID
           echo VERSION=$VERSION
           docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
