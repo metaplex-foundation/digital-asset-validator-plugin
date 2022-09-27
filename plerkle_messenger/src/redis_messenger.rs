@@ -2,12 +2,12 @@
 use crate::{error::MessengerError, Messenger, MessengerConfig, MessengerType};
 use async_trait::async_trait;
 use log::*;
-use serde::Deserialize;
 use redis::{
     aio::AsyncStream,
     streams::{StreamId, StreamKey, StreamMaxlen, StreamReadOptions, StreamReadReply},
     AsyncCommands, RedisResult, Value,
 };
+
 use std::{
     collections::HashMap,
     fmt::{Debug, Formatter},
@@ -157,7 +157,7 @@ impl Messenger for RedisMessenger {
         for StreamKey { key, ids } in self.stream_read_reply.keys.iter() {
             if key == stream_key {
                 for StreamId { id, map } in ids {
-                    let pid = id.replace("-", "").parse::<i64>().unwrap();
+                    let pid = id.replace('-', "").parse::<i64>().unwrap();
 
                     // Get data from map.
                     let data = if let Some(data) = map.get(DATA_KEY) {
@@ -174,7 +174,7 @@ impl Messenger for RedisMessenger {
                         }
                     };
 
-                    data_vec.push((pid, &bytes));
+                    data_vec.push((pid, bytes));
                 }
             }
         }

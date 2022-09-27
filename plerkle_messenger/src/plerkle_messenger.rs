@@ -46,7 +46,7 @@ pub async fn select_messenger(
     }
 }
 
-#[derive(Deserialize, Debug, PartialEq, Clone)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum MessengerType {
     Redis,
     Pulsar,

@@ -2,13 +2,12 @@
 
 use crate::compiled_instruction_generated::*;
 
-
 extern crate flatbuffers;
-use self::flatbuffers::{Follow};
+use self::flatbuffers::Follow;
 
 // struct Pubkey, aligned to 1
 #[repr(transparent)]
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Pubkey(pub [u8; 32]);
 impl Default for Pubkey {
     fn default() -> Self {
@@ -65,7 +64,6 @@ impl<'a> flatbuffers::Verifiable for Pubkey {
         v: &mut flatbuffers::Verifier,
         pos: usize,
     ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
-        
         v.in_buffer::<Self>(pos)
     }
 }
@@ -210,7 +208,6 @@ impl flatbuffers::Verifiable for TransactionInfo<'_> {
         v: &mut flatbuffers::Verifier,
         pos: usize,
     ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
-        
         v.visit_table(pos)?
             .visit_field::<bool>("is_vote", Self::VT_IS_VOTE, false)?
             .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, Pubkey>>>(
@@ -437,7 +434,6 @@ impl flatbuffers::Verifiable for InnerInstructions<'_> {
         v: &mut flatbuffers::Verifier,
         pos: usize,
     ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
-        
         v.visit_table(pos)?
             .visit_field::<u8>("index", Self::VT_INDEX, false)?
             .visit_field::<flatbuffers::ForwardsUOffset<

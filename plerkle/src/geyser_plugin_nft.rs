@@ -1,7 +1,5 @@
 use crate::{
-    accounts_selector::AccountsSelector,
-    error::PlerkleError,
-    metrics::safe_metric,
+    accounts_selector::AccountsSelector, error::PlerkleError, metrics::safe_metric,
     transaction_selector::TransactionSelector,
 };
 use cadence::{BufferedUdpMetricSink, QueuingMetricSink, StatsdClient};
@@ -13,11 +11,14 @@ use plerkle_messenger::{
     select_messenger, Messenger, MessengerConfig, ACCOUNT_STREAM, BLOCK_STREAM, SLOT_STREAM,
     TRANSACTION_STREAM,
 };
+use plerkle_serialization::serializer::{
+    serialize_account, serialize_block, serialize_slot_status, serialize_transaction,
+};
 use serde::Deserialize;
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
     GeyserPlugin, GeyserPluginError, ReplicaAccountInfo, ReplicaAccountInfoVersions,
-    ReplicaBlockInfoVersions, ReplicaTransactionInfo,
-    ReplicaTransactionInfoVersions, Result, SlotStatus,
+    ReplicaBlockInfoVersions, ReplicaTransactionInfo, ReplicaTransactionInfoVersions, Result,
+    SlotStatus,
 };
 use solana_sdk::{message::AccountKeys, pubkey::Pubkey};
 use std::{
@@ -32,7 +33,6 @@ use tokio::{
     sync::mpsc::{self as mpsc, Sender},
     time::Instant,
 };
-use plerkle_serialization::serializer::{serialize_account, serialize_block, serialize_slot_status, serialize_transaction};
 
 struct SerializedData<'a> {
     stream: &'static str,
@@ -254,7 +254,7 @@ impl GeyserPlugin for Plerkle<'static> {
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
         let acct: ReplicaAccountInfo;
         let account = match account {
-           // ReplicaAccountInfoVersions::V0_0_2(a) => a, removed because dependency hell
+            // ReplicaAccountInfoVersions::V0_0_2(a) => a, removed because dependency hell
             ReplicaAccountInfoVersions::V0_0_1(a) => {
                 acct = ReplicaAccountInfo {
                     pubkey: a.pubkey,
@@ -283,7 +283,7 @@ impl GeyserPlugin for Plerkle<'static> {
 
         // Serialize data.
         let builder = FlatBufferBuilder::new();
-        let builder = serialize_account(builder, &account, slot, is_startup);
+        let builder = serialize_account(builder, account, slot, is_startup);
         let owner = bs58::encode(account.owner).into_string();
         // Send account info over channel.
         runtime.spawn(async move {

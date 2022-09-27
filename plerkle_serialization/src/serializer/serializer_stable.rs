@@ -1,11 +1,11 @@
-use chrono::Utc;
-use flatbuffers::FlatBufferBuilder;
 use crate::{
     AccountInfo, AccountInfoArgs, BlockInfo, BlockInfoArgs, CompiledInstruction,
     CompiledInstructionArgs, InnerInstructions, InnerInstructionsArgs, Pubkey as FBPubkey, Reward,
     RewardArgs, RewardType as FBRewardType, SlotStatusInfo, SlotStatusInfoArgs,
     Status as FBSlotStatus, TransactionInfo, TransactionInfoArgs,
 };
+use chrono::Utc;
+use flatbuffers::FlatBufferBuilder;
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
     ReplicaAccountInfo, ReplicaBlockInfo, ReplicaTransactionInfo, SlotStatus,
 };
@@ -92,18 +92,16 @@ pub fn serialize_transaction<'a>(
     };
 
     // Serialize log messages.
-    let log_messages = if let Some(log_messages) = &transaction_info
-        .transaction_status_meta
-        .log_messages
-    {
-        let mut log_messages_fb_vec = Vec::with_capacity(log_messages.len());
-        for message in log_messages {
-            log_messages_fb_vec.push(builder.create_string(&message));
-        }
-        Some(builder.create_vector(&log_messages_fb_vec))
-    } else {
-        None
-    };
+    let log_messages =
+        if let Some(log_messages) = &transaction_info.transaction_status_meta.log_messages {
+            let mut log_messages_fb_vec = Vec::with_capacity(log_messages.len());
+            for message in log_messages {
+                log_messages_fb_vec.push(builder.create_string(message));
+            }
+            Some(builder.create_vector(&log_messages_fb_vec))
+        } else {
+            None
+        };
 
     // Serialize inner instructions.
     let inner_instructions = if let Some(inner_instructions_vec) = transaction_info
@@ -146,7 +144,7 @@ pub fn serialize_transaction<'a>(
 
     // Serialize outer instructions.
     let outer_instructions = transaction_info.transaction.message().instructions();
-    let outer_instructions = if outer_instructions.len() > 0 {
+    let outer_instructions = if !outer_instructions.is_empty() {
         let mut instructions_fb_vec = Vec::with_capacity(outer_instructions.len());
         for compiled_instruction in outer_instructions.iter() {
             let program_id_index = compiled_instruction.program_id_index;
@@ -191,10 +189,10 @@ pub fn serialize_block<'a>(
     block_info: &ReplicaBlockInfo,
 ) -> FlatBufferBuilder<'a> {
     // Serialize blockash.
-    let blockhash = Some(builder.create_string(&block_info.blockhash));
+    let blockhash = Some(builder.create_string(block_info.blockhash));
 
     // Serialize rewards.
-    let rewards = if block_info.rewards.len() > 0 {
+    let rewards = if !block_info.rewards.is_empty() {
         let mut rewards_fb_vec = Vec::with_capacity(block_info.rewards.len());
         for reward in block_info.rewards.iter() {
             let pubkey = Some(builder.create_vector(reward.pubkey.as_bytes()));
