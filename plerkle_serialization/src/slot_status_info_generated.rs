@@ -89,7 +89,6 @@ impl<'a> flatbuffers::Verifiable for Status {
         v: &mut flatbuffers::Verifier,
         pos: usize,
     ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
-        use self::flatbuffers::Verifiable;
         i8::run_verifier(v, pos)
     }
 }
