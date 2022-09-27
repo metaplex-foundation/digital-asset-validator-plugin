@@ -1,15 +1,11 @@
-use crate::{
-    AccountInfo, AccountInfoArgs, BlockInfo, BlockInfoArgs, CompiledInstruction,
-    CompiledInstructionArgs, InnerInstructions, InnerInstructionsArgs, Pubkey as FBPubkey, Reward,
-    RewardArgs, RewardType as FBRewardType, SlotStatusInfo, SlotStatusInfoArgs,
-    Status as FBSlotStatus, TransactionInfo, TransactionInfoArgs,
-};
+use crate::{AccountInfo, AccountInfoArgs, BlockInfo, BlockInfoArgs, CompiledInstruction, CompiledInstructionArgs, InnerInstructions, InnerInstructionsArgs, Pubkey as FBPubkey, Pubkey, Reward, RewardArgs, RewardType as FBRewardType, SlotStatusInfo, SlotStatusInfoArgs, Status as FBSlotStatus, TransactionInfo, TransactionInfoArgs};
 use chrono::Utc;
 use flatbuffers::FlatBufferBuilder;
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
     ReplicaAccountInfo, ReplicaBlockInfo, ReplicaTransactionInfo, SlotStatus,
 };
 use solana_runtime::bank::RewardType;
+
 
 pub fn serialize_account<'a>(
     mut builder: FlatBufferBuilder<'a>,
@@ -18,17 +14,17 @@ pub fn serialize_account<'a>(
     is_startup: bool,
 ) -> FlatBufferBuilder<'a> {
     // Serialize vector data.
-    let pubkey = builder.create_vector(account.pubkey);
-    let owner = builder.create_vector(account.owner);
+    let pubkey: Pubkey = account.pubkey.into();
+    let owner: Pubkey = account.owner.into();
     let data = builder.create_vector(account.data);
 
     // Serialize everything into Account Info table.
     let account_info = AccountInfo::create(
         &mut builder,
         &AccountInfoArgs {
-            pubkey: Some(pubkey),
+            pubkey: Some(&pubkey),
             lamports: account.lamports,
-            owner: Some(owner),
+            owner: Some(&owner),
             executable: account.executable,
             rent_epoch: account.rent_epoch,
             data: Some(data),

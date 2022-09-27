@@ -1,4 +1,4 @@
-
+include "./common.fbs";
 
 table CompiledInstruction {
     // Index into the transaction keys array indicating the program account that executes this instruction.

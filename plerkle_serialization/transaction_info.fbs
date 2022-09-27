@@ -1,6 +1,6 @@
 // Flatbuffer IDL for selected Transaction Info schema.
 include "./compiled_instruction.fbs";
-
+include "./common.fbs";
 
 
 table TransactionInfo {
@@ -12,10 +12,6 @@ table TransactionInfo {
   slot: uint64;
   slot_index: string;
   seen_at: int64;
-}
-
-struct Pubkey {
-    key:[uint8:32];
 }
 
 table InnerInstructions {

@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 
 source ./ci/rust-version.sh stable
 
-export RUSTFLAGS="-D warnings"
+export RUSTFLAGS=""
 export RUSTBACKTRACE=1
 
 set -x

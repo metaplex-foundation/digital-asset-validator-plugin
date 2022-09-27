@@ -1,0 +1,3 @@
+struct Pubkey {
+    key:[uint8:32];
+}

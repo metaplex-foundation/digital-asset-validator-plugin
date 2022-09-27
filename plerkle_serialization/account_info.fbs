@@ -1,11 +1,10 @@
 // Flatbuffer IDL for Account Info schema.
-
-
+include "./common.fbs";
 
 table AccountInfo {
-  pubkey:[uint8];
+  pubkey:Pubkey;
   lamports:uint64;
-  owner:[uint8];
+  owner:Pubkey;
   executable:bool;
   rent_epoch:uint64;
   data:[uint8];
