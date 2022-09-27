@@ -70,8 +70,7 @@ The process running the validator must have access to environment variables. Tho
 ```bash
 RUST_LOG=warn
 PLUGIN_CONFIG_RELOAD_TTL=300  
-PLUGIN_MESSENGER_CONFIG.messenger_type="Redis"
-PLUGIN_MESSENGER_CONFIG.connection_config={redis_connection_str="redis://redis"}'
+PLUGIN_MESSENGER_CONFIG='{ messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
 ```
 The PLUGIN_CONFIG_TTL_RELOAD tells the plugin how long to keep the geyser plugin file cached in seconds. This allows hot reloading of what programs you are listening to without restarting the validator.
 The PLUGIN_MESSENGER_CONFIG determins which compiled messenger to select and a specific configuration for the messenger.
