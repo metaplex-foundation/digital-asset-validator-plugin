@@ -34,7 +34,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libudev-dev libssl-dev libsasl2-dev libzstd-dev
           sudo apt-get install -y openssl --allow-unauthenticated
-          sudo apt-get install -y libssl-dev --allow-unauthenticated
           sudo apt-get install -y libssl1.1 --allow-unauthenticated
 
       - uses: actions-rs/toolchain@v1
