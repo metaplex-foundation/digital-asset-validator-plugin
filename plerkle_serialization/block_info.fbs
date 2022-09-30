@@ -25,6 +25,7 @@ table BlockInfo {
   rewards:[Reward];
   block_time:int64 = null;
   block_height:uint64 = null;
+  seen_at: int64;
 }
 
 root_type BlockInfo;

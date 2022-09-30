@@ -21,7 +21,7 @@ cat << EOL > /plugin-config/accountsdb-plugin-config.json
     {
         "libpath": "/plugin/plugin.so",
         "accounts_selector" : {
-            "accounts" : [
+            "owners" : [
                 "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
                 "GRoLLMza82AiYN7W9S9KCCtCyyPRAQP2ifBy4v4D5RMD",
                 "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",

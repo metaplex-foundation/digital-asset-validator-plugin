@@ -252,23 +252,7 @@ impl GeyserPlugin for Plerkle<'static> {
         slot: u64,
         is_startup: bool,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
-        let acct: ReplicaAccountInfo;
-        let account = match account {
-            // ReplicaAccountInfoVersions::V0_0_2(a) => a, removed because dependency hell
-            ReplicaAccountInfoVersions::V0_0_1(a) => {
-                acct = ReplicaAccountInfo {
-                    pubkey: a.pubkey,
-                    lamports: a.lamports,
-                    owner: a.owner,
-                    executable: a.executable,
-                    rent_epoch: a.rent_epoch,
-                    data: a.data,
-                    write_version: a.write_version,
-                };
-                &acct
-            }
-        };
-
+        let ReplicaAccountInfoVersions::V0_0_1(account) = account;
         if let Some(accounts_selector) = &self.accounts_selector {
             if !accounts_selector.is_account_selected(account.pubkey, account.owner) {
                 return Ok(());
@@ -276,7 +260,6 @@ impl GeyserPlugin for Plerkle<'static> {
         } else {
             return Ok(());
         }
-
         // Get runtime and sender channel.
         let runtime = self.get_runtime()?;
         let sender = self.get_sender_clone()?;

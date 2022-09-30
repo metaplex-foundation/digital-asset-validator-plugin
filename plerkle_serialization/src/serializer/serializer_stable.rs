@@ -19,6 +19,7 @@ pub fn serialize_account<'a>(
     let data = builder.create_vector(account.data);
 
     // Serialize everything into Account Info table.
+    let seen_at = Utc::now();
     let account_info = AccountInfo::create(
         &mut builder,
         &AccountInfoArgs {
@@ -31,6 +32,7 @@ pub fn serialize_account<'a>(
             write_version: account.write_version,
             slot,
             is_startup,
+            seen_at: seen_at.timestamp_millis()
         },
     );
 
@@ -53,12 +55,14 @@ pub fn serialize_slot_status<'a>(
     };
 
     // Serialize everything into Slot Status Info table.
+    let seen_at = Utc::now();
     let slot_status = SlotStatusInfo::create(
         &mut builder,
         &SlotStatusInfoArgs {
             slot,
             parent,
             status,
+            seen_at: seen_at.timestamp_millis()
         },
     );
 
@@ -225,6 +229,7 @@ pub fn serialize_block<'a>(
     };
 
     // Serialize everything into Block Info table.
+    let seen_at = Utc::now();
     let block_info = BlockInfo::create(
         &mut builder,
         &BlockInfoArgs {
@@ -233,6 +238,7 @@ pub fn serialize_block<'a>(
             rewards,
             block_time: block_info.block_time,
             block_height: block_info.block_height,
+            seen_at: seen_at.timestamp_millis(),
         },
     );
 

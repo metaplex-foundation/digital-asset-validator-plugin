@@ -11,6 +11,7 @@ table AccountInfo {
   write_version:uint64;
   slot:uint64;
   is_startup:bool;
+  seen_at: int64;
 }
 
 root_type AccountInfo;
