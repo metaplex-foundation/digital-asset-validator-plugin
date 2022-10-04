@@ -11,7 +11,7 @@ env:
   IMAGE_NAME: plerkle-test-validator
 jobs:
   release:
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    runs-on: buildjet-4vcpu-ubuntu-2004
     steps:
       - uses: actions/checkout@v2
       - name: Set rust version
