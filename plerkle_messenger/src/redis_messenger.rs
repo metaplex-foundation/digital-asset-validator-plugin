@@ -1,4 +1,4 @@
-use crate::{error::MessengerError, Messenger, MessengerConfig, MessengerType};
+use crate::{error::MessengerError, Messenger, MessengerConfig, MessengerType, RecvData};
 use async_trait::async_trait;
 use log::*;
 use redis::{
@@ -125,10 +125,7 @@ impl Messenger for RedisMessenger {
         Ok(())
     }
 
-    async fn recv(
-        &mut self,
-        stream_key: &'static str,
-    ) -> Result<Vec<(i64, &[u8])>, MessengerError> {
+    async fn recv(&mut self, stream_key: &'static str) -> Result<Vec<RecvData>, MessengerError> {
         let opts = StreamReadOptions::default()
             .block(0) // Block forever.
             .count(1) // Get one item.
@@ -150,14 +147,12 @@ impl Messenger for RedisMessenger {
         };
 
         // Data vec that will be returned with parsed data from stream read reply.
-        let mut data_vec = Vec::<(i64, &[u8])>::new();
+        let mut data_vec = Vec::new();
 
         // Parse data in stream read reply and store in Vec to return to caller.
         for StreamKey { key, ids } in self.stream_read_reply.keys.iter() {
             if key == stream_key {
                 for StreamId { id, map } in ids {
-                    let pid = id.replace('-', "").parse::<i64>().unwrap();
-
                     // Get data from map.
                     let data = if let Some(data) = map.get(DATA_KEY) {
                         data
@@ -173,7 +168,7 @@ impl Messenger for RedisMessenger {
                         }
                     };
 
-                    data_vec.push((pid, bytes));
+                    data_vec.push(RecvData::new(id.clone(), bytes));
                 }
             }
         }

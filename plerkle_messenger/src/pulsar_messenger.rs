@@ -1,4 +1,4 @@
-use crate::{error::MessengerError, Messenger, MessengerConfig, MessengerType};
+use crate::{error::MessengerError, Messenger, MessengerConfig, MessengerType, RecvData};
 use async_mutex::Mutex;
 use async_trait::async_trait;
 use futures::TryStreamExt;
@@ -179,10 +179,7 @@ impl Messenger for PulsarMessenger {
     }
 
     /// Receive message from the Pulsar topic
-    async fn recv(
-        &mut self,
-        stream_key: &'static str,
-    ) -> Result<Vec<(i64, &[u8])>, MessengerError> {
+    async fn recv(&mut self, stream_key: &'static str) -> Result<Vec<RecvData>, MessengerError> {
         // Check if consumer is exists
         let mut consumer = if let Some(consumer) = self.consumers.get(stream_key) {
             consumer.lock().await
@@ -212,7 +209,7 @@ impl Messenger for PulsarMessenger {
                 .data
                 .as_ref(); // safe to use unwrap because we just pushed data to the HashMap
 
-            return Ok(vec![(0, data)]); // TODO: it is not universal data type
+            return Ok(vec![RecvData::new("0".to_owned(), data)]); // TODO: it is not universal data type
         } else {
             return Err(MessengerError::ReceiveError {
                 msg: String::from("No data in requested topic found"),

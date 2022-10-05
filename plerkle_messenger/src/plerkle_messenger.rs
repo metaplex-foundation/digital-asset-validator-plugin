@@ -15,6 +15,17 @@ pub const SLOT_STREAM: &str = "SLT";
 pub const TRANSACTION_STREAM: &str = "TXN";
 pub const BLOCK_STREAM: &str = "BLK";
 
+pub struct RecvData<'a> {
+    pub id: String,
+    pub data: &'a [u8],
+}
+
+impl<'a> RecvData<'a> {
+    pub fn new(id: String, data: &'a [u8]) -> Self {
+        RecvData { id, data }
+    }
+}
+
 #[async_trait]
 pub trait Messenger: Sync + Send {
     async fn new(config: MessengerConfig) -> Result<Self, MessengerError>
@@ -24,8 +35,7 @@ pub trait Messenger: Sync + Send {
     async fn add_stream(&mut self, stream_key: &'static str) -> Result<(), MessengerError>;
     async fn set_buffer_size(&mut self, stream_key: &'static str, max_buffer_size: usize);
     async fn send(&mut self, stream_key: &'static str, bytes: &[u8]) -> Result<(), MessengerError>;
-    async fn recv(&mut self, stream_key: &'static str)
-        -> Result<Vec<(i64, &[u8])>, MessengerError>;
+    async fn recv(&mut self, stream_key: &'static str) -> Result<Vec<RecvData>, MessengerError>;
 }
 
 pub async fn select_messenger(
