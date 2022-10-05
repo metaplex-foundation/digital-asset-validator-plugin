@@ -175,6 +175,19 @@ impl Messenger for RedisMessenger {
 
         Ok(data_vec)
     }
+
+    async fn ack_msg(
+        &mut self,
+        stream_key: &'static str,
+        ids: &[String],
+    ) -> Result<(), MessengerError> {
+        self.connection
+            .as_mut()
+            .unwrap()
+            .xack(stream_key, GROUP_NAME, ids)
+            .await
+            .map_err(|e| MessengerError::AckError { msg: e.to_string() })
+    }
 }
 
 impl Debug for RedisMessenger {

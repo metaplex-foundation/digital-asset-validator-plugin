@@ -216,6 +216,15 @@ impl Messenger for PulsarMessenger {
             });
         }
     }
+
+    async fn ack_msg(
+        &mut self,
+        _stream_key: &'static str,
+        _ids: &[String],
+    ) -> Result<(), MessengerError> {
+        // Tie/replace this with `PulsarMessenger::ack_message`.
+        todo!()
+    }
 }
 
 impl PulsarMessenger {
