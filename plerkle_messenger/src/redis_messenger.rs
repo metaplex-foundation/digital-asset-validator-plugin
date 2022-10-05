@@ -1,4 +1,3 @@
-#![cfg(feature = "redis")]
 use crate::{error::MessengerError, Messenger, MessengerConfig, MessengerType};
 use async_trait::async_trait;
 use log::*;

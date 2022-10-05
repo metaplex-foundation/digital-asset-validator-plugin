@@ -1,4 +1,3 @@
-#![cfg(feature = "pulsar")]
 use crate::{error::MessengerError, Messenger, MessengerConfig, MessengerType};
 use async_mutex::Mutex;
 use async_trait::async_trait;

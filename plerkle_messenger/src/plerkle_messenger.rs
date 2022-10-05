@@ -5,9 +5,9 @@ use serde::Deserialize;
 use std::collections::BTreeMap;
 
 #[cfg(feature = "pulsar")]
-use crate::PulsarMessenger;
+use crate::pulsar_messenger::PulsarMessenger;
 #[cfg(feature = "redis")]
-use crate::RedisMessenger;
+use crate::redis_messenger::RedisMessenger;
 
 /// Some constants that can be used as stream key values.
 pub const ACCOUNT_STREAM: &str = "ACC";
