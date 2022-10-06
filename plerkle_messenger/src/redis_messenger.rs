@@ -15,7 +15,6 @@ use std::{
 
 // Redis stream values.
 pub const GROUP_NAME: &str = "plerkle";
-pub const CONSUMER_NAME: &str = "ingester";
 pub const DATA_KEY: &str = "data";
 
 #[derive(Default)]
@@ -23,6 +22,7 @@ pub struct RedisMessenger {
     connection: Option<redis::aio::Connection<Pin<Box<dyn AsyncStream + Send + Sync>>>>,
     streams: HashMap<&'static str, RedisMessengerStream>,
     stream_read_reply: StreamReadReply,
+    consumer_id: String,
 }
 
 pub struct RedisMessengerStream {
@@ -50,10 +50,18 @@ impl Messenger for RedisMessenger {
             MessengerError::ConnectionError { msg: e.to_string() }
         })?;
 
+        let consumer_id = config
+            .get("consumer_id")
+            .and_then(|id| id.clone().into_string())
+            // Using the previous default name when the configuration does not
+            // specify any particular consumer_id.
+            .unwrap_or(String::from("ingester"));
+
         Ok(Self {
             connection: Some(connection),
             streams: HashMap::<&'static str, RedisMessengerStream>::default(),
             stream_read_reply: StreamReadReply::default(),
+            consumer_id,
         })
     }
 
@@ -129,7 +137,7 @@ impl Messenger for RedisMessenger {
         let opts = StreamReadOptions::default()
             .block(0) // Block forever.
             .count(1) // Get one item.
-            .group(GROUP_NAME, CONSUMER_NAME);
+            .group(GROUP_NAME, self.consumer_id.as_str());
 
         // Read on stream key and save the reply. Log but do not return errors.
         self.stream_read_reply = match self
