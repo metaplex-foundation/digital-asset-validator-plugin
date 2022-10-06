@@ -1,7 +1,7 @@
 #[cfg(feature = "pulsar")]
-mod pulsar_messenger;
+pub mod pulsar_messenger;
 #[cfg(feature = "redis")]
-mod redis_messenger;
+pub mod redis_messenger;
 
 mod error;
 mod plerkle_messenger;

@@ -3,10 +3,12 @@ use async_trait::async_trait;
 use log::*;
 use redis::{
     aio::AsyncStream,
+    cmd,
     streams::{StreamId, StreamKey, StreamMaxlen, StreamReadOptions, StreamReadReply},
     AsyncCommands, RedisResult, Value,
 };
 
+use redis::streams::StreamRangeReply;
 use std::{
     collections::HashMap,
     fmt::{Debug, Formatter},
@@ -30,6 +32,48 @@ pub struct RedisMessengerStream {
 }
 
 const REDIS_CON_STR: &str = "redis_connection_str";
+
+impl RedisMessenger {
+    async fn xautoclaim(&mut self, stream_key: &str) -> Result<StreamRangeReply, MessengerError> {
+        let mut id = "0-0".to_owned();
+        // We need to call `XAUTOCLAIM` repeatedly because it will (according to the docs)
+        // only look at up to 10 * `count` PEL entries each time, and `id` is used to
+        // know where we left off to continue from next call.
+        loop {
+            // The `redis` crate doesn't appear to support this command so we have
+            // to call it via the lower level primitives it provides.
+            let mut xauto = cmd("XAUTOCLAIM");
+            xauto
+                .arg(stream_key)
+                .arg(GROUP_NAME)
+                .arg(self.consumer_id.as_str())
+                // We only reclaim items that have been idle for at least 2 sec.
+                .arg(2000)
+                .arg(id.as_str())
+                // For now, we're only looking for one message.
+                .arg("COUNT")
+                .arg(1);
+
+            // Before Redis 7 (we're using 6.2.x presently), `XAUTOCLAIM` returns an array of
+            // two items: an id to be used for the next call to continue scanning the PEL,
+            // and a list of successfully claimed messages in the same format as `XRANGE`.
+            let result: (String, StreamRangeReply) = xauto
+                .query_async(self.connection.as_mut().unwrap())
+                .await
+                .map_err(|e| MessengerError::AutoclaimError { msg: e.to_string() })?;
+
+            id = result.0;
+            let range_reply = result.1;
+
+            // An id of "0-0" means all the PEL has been searched so we need to return anyway,
+            // even if the reply is empty. We also want to immediately return if we have
+            // a non-empty reply.
+            if id == "0-0" || !range_reply.ids.is_empty() {
+                return Ok(range_reply);
+            }
+        }
+    }
+}
 
 #[async_trait]
 impl Messenger for RedisMessenger {
@@ -134,27 +178,46 @@ impl Messenger for RedisMessenger {
     }
 
     async fn recv(&mut self, stream_key: &'static str) -> Result<Vec<RecvData>, MessengerError> {
-        let opts = StreamReadOptions::default()
-            .block(0) // Block forever.
-            .count(1) // Get one item.
-            .group(GROUP_NAME, self.consumer_id.as_str());
+        let xauto_reply = self.xautoclaim(stream_key).await?;
 
-        // Read on stream key and save the reply. Log but do not return errors.
-        self.stream_read_reply = match self
-            .connection
-            .as_mut()
-            .unwrap()
-            .xread_options(&[stream_key], &[">"], &opts)
-            .await
-        {
-            Ok(reply) => reply,
-            Err(e) => {
-                error!("Redis receive error: {e}");
-                return Err(MessengerError::ReceiveError { msg: e.to_string() });
-            }
-        };
+        if !xauto_reply.ids.is_empty() {
+            // We construct a `StreamReadReply` to match the expected type we store
+            // in `self`. This is possible because the two types we're working with
+            // have a compatible inner structure.
+            self.stream_read_reply = StreamReadReply {
+                keys: vec![StreamKey {
+                    key: stream_key.to_owned(),
+                    ids: xauto_reply.ids,
+                }],
+            };
+        } else {
+            let opts = StreamReadOptions::default()
+                // Wait for up to 2 sec for a message. We're no longer blocking indefinitely
+                // here to avoid situations where we might be blocked on `XREAD` while pending
+                // messages accumulate that can be claimed.
+                .block(2000)
+                .count(1) // Get one item.
+                .group(GROUP_NAME, self.consumer_id.as_str());
 
-        // Data vec that will be returned with parsed data from stream read reply.
+            // Read on stream key and save the reply. Log but do not return errors.
+            self.stream_read_reply = match self
+                .connection
+                .as_mut()
+                .unwrap()
+                .xread_options(&[stream_key], &[">"], &opts)
+                .await
+            {
+                Ok(reply) => reply,
+                Err(e) => {
+                    error!("Redis receive error: {e}");
+                    return Err(MessengerError::ReceiveError { msg: e.to_string() });
+                }
+            };
+        }
+
+        // Data vec that will be returned with parsed data from stream read reply. Since
+        // we're only waiting for up to 2 seconds for `XREAD` to return, we may end up
+        // returning an empty vec, and the caller will have to call `recv` again.
         let mut data_vec = Vec::new();
 
         // Parse data in stream read reply and store in Vec to return to caller.
@@ -189,6 +252,10 @@ impl Messenger for RedisMessenger {
         stream_key: &'static str,
         ids: &[String],
     ) -> Result<(), MessengerError> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+
         self.connection
             .as_mut()
             .unwrap()
