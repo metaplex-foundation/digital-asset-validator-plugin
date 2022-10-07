@@ -27,7 +27,8 @@ cat << EOL > /plugin-config/accountsdb-plugin-config.json
                 "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
                 "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
                 "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
-                "BGUMAp9Gq7iTEuizy4pqaxsTyUCBK68MDfK752saRPUY"
+                "BGUMAp9Gq7iTEuizy4pqaxsTyUCBK68MDfK752saRPUY",
+                "cndy3Z4yapfJBmL3ShUp5exZKqR3z33thTzeNMm2gRZ"
             ]
         },
         "transaction_selector" : {
@@ -37,7 +38,8 @@ cat << EOL > /plugin-config/accountsdb-plugin-config.json
                 "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
                 "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
                 "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
-                "BGUMAp9Gq7iTEuizy4pqaxsTyUCBK68MDfK752saRPUY"
+                "BGUMAp9Gq7iTEuizy4pqaxsTyUCBK68MDfK752saRPUY",
+                "cndy3Z4yapfJBmL3ShUp5exZKqR3z33thTzeNMm2gRZ"
             ]
         }
     }
