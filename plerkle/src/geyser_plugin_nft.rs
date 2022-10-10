@@ -254,14 +254,6 @@ impl GeyserPlugin for Plerkle<'static> {
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
         let ReplicaAccountInfoVersions::V0_0_1(account) = account;
         if let Some(accounts_selector) = &self.accounts_selector {
-            println!(
-                "account plerkle {:?}",
-                bs58::encode(account.pubkey).into_string()
-            );
-            println!(
-                "owner plerkle {:?}",
-                bs58::encode(account.owner).into_string()
-            );
             if !accounts_selector.is_account_selected(account.pubkey, account.owner) {
                 return Ok(());
             }
