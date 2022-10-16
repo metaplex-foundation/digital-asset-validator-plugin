@@ -8,7 +8,7 @@ use figment::{providers::Env, Figment};
 use flatbuffers::FlatBufferBuilder;
 use log::*;
 use plerkle_messenger::{
-    select_messenger, Messenger, MessengerConfig, ACCOUNT_STREAM, BLOCK_STREAM, SLOT_STREAM,
+    select_messenger, MessengerConfig, ACCOUNT_STREAM, BLOCK_STREAM, SLOT_STREAM,
     TRANSACTION_STREAM,
 };
 use plerkle_serialization::serializer::{
@@ -16,7 +16,7 @@ use plerkle_serialization::serializer::{
 };
 use serde::Deserialize;
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
-    GeyserPlugin, GeyserPluginError, ReplicaAccountInfo, ReplicaAccountInfoVersions,
+    GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions,
     ReplicaBlockInfoVersions, ReplicaTransactionInfo, ReplicaTransactionInfoVersions, Result,
     SlotStatus,
 };
@@ -220,10 +220,22 @@ impl GeyserPlugin for Plerkle<'static> {
         runtime.spawn(async move {
             // Create new Messenger connection.
             if let Ok(mut messenger) = select_messenger(config.messenger_config).await {
-                messenger.add_stream(ACCOUNT_STREAM).await;
-                messenger.add_stream(SLOT_STREAM).await;
-                messenger.add_stream(TRANSACTION_STREAM).await;
-                messenger.add_stream(BLOCK_STREAM).await;
+                if messenger.add_stream(ACCOUNT_STREAM).await.is_err() {
+                    error!("Error adding ACCOUNT stream");
+                }
+
+                if messenger.add_stream(SLOT_STREAM).await.is_err() {
+                    error!("Error adding SLOT stream");
+                }
+
+                if messenger.add_stream(TRANSACTION_STREAM).await.is_err() {
+                    error!("Error adding TRANSACTION stream");
+                }
+
+                if messenger.add_stream(BLOCK_STREAM).await.is_err() {
+                    error!("Error adding BLOCK stream");
+                }
+
                 messenger.set_buffer_size(ACCOUNT_STREAM, 5000).await;
                 messenger.set_buffer_size(SLOT_STREAM, 5000).await;
                 messenger.set_buffer_size(TRANSACTION_STREAM, 500000).await;
