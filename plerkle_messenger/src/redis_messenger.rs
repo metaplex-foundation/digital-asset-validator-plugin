@@ -92,7 +92,7 @@ impl RedisMessenger {
                         } else {
                             let info = reply.ids.first().unwrap();
 
-                            if info.times_delivered > RETRIES {
+                            if info.times_delivered > self.retries {
                                 error!("Message has reached maximum retries {} for id", id);
                                 continue;
                             }
@@ -144,12 +144,12 @@ impl Messenger for RedisMessenger {
             .unwrap_or(String::from("ingester"));
 
         let retries = config.get("retries")
-            .and_then(|r| r.clone().into_integer())
-            .unwrap_or(DEFAULT_RETRIES) as usize;
+            .and_then(|r| r.clone().to_u128().map(|n| n as usize))
+            .unwrap_or(DEFAULT_RETRIES);
 
         let batch_size = config.get("batch_size")
-            .and_then(|r| r.clone().into_integer())
-            .unwrap_or(DEFAULT_MSG_BATCH_SIZE) as usize;
+            .and_then(|r| r.clone().to_u128().map(|n| n as usize))
+            .unwrap_or(DEFAULT_MSG_BATCH_SIZE);
 
         Ok(Self {
             connection: Some(connection),
@@ -248,7 +248,7 @@ impl Messenger for RedisMessenger {
                 // here to avoid situations where we might be blocked on `XREAD` while pending
                 // messages accumulate that can be claimed.
                 .block(2000)
-                .count(MSG_BATCH_SIZE) // Get one item.
+                .count(self.batch_size) // Get one item.
                 .group(GROUP_NAME, self.consumer_id.as_str());
 
             // Read on stream key and save the reply. Log but do not return errors.
