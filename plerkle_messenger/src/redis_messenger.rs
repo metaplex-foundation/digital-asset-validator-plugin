@@ -41,7 +41,7 @@ pub struct RedisMessengerStream {
 const REDIS_CON_STR: &str = "redis_connection_str";
 
 impl RedisMessenger {
-    async fn xautoclaim(&mut self, stream_key: &str) -> Result<StreamRangeReply, MessengerError> {
+    async fn xautoclaim(&mut self, stream_key: &'static str) -> Result<StreamRangeReply, MessengerError> {
         let mut id = "0-0".to_owned();
         // We need to call `XAUTOCLAIM` repeatedly because it will (according to the docs)
         // only look at up to 10 * `count` PEL entries each time, and `id` is used to
@@ -93,6 +93,7 @@ impl RedisMessenger {
                             let info = reply.ids.first().unwrap();
 
                             if info.times_delivered > self.retries {
+                                self.ack_msg(stream_key, &[sid.id]).await?;
                                 error!("Message has reached maximum retries {} for id", id);
                                 continue;
                             }
