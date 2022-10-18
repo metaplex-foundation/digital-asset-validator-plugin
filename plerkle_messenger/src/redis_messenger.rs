@@ -21,6 +21,8 @@ use std::{
 // Redis stream values.
 pub const GROUP_NAME: &str = "plerkle";
 pub const DATA_KEY: &str = "data";
+pub const DEFAULT_RETRIES: usize = 3;
+pub const DEFAULT_MSG_BATCH_SIZE: usize = 10;
 
 #[derive(Default)]
 pub struct RedisMessenger {
@@ -28,6 +30,8 @@ pub struct RedisMessenger {
     streams: HashMap<&'static str, RedisMessengerStream>,
     stream_read_reply: StreamReadReply,
     consumer_id: String,
+    retries: usize,
+    batch_size: usize,
 }
 
 pub struct RedisMessengerStream {
@@ -86,12 +90,12 @@ impl RedisMessenger {
                         if reply.ids.is_empty() {
                             error!("Missing pending message information for id {}", id);
                         } else {
-                            let _info = reply.ids.first().unwrap();
+                            let info = reply.ids.first().unwrap();
 
-                            // `info->times_delivered` contain the number of times the
-                            // message represented by `id` has been delivered, so we
-                            // can act here if the counter goes above a predefined
-                            // threshold (i.e. avoid retaining the message any longer).
+                            if info.times_delivered > RETRIES {
+                                error!("Message has reached maximum retries {} for id", id);
+                                continue;
+                            }
                         }
                     }
                     Err(e) => error!("Redis xpending_count error {} for id {}", e, id),
@@ -139,11 +143,21 @@ impl Messenger for RedisMessenger {
             // specify any particular consumer_id.
             .unwrap_or(String::from("ingester"));
 
+        let retries = config.get("retries")
+            .and_then(|r| r.clone().into_integer())
+            .unwrap_or(DEFAULT_RETRIES) as usize;
+
+        let batch_size = config.get("batch_size")
+            .and_then(|r| r.clone().into_integer())
+            .unwrap_or(DEFAULT_MSG_BATCH_SIZE) as usize;
+
         Ok(Self {
             connection: Some(connection),
             streams: HashMap::<&'static str, RedisMessengerStream>::default(),
             stream_read_reply: StreamReadReply::default(),
             consumer_id,
+            retries,
+            batch_size
         })
     }
 
@@ -234,7 +248,7 @@ impl Messenger for RedisMessenger {
                 // here to avoid situations where we might be blocked on `XREAD` while pending
                 // messages accumulate that can be claimed.
                 .block(2000)
-                .count(1) // Get one item.
+                .count(MSG_BATCH_SIZE) // Get one item.
                 .group(GROUP_NAME, self.consumer_id.as_str());
 
             // Read on stream key and save the reply. Log but do not return errors.
