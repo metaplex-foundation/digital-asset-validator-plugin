@@ -4,7 +4,10 @@ use log::*;
 use redis::{
     aio::AsyncStream,
     cmd,
-    streams::{StreamId, StreamKey, StreamMaxlen, StreamReadOptions, StreamReadReply},
+    streams::{
+        StreamId, StreamKey, StreamMaxlen, StreamPendingCountReply, StreamReadOptions,
+        StreamReadReply,
+    },
     AsyncCommands, RedisResult, Value,
 };
 
@@ -63,7 +66,42 @@ impl RedisMessenger {
                 .map_err(|e| MessengerError::AutoclaimError { msg: e.to_string() })?;
 
             id = result.0;
-            let range_reply = result.1;
+            let mut range_reply = result.1;
+
+            let mut retained_ids = Vec::new();
+
+            // We need to use `xpending_count` to get a `StreamPendingCountReply` which
+            // contains information about the number of times a message has been
+            // delivered.
+            for sid in range_reply.ids {
+                let pending_result: RedisResult<StreamPendingCountReply> = self
+                    .connection
+                    .as_mut()
+                    .unwrap()
+                    .xpending_count(stream_key, GROUP_NAME, &sid.id, &sid.id, 1)
+                    .await;
+
+                match pending_result {
+                    Ok(reply) => {
+                        if reply.ids.is_empty() {
+                            error!("Missing pending message information for id {}", id);
+                        } else {
+                            let _info = reply.ids.first().unwrap();
+
+                            // `info->times_delivered` contain the number of times the
+                            // message represented by `id` has been delivered, so we
+                            // can act here if the counter goes above a predefined
+                            // threshold (i.e. avoid retaining the message any longer).
+                        }
+                    }
+                    Err(e) => error!("Redis xpending_count error {} for id {}", e, id),
+                }
+
+                // We explicitly keep the message before moving on to the next.
+                retained_ids.push(sid);
+            }
+
+            range_reply.ids = retained_ids;
 
             // An id of "0-0" means all the PEL has been searched so we need to return anyway,
             // even if the reply is empty. We also want to immediately return if we have
