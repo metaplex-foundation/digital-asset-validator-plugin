@@ -23,6 +23,7 @@ pub const GROUP_NAME: &str = "plerkle";
 pub const DATA_KEY: &str = "data";
 pub const DEFAULT_RETRIES: usize = 3;
 pub const DEFAULT_MSG_BATCH_SIZE: usize = 10;
+pub const IDLE_TIMEOUT: usize = 2000;
 
 #[derive(Default)]
 pub struct RedisMessenger {
@@ -55,11 +56,11 @@ impl RedisMessenger {
                 .arg(GROUP_NAME)
                 .arg(self.consumer_id.as_str())
                 // We only reclaim items that have been idle for at least 2 sec.
-                .arg(2000)
+                .arg(IDLE_TIMEOUT)
                 .arg(id.as_str())
                 // For now, we're only looking for one message.
                 .arg("COUNT")
-                .arg(1);
+                .arg(self.batch_size);
 
             // Before Redis 7 (we're using 6.2.x presently), `XAUTOCLAIM` returns an array of
             // two items: an id to be used for the next call to continue scanning the PEL,
@@ -248,7 +249,7 @@ impl Messenger for RedisMessenger {
                 // Wait for up to 2 sec for a message. We're no longer blocking indefinitely
                 // here to avoid situations where we might be blocked on `XREAD` while pending
                 // messages accumulate that can be claimed.
-                .block(2000)
+                .block(IDLE_TIMEOUT)
                 .count(self.batch_size) // Get one item.
                 .group(GROUP_NAME, self.consumer_id.as_str());
 
