@@ -13,4 +13,10 @@ pub enum MessengerError {
 
     #[error("Error receiving data: ({msg})")]
     ReceiveError { msg: String },
+
+    #[error("Error ACKing message: ({msg})")]
+    AckError { msg: String },
+
+    #[error("Error autoclaiming message: ({msg})")]
+    AutoclaimError { msg: String },
 }

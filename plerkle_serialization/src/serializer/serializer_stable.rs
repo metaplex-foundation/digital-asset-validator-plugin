@@ -1,11 +1,15 @@
-use crate::{AccountInfo, AccountInfoArgs, BlockInfo, BlockInfoArgs, CompiledInstruction, CompiledInstructionArgs, InnerInstructions, InnerInstructionsArgs, Pubkey as FBPubkey, Pubkey, Reward, RewardArgs, RewardType as FBRewardType, SlotStatusInfo, SlotStatusInfoArgs, Status as FBSlotStatus, TransactionInfo, TransactionInfoArgs};
+use crate::{
+    AccountInfo, AccountInfoArgs, BlockInfo, BlockInfoArgs, CompiledInstruction,
+    CompiledInstructionArgs, InnerInstructions, InnerInstructionsArgs, Pubkey as FBPubkey, Pubkey,
+    Reward, RewardArgs, RewardType as FBRewardType, SlotStatusInfo, SlotStatusInfoArgs,
+    Status as FBSlotStatus, TransactionInfo, TransactionInfoArgs,
+};
 use chrono::Utc;
 use flatbuffers::FlatBufferBuilder;
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
     ReplicaAccountInfo, ReplicaBlockInfo, ReplicaTransactionInfo, SlotStatus,
 };
 use solana_runtime::bank::RewardType;
-
 
 pub fn serialize_account<'a>(
     mut builder: FlatBufferBuilder<'a>,
@@ -32,7 +36,7 @@ pub fn serialize_account<'a>(
             write_version: account.write_version,
             slot,
             is_startup,
-            seen_at: seen_at.timestamp_millis()
+            seen_at: seen_at.timestamp_millis(),
         },
     );
 
@@ -62,7 +66,7 @@ pub fn serialize_slot_status<'a>(
             slot,
             parent,
             status,
-            seen_at: seen_at.timestamp_millis()
+            seen_at: seen_at.timestamp_millis(),
         },
     );
 

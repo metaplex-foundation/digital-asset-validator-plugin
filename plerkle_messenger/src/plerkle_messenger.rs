@@ -5,15 +5,26 @@ use serde::Deserialize;
 use std::collections::BTreeMap;
 
 #[cfg(feature = "pulsar")]
-use crate::PulsarMessenger;
+use crate::pulsar_messenger::PulsarMessenger;
 #[cfg(feature = "redis")]
-use crate::RedisMessenger;
+use crate::redis_messenger::RedisMessenger;
 
 /// Some constants that can be used as stream key values.
 pub const ACCOUNT_STREAM: &str = "ACC";
 pub const SLOT_STREAM: &str = "SLT";
 pub const TRANSACTION_STREAM: &str = "TXN";
 pub const BLOCK_STREAM: &str = "BLK";
+
+pub struct RecvData<'a> {
+    pub id: String,
+    pub data: &'a [u8],
+}
+
+impl<'a> RecvData<'a> {
+    pub fn new(id: String, data: &'a [u8]) -> Self {
+        RecvData { id, data }
+    }
+}
 
 #[async_trait]
 pub trait Messenger: Sync + Send {
@@ -24,8 +35,26 @@ pub trait Messenger: Sync + Send {
     async fn add_stream(&mut self, stream_key: &'static str) -> Result<(), MessengerError>;
     async fn set_buffer_size(&mut self, stream_key: &'static str, max_buffer_size: usize);
     async fn send(&mut self, stream_key: &'static str, bytes: &[u8]) -> Result<(), MessengerError>;
-    async fn recv(&mut self, stream_key: &'static str)
-        -> Result<Vec<(i64, &[u8])>, MessengerError>;
+    async fn recv(&mut self, stream_key: &'static str) -> Result<Vec<RecvData>, MessengerError>;
+
+    // Ack-ing messages is made a bit awkward by the current interface layout because
+    // the sequence of msgs returned by `recv` will mutably borrow `self`, and calling
+    // `ack_msg` need to do the same thing, which isn't possible while that returned `Vec`
+    // is alive or the borrow checker complains. We can do stuff like making `recv` and `ack`
+    // require interior mutability, but that or other alternatives are non-trivial refactoring
+    // efforts best applied after we get more data about how the system performs and what
+    // changes we'd like to do overall.
+    //
+    // For now, the flow is that `recv` returns a `Vec` of items where ids are owned `Strings`
+    // for convenience, which can be kept until going through all data items, and then
+    // passed to `ack_msg` together. Right now, we're reading a single messages via `recv`
+    // anyway, but at some point we might want to get more in a single shot if talking
+    // to the backing channel becomes a bottleneck.
+    async fn ack_msg(
+        &mut self,
+        stream_key: &'static str,
+        ids: &[String],
+    ) -> Result<(), MessengerError>;
 }
 
 pub async fn select_messenger(
