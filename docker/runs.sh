@@ -14,7 +14,7 @@ websocket_url: ws://localhost:8899
 commitment: finalized
 EOL
 
-
+mkdir plugin-config
 if [[ ! -f /plugin-config/accountsdb-plugin-config.json ]]
 then
 cat << EOL > /plugin-config/accountsdb-plugin-config.json

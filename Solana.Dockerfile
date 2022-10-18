@@ -1,4 +1,4 @@
-FROM solanalabs/solana:v1.10.39 as builder
+FROM rust:1.64-bullseye as builder
 RUN apt-get update \
       && apt-get -y install \
            wget \
@@ -19,11 +19,13 @@ WORKDIR /rust/
 COPY plerkle_serialization /rust/plerkle_serialization
 COPY plerkle_messenger /rust/plerkle_messenger
 COPY plerkle /rust/plerkle
-WORKDIR /rust/plerkle
-RUN cargo build
+COPY Cargo.toml /rust/
+COPY Cargo.lock /rust/
+WORKDIR /rust
+RUN cargo build --release
 
 FROM solanalabs/solana:v1.10.39
-COPY --from=builder /rust/plerkle/target/debug/libplerkle.so /plugin/plugin.so
+COPY --from=builder /rust/target/release/libplerkle.so /plugin/plugin.so
 COPY ./docker .
 RUN chmod +x ./*.sh
 ENTRYPOINT [ "./runs.sh" ]
