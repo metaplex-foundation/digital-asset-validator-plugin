@@ -42,7 +42,10 @@ pub struct RedisMessengerStream {
 const REDIS_CON_STR: &str = "redis_connection_str";
 
 impl RedisMessenger {
-    async fn xautoclaim(&mut self, stream_key: &'static str) -> Result<StreamRangeReply, MessengerError> {
+    async fn xautoclaim(
+        &mut self,
+        stream_key: &'static str,
+    ) -> Result<StreamRangeReply, MessengerError> {
         let mut id = "0-0".to_owned();
         // We need to call `XAUTOCLAIM` repeatedly because it will (according to the docs)
         // only look at up to 10 * `count` PEL entries each time, and `id` is used to
@@ -60,7 +63,7 @@ impl RedisMessenger {
                 .arg(id.as_str())
                 // For now, we're only looking for one message.
                 .arg("COUNT")
-                .arg(self.batch_size);
+                .arg(self.batch_size / 10);
 
             // Before Redis 7 (we're using 6.2.x presently), `XAUTOCLAIM` returns an array of
             // two items: an id to be used for the next call to continue scanning the PEL,
@@ -145,11 +148,13 @@ impl Messenger for RedisMessenger {
             // specify any particular consumer_id.
             .unwrap_or(String::from("ingester"));
 
-        let retries = config.get("retries")
+        let retries = config
+            .get("retries")
             .and_then(|r| r.clone().to_u128().map(|n| n as usize))
             .unwrap_or(DEFAULT_RETRIES);
 
-        let batch_size = config.get("batch_size")
+        let batch_size = config
+            .get("batch_size")
             .and_then(|r| r.clone().to_u128().map(|n| n as usize))
             .unwrap_or(DEFAULT_MSG_BATCH_SIZE);
 
@@ -159,7 +164,7 @@ impl Messenger for RedisMessenger {
             stream_read_reply: StreamReadReply::default(),
             consumer_id,
             retries,
-            batch_size
+            batch_size,
         })
     }
 
@@ -244,30 +249,29 @@ impl Messenger for RedisMessenger {
                     ids: xauto_reply.ids,
                 }],
             };
-        } else {
-            let opts = StreamReadOptions::default()
-                // Wait for up to 2 sec for a message. We're no longer blocking indefinitely
-                // here to avoid situations where we might be blocked on `XREAD` while pending
-                // messages accumulate that can be claimed.
-                .block(IDLE_TIMEOUT)
-                .count(self.batch_size) // Get one item.
-                .group(GROUP_NAME, self.consumer_id.as_str());
-
-            // Read on stream key and save the reply. Log but do not return errors.
-            self.stream_read_reply = match self
-                .connection
-                .as_mut()
-                .unwrap()
-                .xread_options(&[stream_key], &[">"], &opts)
-                .await
-            {
-                Ok(reply) => reply,
-                Err(e) => {
-                    error!("Redis receive error: {e}");
-                    return Err(MessengerError::ReceiveError { msg: e.to_string() });
-                }
-            };
         }
+        let opts = StreamReadOptions::default()
+            // Wait for up to 2 sec for a message. We're no longer blocking indefinitely
+            // here to avoid situations where we might be blocked on `XREAD` while pending
+            // messages accumulate that can be claimed.
+            .block(IDLE_TIMEOUT)
+            .count(self.batch_size) // Get one item.
+            .group(GROUP_NAME, self.consumer_id.as_str());
+
+        // Read on stream key and save the reply. Log but do not return errors.
+        self.stream_read_reply = match self
+            .connection
+            .as_mut()
+            .unwrap()
+            .xread_options(&[stream_key], &[">"], &opts)
+            .await
+        {
+            Ok(reply) => reply,
+            Err(e) => {
+                error!("Redis receive error: {e}");
+                return Err(MessengerError::ReceiveError { msg: e.to_string() });
+            }
+        };
 
         // Data vec that will be returned with parsed data from stream read reply. Since
         // we're only waiting for up to 2 seconds for `XREAD` to return, we may end up
