@@ -178,7 +178,7 @@ impl GeyserPlugin for Plerkle<'static> {
                 self.accounts_selector = Some(Self::create_accounts_selector_from_config(&config));
                 self.transaction_selector =
                     Some(Self::create_transaction_selector_from_config(&config));
-
+                let env = config["env"].as_str().unwrap_or("dev");
                 if config["enable_metrics"].as_bool().unwrap_or(false) {
                     let uri = config["metrics_uri"].as_str().unwrap().to_string();
                     let port = config["metrics_port"].as_u64().unwrap() as u16;
@@ -188,7 +188,8 @@ impl GeyserPlugin for Plerkle<'static> {
                     let host = (uri, port);
                     let udp_sink = BufferedUdpMetricSink::from(host, socket).unwrap();
                     let queuing_sink = QueuingMetricSink::from(udp_sink);
-                    let client = StatsdClient::from_sink("plerkle", queuing_sink);
+                    let builder = StatsdClient::builder("plerkle", queuing_sink);
+                    let client = builder.with_tag("env", env).build();
                     set_global_default(client);
                     statsd_count!("plugin.startup", 1);
                 }
