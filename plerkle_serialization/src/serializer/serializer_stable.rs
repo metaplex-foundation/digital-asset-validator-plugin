@@ -168,6 +168,8 @@ pub fn serialize_transaction<'a>(
         None
     };
     let seen_at = Utc::now();
+    let txn_sig = transaction_info.signature.to_string();
+    let signature_offset = builder.create_string(&txn_sig);
     // Serialize everything into Transaction Info table.
     let transaction_info_ser = TransactionInfo::create(
         &mut builder,
@@ -180,6 +182,7 @@ pub fn serialize_transaction<'a>(
             slot,
             slot_index: None,
             seen_at: seen_at.timestamp_millis(),
+            signature: Some(signature_offset)
         },
     );
 
