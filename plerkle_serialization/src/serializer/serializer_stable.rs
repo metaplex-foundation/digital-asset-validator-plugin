@@ -182,7 +182,7 @@ pub fn serialize_transaction<'a>(
             slot,
             slot_index: None,
             seen_at: seen_at.timestamp_millis(),
-            signature: Some(signature_offset)
+            signature: Some(signature_offset),
         },
     );
 
