@@ -10,7 +10,7 @@ extern crate flatbuffers;
 use self::flatbuffers::{EndianScalar, Follow};
 
 pub enum CompiledInstructionOffset {}
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 
 pub struct CompiledInstruction<'a> {
     pub _tab: flatbuffers::Table<'a>,
@@ -19,9 +19,9 @@ pub struct CompiledInstruction<'a> {
 impl<'a> flatbuffers::Follow<'a> for CompiledInstruction<'a> {
     type Inner = CompiledInstruction<'a>;
     #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         Self {
-            _tab: flatbuffers::Table { buf, loc },
+            _tab: flatbuffers::Table::new(buf, loc),
         }
     }
 }
@@ -32,7 +32,7 @@ impl<'a> CompiledInstruction<'a> {
     pub const VT_DATA: flatbuffers::VOffsetT = 8;
 
     #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+    pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
         CompiledInstruction { _tab: table }
     }
     #[allow(unused_mut)]
@@ -53,27 +53,40 @@ impl<'a> CompiledInstruction<'a> {
 
     #[inline]
     pub fn program_id_index(&self) -> u8 {
-        self._tab
-            .get::<u8>(CompiledInstruction::VT_PROGRAM_ID_INDEX, Some(0))
-            .unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<u8>(CompiledInstruction::VT_PROGRAM_ID_INDEX, Some(0))
+                .unwrap()
+        }
     }
     #[inline]
-    pub fn accounts(&self) -> Option<&'a [u8]> {
-        self._tab
-            .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(
-                CompiledInstruction::VT_ACCOUNTS,
-                None,
-            )
-            .map(|v| v.safe_slice())
+    pub fn accounts(&self) -> Option<flatbuffers::Vector<'a, u8>> {
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(
+                    CompiledInstruction::VT_ACCOUNTS,
+                    None,
+                )
+        }
     }
     #[inline]
-    pub fn data(&self) -> Option<&'a [u8]> {
-        self._tab
-            .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(
-                CompiledInstruction::VT_DATA,
-                None,
-            )
-            .map(|v| v.safe_slice())
+    pub fn data(&self) -> Option<flatbuffers::Vector<'a, u8>> {
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(
+                    CompiledInstruction::VT_DATA,
+                    None,
+                )
+        }
     }
 }
 
@@ -167,20 +180,6 @@ impl core::fmt::Debug for CompiledInstruction<'_> {
         ds.finish()
     }
 }
-#[inline]
-#[deprecated(since = "2.0.0", note = "Deprecated in favor of `root_as...` methods.")]
-pub fn get_root_as_compiled_instruction<'a>(buf: &'a [u8]) -> CompiledInstruction<'a> {
-    unsafe { flatbuffers::root_unchecked::<CompiledInstruction<'a>>(buf) }
-}
-
-#[inline]
-#[deprecated(since = "2.0.0", note = "Deprecated in favor of `root_as...` methods.")]
-pub fn get_size_prefixed_root_as_compiled_instruction<'a>(
-    buf: &'a [u8],
-) -> CompiledInstruction<'a> {
-    unsafe { flatbuffers::size_prefixed_root_unchecked::<CompiledInstruction<'a>>(buf) }
-}
-
 #[inline]
 /// Verifies that a buffer of bytes contains a `CompiledInstruction`
 /// and returns it.

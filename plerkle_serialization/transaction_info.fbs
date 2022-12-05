@@ -12,6 +12,7 @@ table TransactionInfo {
   slot: uint64;
   slot_index: string;
   seen_at: int64;
+  signature: string;
 }
 
 table InnerInstructions {

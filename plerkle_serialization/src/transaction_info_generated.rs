@@ -11,7 +11,7 @@ extern crate flatbuffers;
 use self::flatbuffers::{EndianScalar, Follow};
 
 pub enum TransactionInfoOffset {}
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 
 pub struct TransactionInfo<'a> {
     pub _tab: flatbuffers::Table<'a>,
@@ -20,9 +20,9 @@ pub struct TransactionInfo<'a> {
 impl<'a> flatbuffers::Follow<'a> for TransactionInfo<'a> {
     type Inner = TransactionInfo<'a>;
     #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         Self {
-            _tab: flatbuffers::Table { buf, loc },
+            _tab: flatbuffers::Table::new(buf, loc),
         }
     }
 }
@@ -36,9 +36,10 @@ impl<'a> TransactionInfo<'a> {
     pub const VT_SLOT: flatbuffers::VOffsetT = 14;
     pub const VT_SLOT_INDEX: flatbuffers::VOffsetT = 16;
     pub const VT_SEEN_AT: flatbuffers::VOffsetT = 18;
+    pub const VT_SIGNATURE: flatbuffers::VOffsetT = 20;
 
     #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+    pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
         TransactionInfo { _tab: table }
     }
     #[allow(unused_mut)]
@@ -49,6 +50,9 @@ impl<'a> TransactionInfo<'a> {
         let mut builder = TransactionInfoBuilder::new(_fbb);
         builder.add_seen_at(args.seen_at);
         builder.add_slot(args.slot);
+        if let Some(x) = args.signature {
+            builder.add_signature(x);
+        }
         if let Some(x) = args.slot_index {
             builder.add_slot_index(x);
         }
@@ -70,60 +74,109 @@ impl<'a> TransactionInfo<'a> {
 
     #[inline]
     pub fn is_vote(&self) -> bool {
-        self._tab
-            .get::<bool>(TransactionInfo::VT_IS_VOTE, Some(false))
-            .unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<bool>(TransactionInfo::VT_IS_VOTE, Some(false))
+                .unwrap()
+        }
     }
     #[inline]
-    pub fn account_keys(&self) -> Option<&'a [Pubkey]> {
-        self._tab
-            .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, Pubkey>>>(
-                TransactionInfo::VT_ACCOUNT_KEYS,
-                None,
-            )
-            .map(|v| v.safe_slice())
+    pub fn account_keys(&self) -> Option<flatbuffers::Vector<'a, Pubkey>> {
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, Pubkey>>>(
+                    TransactionInfo::VT_ACCOUNT_KEYS,
+                    None,
+                )
+        }
     }
     #[inline]
     pub fn log_messages(
         &self,
     ) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>> {
-        self._tab.get::<flatbuffers::ForwardsUOffset<
-            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>,
-        >>(TransactionInfo::VT_LOG_MESSAGES, None)
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab.get::<flatbuffers::ForwardsUOffset<
+                flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>,
+            >>(TransactionInfo::VT_LOG_MESSAGES, None)
+        }
     }
     #[inline]
     pub fn inner_instructions(
         &self,
     ) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<InnerInstructions<'a>>>> {
-        self._tab.get::<flatbuffers::ForwardsUOffset<
-            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<InnerInstructions>>,
-        >>(TransactionInfo::VT_INNER_INSTRUCTIONS, None)
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab.get::<flatbuffers::ForwardsUOffset<
+                flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<InnerInstructions>>,
+            >>(TransactionInfo::VT_INNER_INSTRUCTIONS, None)
+        }
     }
     #[inline]
     pub fn outer_instructions(
         &self,
     ) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<CompiledInstruction<'a>>>>
     {
-        self._tab.get::<flatbuffers::ForwardsUOffset<
-            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<CompiledInstruction>>,
-        >>(TransactionInfo::VT_OUTER_INSTRUCTIONS, None)
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab.get::<flatbuffers::ForwardsUOffset<
+                flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<CompiledInstruction>>,
+            >>(TransactionInfo::VT_OUTER_INSTRUCTIONS, None)
+        }
     }
     #[inline]
     pub fn slot(&self) -> u64 {
-        self._tab
-            .get::<u64>(TransactionInfo::VT_SLOT, Some(0))
-            .unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<u64>(TransactionInfo::VT_SLOT, Some(0))
+                .unwrap()
+        }
     }
     #[inline]
     pub fn slot_index(&self) -> Option<&'a str> {
-        self._tab
-            .get::<flatbuffers::ForwardsUOffset<&str>>(TransactionInfo::VT_SLOT_INDEX, None)
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<flatbuffers::ForwardsUOffset<&str>>(TransactionInfo::VT_SLOT_INDEX, None)
+        }
     }
     #[inline]
     pub fn seen_at(&self) -> i64 {
-        self._tab
-            .get::<i64>(TransactionInfo::VT_SEEN_AT, Some(0))
-            .unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<i64>(TransactionInfo::VT_SEEN_AT, Some(0))
+                .unwrap()
+        }
+    }
+    #[inline]
+    pub fn signature(&self) -> Option<&'a str> {
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<flatbuffers::ForwardsUOffset<&str>>(TransactionInfo::VT_SIGNATURE, None)
+        }
     }
 }
 
@@ -157,6 +210,11 @@ impl flatbuffers::Verifiable for TransactionInfo<'_> {
                 false,
             )?
             .visit_field::<i64>("seen_at", Self::VT_SEEN_AT, false)?
+            .visit_field::<flatbuffers::ForwardsUOffset<&str>>(
+                "signature",
+                Self::VT_SIGNATURE,
+                false,
+            )?
             .finish();
         Ok(())
     }
@@ -180,6 +238,7 @@ pub struct TransactionInfoArgs<'a> {
     pub slot: u64,
     pub slot_index: Option<flatbuffers::WIPOffset<&'a str>>,
     pub seen_at: i64,
+    pub signature: Option<flatbuffers::WIPOffset<&'a str>>,
 }
 impl<'a> Default for TransactionInfoArgs<'a> {
     #[inline]
@@ -193,6 +252,7 @@ impl<'a> Default for TransactionInfoArgs<'a> {
             slot: 0,
             slot_index: None,
             seen_at: 0,
+            signature: None,
         }
     }
 }
@@ -271,6 +331,13 @@ impl<'a: 'b, 'b> TransactionInfoBuilder<'a, 'b> {
             .push_slot::<i64>(TransactionInfo::VT_SEEN_AT, seen_at, 0);
     }
     #[inline]
+    pub fn add_signature(&mut self, signature: flatbuffers::WIPOffset<&'b str>) {
+        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
+            TransactionInfo::VT_SIGNATURE,
+            signature,
+        );
+    }
+    #[inline]
     pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> TransactionInfoBuilder<'a, 'b> {
         let start = _fbb.start_table();
         TransactionInfoBuilder {
@@ -296,11 +363,12 @@ impl core::fmt::Debug for TransactionInfo<'_> {
         ds.field("slot", &self.slot());
         ds.field("slot_index", &self.slot_index());
         ds.field("seen_at", &self.seen_at());
+        ds.field("signature", &self.signature());
         ds.finish()
     }
 }
 pub enum InnerInstructionsOffset {}
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 
 pub struct InnerInstructions<'a> {
     pub _tab: flatbuffers::Table<'a>,
@@ -309,9 +377,9 @@ pub struct InnerInstructions<'a> {
 impl<'a> flatbuffers::Follow<'a> for InnerInstructions<'a> {
     type Inner = InnerInstructions<'a>;
     #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         Self {
-            _tab: flatbuffers::Table { buf, loc },
+            _tab: flatbuffers::Table::new(buf, loc),
         }
     }
 }
@@ -321,7 +389,7 @@ impl<'a> InnerInstructions<'a> {
     pub const VT_INSTRUCTIONS: flatbuffers::VOffsetT = 6;
 
     #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+    pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
         InnerInstructions { _tab: table }
     }
     #[allow(unused_mut)]
@@ -339,18 +407,28 @@ impl<'a> InnerInstructions<'a> {
 
     #[inline]
     pub fn index(&self) -> u8 {
-        self._tab
-            .get::<u8>(InnerInstructions::VT_INDEX, Some(0))
-            .unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<u8>(InnerInstructions::VT_INDEX, Some(0))
+                .unwrap()
+        }
     }
     #[inline]
     pub fn instructions(
         &self,
     ) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<CompiledInstruction<'a>>>>
     {
-        self._tab.get::<flatbuffers::ForwardsUOffset<
-            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<CompiledInstruction>>,
-        >>(InnerInstructions::VT_INSTRUCTIONS, None)
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab.get::<flatbuffers::ForwardsUOffset<
+                flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<CompiledInstruction>>,
+            >>(InnerInstructions::VT_INSTRUCTIONS, None)
+        }
     }
 }
 
@@ -435,18 +513,6 @@ impl core::fmt::Debug for InnerInstructions<'_> {
         ds.finish()
     }
 }
-#[inline]
-#[deprecated(since = "2.0.0", note = "Deprecated in favor of `root_as...` methods.")]
-pub fn get_root_as_transaction_info<'a>(buf: &'a [u8]) -> TransactionInfo<'a> {
-    unsafe { flatbuffers::root_unchecked::<TransactionInfo<'a>>(buf) }
-}
-
-#[inline]
-#[deprecated(since = "2.0.0", note = "Deprecated in favor of `root_as...` methods.")]
-pub fn get_size_prefixed_root_as_transaction_info<'a>(buf: &'a [u8]) -> TransactionInfo<'a> {
-    unsafe { flatbuffers::size_prefixed_root_unchecked::<TransactionInfo<'a>>(buf) }
-}
-
 #[inline]
 /// Verifies that a buffer of bytes contains a `TransactionInfo`
 /// and returns it.

@@ -10,7 +10,7 @@ use self::flatbuffers::{EndianScalar, Follow};
 
 // struct Pubkey, aligned to 1
 #[repr(transparent)]
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Pubkey(pub [u8; 32]);
 impl Default for Pubkey {
     fn default() -> Self {
@@ -24,39 +24,25 @@ impl core::fmt::Debug for Pubkey {
 }
 
 impl flatbuffers::SimpleToVerifyInSlice for Pubkey {}
-impl flatbuffers::SafeSliceAccess for Pubkey {}
 impl<'a> flatbuffers::Follow<'a> for Pubkey {
     type Inner = &'a Pubkey;
     #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         <&'a Pubkey>::follow(buf, loc)
     }
 }
 impl<'a> flatbuffers::Follow<'a> for &'a Pubkey {
     type Inner = &'a Pubkey;
     #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         flatbuffers::follow_cast_ref::<Pubkey>(buf, loc)
     }
 }
 impl<'b> flatbuffers::Push for Pubkey {
     type Output = Pubkey;
     #[inline]
-    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
-        let src = unsafe {
-            ::core::slice::from_raw_parts(self as *const Pubkey as *const u8, Self::size())
-        };
-        dst.copy_from_slice(src);
-    }
-}
-impl<'b> flatbuffers::Push for &'b Pubkey {
-    type Output = Pubkey;
-
-    #[inline]
-    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
-        let src = unsafe {
-            ::core::slice::from_raw_parts(*self as *const Pubkey as *const u8, Self::size())
-        };
+    unsafe fn push(&self, dst: &mut [u8], _written_len: usize) {
+        let src = ::core::slice::from_raw_parts(self as *const Pubkey as *const u8, Self::size());
         dst.copy_from_slice(src);
     }
 }
@@ -81,10 +67,16 @@ impl<'a> Pubkey {
     }
 
     pub fn key(&'a self) -> flatbuffers::Array<'a, u8, 32> {
-        flatbuffers::Array::follow(&self.0, 0)
+        // Safety:
+        // Created from a valid Table for this object
+        // Which contains a valid array in this slot
+        unsafe { flatbuffers::Array::follow(&self.0, 0) }
     }
 
     pub fn set_key(&mut self, items: &[u8; 32]) {
-        flatbuffers::emplace_scalar_array(&mut self.0, 0, items);
+        // Safety:
+        // Created from a valid Table for this object
+        // Which contains a valid array in this slot
+        unsafe { flatbuffers::emplace_scalar_array(&mut self.0, 0, items) };
     }
 }

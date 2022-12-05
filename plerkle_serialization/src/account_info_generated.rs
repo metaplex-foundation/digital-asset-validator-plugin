@@ -10,7 +10,7 @@ extern crate flatbuffers;
 use self::flatbuffers::{EndianScalar, Follow};
 
 pub enum AccountInfoOffset {}
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 
 pub struct AccountInfo<'a> {
     pub _tab: flatbuffers::Table<'a>,
@@ -19,9 +19,9 @@ pub struct AccountInfo<'a> {
 impl<'a> flatbuffers::Follow<'a> for AccountInfo<'a> {
     type Inner = AccountInfo<'a>;
     #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         Self {
-            _tab: flatbuffers::Table { buf, loc },
+            _tab: flatbuffers::Table::new(buf, loc),
         }
     }
 }
@@ -39,7 +39,7 @@ impl<'a> AccountInfo<'a> {
     pub const VT_SEEN_AT: flatbuffers::VOffsetT = 22;
 
     #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+    pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
         AccountInfo { _tab: table }
     }
     #[allow(unused_mut)]
@@ -69,60 +69,103 @@ impl<'a> AccountInfo<'a> {
 
     #[inline]
     pub fn pubkey(&self) -> Option<&'a Pubkey> {
-        self._tab.get::<Pubkey>(AccountInfo::VT_PUBKEY, None)
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe { self._tab.get::<Pubkey>(AccountInfo::VT_PUBKEY, None) }
     }
     #[inline]
     pub fn lamports(&self) -> u64 {
-        self._tab
-            .get::<u64>(AccountInfo::VT_LAMPORTS, Some(0))
-            .unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<u64>(AccountInfo::VT_LAMPORTS, Some(0))
+                .unwrap()
+        }
     }
     #[inline]
     pub fn owner(&self) -> Option<&'a Pubkey> {
-        self._tab.get::<Pubkey>(AccountInfo::VT_OWNER, None)
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe { self._tab.get::<Pubkey>(AccountInfo::VT_OWNER, None) }
     }
     #[inline]
     pub fn executable(&self) -> bool {
-        self._tab
-            .get::<bool>(AccountInfo::VT_EXECUTABLE, Some(false))
-            .unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<bool>(AccountInfo::VT_EXECUTABLE, Some(false))
+                .unwrap()
+        }
     }
     #[inline]
     pub fn rent_epoch(&self) -> u64 {
-        self._tab
-            .get::<u64>(AccountInfo::VT_RENT_EPOCH, Some(0))
-            .unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<u64>(AccountInfo::VT_RENT_EPOCH, Some(0))
+                .unwrap()
+        }
     }
     #[inline]
-    pub fn data(&self) -> Option<&'a [u8]> {
-        self._tab
-            .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(
-                AccountInfo::VT_DATA,
-                None,
-            )
-            .map(|v| v.safe_slice())
+    pub fn data(&self) -> Option<flatbuffers::Vector<'a, u8>> {
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(
+                    AccountInfo::VT_DATA,
+                    None,
+                )
+        }
     }
     #[inline]
     pub fn write_version(&self) -> u64 {
-        self._tab
-            .get::<u64>(AccountInfo::VT_WRITE_VERSION, Some(0))
-            .unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<u64>(AccountInfo::VT_WRITE_VERSION, Some(0))
+                .unwrap()
+        }
     }
     #[inline]
     pub fn slot(&self) -> u64 {
-        self._tab.get::<u64>(AccountInfo::VT_SLOT, Some(0)).unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe { self._tab.get::<u64>(AccountInfo::VT_SLOT, Some(0)).unwrap() }
     }
     #[inline]
     pub fn is_startup(&self) -> bool {
-        self._tab
-            .get::<bool>(AccountInfo::VT_IS_STARTUP, Some(false))
-            .unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<bool>(AccountInfo::VT_IS_STARTUP, Some(false))
+                .unwrap()
+        }
     }
     #[inline]
     pub fn seen_at(&self) -> i64 {
-        self._tab
-            .get::<i64>(AccountInfo::VT_SEEN_AT, Some(0))
-            .unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<i64>(AccountInfo::VT_SEEN_AT, Some(0))
+                .unwrap()
+        }
     }
 }
 
@@ -267,18 +310,6 @@ impl core::fmt::Debug for AccountInfo<'_> {
         ds.finish()
     }
 }
-#[inline]
-#[deprecated(since = "2.0.0", note = "Deprecated in favor of `root_as...` methods.")]
-pub fn get_root_as_account_info<'a>(buf: &'a [u8]) -> AccountInfo<'a> {
-    unsafe { flatbuffers::root_unchecked::<AccountInfo<'a>>(buf) }
-}
-
-#[inline]
-#[deprecated(since = "2.0.0", note = "Deprecated in favor of `root_as...` methods.")]
-pub fn get_size_prefixed_root_as_account_info<'a>(buf: &'a [u8]) -> AccountInfo<'a> {
-    unsafe { flatbuffers::size_prefixed_root_unchecked::<AccountInfo<'a>>(buf) }
-}
-
 #[inline]
 /// Verifies that a buffer of bytes contains a `AccountInfo`
 /// and returns it.

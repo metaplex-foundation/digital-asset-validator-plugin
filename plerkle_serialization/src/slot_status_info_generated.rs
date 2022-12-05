@@ -59,8 +59,8 @@ impl core::fmt::Debug for Status {
 impl<'a> flatbuffers::Follow<'a> for Status {
     type Inner = Self;
     #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        let b = unsafe { flatbuffers::read_scalar_at::<i8>(buf, loc) };
+    unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        let b = flatbuffers::read_scalar_at::<i8>(buf, loc);
         Self(b)
     }
 }
@@ -68,23 +68,21 @@ impl<'a> flatbuffers::Follow<'a> for Status {
 impl flatbuffers::Push for Status {
     type Output = Status;
     #[inline]
-    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
-        unsafe {
-            flatbuffers::emplace_scalar::<i8>(dst, self.0);
-        }
+    unsafe fn push(&self, dst: &mut [u8], _written_len: usize) {
+        flatbuffers::emplace_scalar::<i8>(dst, self.0);
     }
 }
 
 impl flatbuffers::EndianScalar for Status {
+    type Scalar = i8;
     #[inline]
-    fn to_little_endian(self) -> Self {
-        let b = i8::to_le(self.0);
-        Self(b)
+    fn to_little_endian(self) -> i8 {
+        self.0.to_le()
     }
     #[inline]
     #[allow(clippy::wrong_self_convention)]
-    fn from_little_endian(self) -> Self {
-        let b = i8::from_le(self.0);
+    fn from_little_endian(v: i8) -> Self {
+        let b = i8::from_le(v);
         Self(b)
     }
 }
@@ -102,7 +100,7 @@ impl<'a> flatbuffers::Verifiable for Status {
 
 impl flatbuffers::SimpleToVerifyInSlice for Status {}
 pub enum SlotStatusInfoOffset {}
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 
 pub struct SlotStatusInfo<'a> {
     pub _tab: flatbuffers::Table<'a>,
@@ -111,9 +109,9 @@ pub struct SlotStatusInfo<'a> {
 impl<'a> flatbuffers::Follow<'a> for SlotStatusInfo<'a> {
     type Inner = SlotStatusInfo<'a>;
     #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         Self {
-            _tab: flatbuffers::Table { buf, loc },
+            _tab: flatbuffers::Table::new(buf, loc),
         }
     }
 }
@@ -125,7 +123,7 @@ impl<'a> SlotStatusInfo<'a> {
     pub const VT_SEEN_AT: flatbuffers::VOffsetT = 10;
 
     #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+    pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
         SlotStatusInfo { _tab: table }
     }
     #[allow(unused_mut)]
@@ -145,25 +143,43 @@ impl<'a> SlotStatusInfo<'a> {
 
     #[inline]
     pub fn slot(&self) -> u64 {
-        self._tab
-            .get::<u64>(SlotStatusInfo::VT_SLOT, Some(0))
-            .unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<u64>(SlotStatusInfo::VT_SLOT, Some(0))
+                .unwrap()
+        }
     }
     #[inline]
     pub fn parent(&self) -> Option<u64> {
-        self._tab.get::<u64>(SlotStatusInfo::VT_PARENT, None)
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe { self._tab.get::<u64>(SlotStatusInfo::VT_PARENT, None) }
     }
     #[inline]
     pub fn status(&self) -> Status {
-        self._tab
-            .get::<Status>(SlotStatusInfo::VT_STATUS, Some(Status::Processed))
-            .unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<Status>(SlotStatusInfo::VT_STATUS, Some(Status::Processed))
+                .unwrap()
+        }
     }
     #[inline]
     pub fn seen_at(&self) -> i64 {
-        self._tab
-            .get::<i64>(SlotStatusInfo::VT_SEEN_AT, Some(0))
-            .unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<i64>(SlotStatusInfo::VT_SEEN_AT, Some(0))
+                .unwrap()
+        }
     }
 }
 
@@ -250,18 +266,6 @@ impl core::fmt::Debug for SlotStatusInfo<'_> {
         ds.finish()
     }
 }
-#[inline]
-#[deprecated(since = "2.0.0", note = "Deprecated in favor of `root_as...` methods.")]
-pub fn get_root_as_slot_status_info<'a>(buf: &'a [u8]) -> SlotStatusInfo<'a> {
-    unsafe { flatbuffers::root_unchecked::<SlotStatusInfo<'a>>(buf) }
-}
-
-#[inline]
-#[deprecated(since = "2.0.0", note = "Deprecated in favor of `root_as...` methods.")]
-pub fn get_size_prefixed_root_as_slot_status_info<'a>(buf: &'a [u8]) -> SlotStatusInfo<'a> {
-    unsafe { flatbuffers::size_prefixed_root_unchecked::<SlotStatusInfo<'a>>(buf) }
-}
-
 #[inline]
 /// Verifies that a buffer of bytes contains a `SlotStatusInfo`
 /// and returns it.

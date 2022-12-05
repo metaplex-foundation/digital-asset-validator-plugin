@@ -66,8 +66,8 @@ impl core::fmt::Debug for RewardType {
 impl<'a> flatbuffers::Follow<'a> for RewardType {
     type Inner = Self;
     #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        let b = unsafe { flatbuffers::read_scalar_at::<u8>(buf, loc) };
+    unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        let b = flatbuffers::read_scalar_at::<u8>(buf, loc);
         Self(b)
     }
 }
@@ -75,23 +75,21 @@ impl<'a> flatbuffers::Follow<'a> for RewardType {
 impl flatbuffers::Push for RewardType {
     type Output = RewardType;
     #[inline]
-    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
-        unsafe {
-            flatbuffers::emplace_scalar::<u8>(dst, self.0);
-        }
+    unsafe fn push(&self, dst: &mut [u8], _written_len: usize) {
+        flatbuffers::emplace_scalar::<u8>(dst, self.0);
     }
 }
 
 impl flatbuffers::EndianScalar for RewardType {
+    type Scalar = u8;
     #[inline]
-    fn to_little_endian(self) -> Self {
-        let b = u8::to_le(self.0);
-        Self(b)
+    fn to_little_endian(self) -> u8 {
+        self.0.to_le()
     }
     #[inline]
     #[allow(clippy::wrong_self_convention)]
-    fn from_little_endian(self) -> Self {
-        let b = u8::from_le(self.0);
+    fn from_little_endian(v: u8) -> Self {
+        let b = u8::from_le(v);
         Self(b)
     }
 }
@@ -109,7 +107,7 @@ impl<'a> flatbuffers::Verifiable for RewardType {
 
 impl flatbuffers::SimpleToVerifyInSlice for RewardType {}
 pub enum RewardOffset {}
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 
 pub struct Reward<'a> {
     pub _tab: flatbuffers::Table<'a>,
@@ -118,9 +116,9 @@ pub struct Reward<'a> {
 impl<'a> flatbuffers::Follow<'a> for Reward<'a> {
     type Inner = Reward<'a>;
     #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         Self {
-            _tab: flatbuffers::Table { buf, loc },
+            _tab: flatbuffers::Table::new(buf, loc),
         }
     }
 }
@@ -133,7 +131,7 @@ impl<'a> Reward<'a> {
     pub const VT_COMMISSION: flatbuffers::VOffsetT = 12;
 
     #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+    pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
         Reward { _tab: table }
     }
     #[allow(unused_mut)]
@@ -157,31 +155,49 @@ impl<'a> Reward<'a> {
     }
 
     #[inline]
-    pub fn pubkey(&self) -> Option<&'a [u8]> {
-        self._tab
-            .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(
-                Reward::VT_PUBKEY,
-                None,
-            )
-            .map(|v| v.safe_slice())
+    pub fn pubkey(&self) -> Option<flatbuffers::Vector<'a, u8>> {
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(
+                    Reward::VT_PUBKEY,
+                    None,
+                )
+        }
     }
     #[inline]
     pub fn lamports(&self) -> i64 {
-        self._tab.get::<i64>(Reward::VT_LAMPORTS, Some(0)).unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe { self._tab.get::<i64>(Reward::VT_LAMPORTS, Some(0)).unwrap() }
     }
     #[inline]
     pub fn post_balance(&self) -> u64 {
-        self._tab
-            .get::<u64>(Reward::VT_POST_BALANCE, Some(0))
-            .unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<u64>(Reward::VT_POST_BALANCE, Some(0))
+                .unwrap()
+        }
     }
     #[inline]
     pub fn reward_type(&self) -> Option<RewardType> {
-        self._tab.get::<RewardType>(Reward::VT_REWARD_TYPE, None)
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe { self._tab.get::<RewardType>(Reward::VT_REWARD_TYPE, None) }
     }
     #[inline]
     pub fn commission(&self) -> Option<u8> {
-        self._tab.get::<u8>(Reward::VT_COMMISSION, None)
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe { self._tab.get::<u8>(Reward::VT_COMMISSION, None) }
     }
 }
 
@@ -282,7 +298,7 @@ impl core::fmt::Debug for Reward<'_> {
     }
 }
 pub enum BlockInfoOffset {}
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 
 pub struct BlockInfo<'a> {
     pub _tab: flatbuffers::Table<'a>,
@@ -291,9 +307,9 @@ pub struct BlockInfo<'a> {
 impl<'a> flatbuffers::Follow<'a> for BlockInfo<'a> {
     type Inner = BlockInfo<'a>;
     #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         Self {
-            _tab: flatbuffers::Table { buf, loc },
+            _tab: flatbuffers::Table::new(buf, loc),
         }
     }
 }
@@ -307,7 +323,7 @@ impl<'a> BlockInfo<'a> {
     pub const VT_SEEN_AT: flatbuffers::VOffsetT = 14;
 
     #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+    pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
         BlockInfo { _tab: table }
     }
     #[allow(unused_mut)]
@@ -335,34 +351,58 @@ impl<'a> BlockInfo<'a> {
 
     #[inline]
     pub fn slot(&self) -> u64 {
-        self._tab.get::<u64>(BlockInfo::VT_SLOT, Some(0)).unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe { self._tab.get::<u64>(BlockInfo::VT_SLOT, Some(0)).unwrap() }
     }
     #[inline]
     pub fn blockhash(&self) -> Option<&'a str> {
-        self._tab
-            .get::<flatbuffers::ForwardsUOffset<&str>>(BlockInfo::VT_BLOCKHASH, None)
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<flatbuffers::ForwardsUOffset<&str>>(BlockInfo::VT_BLOCKHASH, None)
+        }
     }
     #[inline]
     pub fn rewards(
         &self,
     ) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Reward<'a>>>> {
-        self._tab.get::<flatbuffers::ForwardsUOffset<
-            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Reward>>,
-        >>(BlockInfo::VT_REWARDS, None)
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab.get::<flatbuffers::ForwardsUOffset<
+                flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Reward>>,
+            >>(BlockInfo::VT_REWARDS, None)
+        }
     }
     #[inline]
     pub fn block_time(&self) -> Option<i64> {
-        self._tab.get::<i64>(BlockInfo::VT_BLOCK_TIME, None)
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe { self._tab.get::<i64>(BlockInfo::VT_BLOCK_TIME, None) }
     }
     #[inline]
     pub fn block_height(&self) -> Option<u64> {
-        self._tab.get::<u64>(BlockInfo::VT_BLOCK_HEIGHT, None)
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe { self._tab.get::<u64>(BlockInfo::VT_BLOCK_HEIGHT, None) }
     }
     #[inline]
     pub fn seen_at(&self) -> i64 {
-        self._tab
-            .get::<i64>(BlockInfo::VT_SEEN_AT, Some(0))
-            .unwrap()
+        // Safety:
+        // Created from valid Table for this object
+        // which contains a valid value in this slot
+        unsafe {
+            self._tab
+                .get::<i64>(BlockInfo::VT_SEEN_AT, Some(0))
+                .unwrap()
+        }
     }
 }
 
@@ -480,18 +520,6 @@ impl core::fmt::Debug for BlockInfo<'_> {
         ds.finish()
     }
 }
-#[inline]
-#[deprecated(since = "2.0.0", note = "Deprecated in favor of `root_as...` methods.")]
-pub fn get_root_as_block_info<'a>(buf: &'a [u8]) -> BlockInfo<'a> {
-    unsafe { flatbuffers::root_unchecked::<BlockInfo<'a>>(buf) }
-}
-
-#[inline]
-#[deprecated(since = "2.0.0", note = "Deprecated in favor of `root_as...` methods.")]
-pub fn get_size_prefixed_root_as_block_info<'a>(buf: &'a [u8]) -> BlockInfo<'a> {
-    unsafe { flatbuffers::size_prefixed_root_unchecked::<BlockInfo<'a>>(buf) }
-}
-
 #[inline]
 /// Verifies that a buffer of bytes contains a `BlockInfo`
 /// and returns it.

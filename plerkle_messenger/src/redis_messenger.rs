@@ -127,7 +127,7 @@ impl Messenger for RedisMessenger {
     //pub async fn new(stream_key: &'static str) -> Result<Self> {
     async fn new(config: MessengerConfig) -> Result<Self, MessengerError> {
         let uri = config
-            .get(&*REDIS_CON_STR)
+            .get(REDIS_CON_STR)
             .and_then(|u| u.clone().into_string())
             .ok_or(MessengerError::ConfigurationError {
                 msg: format!("Connection String Missing: {}", REDIS_CON_STR),
