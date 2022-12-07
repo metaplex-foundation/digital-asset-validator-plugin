@@ -266,7 +266,7 @@ impl Messenger for RedisMessenger {
             error!("Redis send error: {e}");
             return Err(MessengerError::SendError { msg: e.to_string() });
         } else {
-            info!("Data Sent to {}", stream_key);
+            debug!("Data Sent to {}", stream_key);
         }
 
         Ok(())

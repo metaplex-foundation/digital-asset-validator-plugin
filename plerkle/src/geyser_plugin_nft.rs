@@ -53,6 +53,8 @@ pub struct PluginConfig {
     pub config_reload_ttl: Option<i64>,
 }
 
+const MSG_BUFFER_SIZE: usize = 100000;
+
 impl<'a> Plerkle<'a> {
     pub fn new() -> Self {
         Self::default()
@@ -209,7 +211,7 @@ impl GeyserPlugin for Plerkle<'static> {
                 msg: format!("Could not create tokio runtime: {:?}", err),
             })?;
 
-        let (sender, mut receiver) = mpsc::channel::<SerializedData>(32);
+        let (sender, mut receiver) = mpsc::channel::<SerializedData>(MSG_BUFFER_SIZE);
         self.sender = Some(sender);
         let config: PluginConfig = Figment::new()
             .join(Env::prefixed("PLUGIN_"))

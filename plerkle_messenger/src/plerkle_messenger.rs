@@ -66,10 +66,6 @@ pub async fn select_messenger(
     config: MessengerConfig,
 ) -> Result<Box<dyn Messenger>, MessengerError> {
     match config.messenger_type {
-        #[cfg(feature = "pulsar")]
-        MessengerType::Pulsar => {
-            PulsarMessenger::new(config).await.map(|a| Box::new(a) as Box<dyn Messenger>)
-        }
         #[cfg(feature = "redis")]
         MessengerType::Redis => {
             RedisMessenger::new(config).await.map(|a| Box::new(a) as Box<dyn Messenger>)
