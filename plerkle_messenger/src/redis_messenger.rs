@@ -259,7 +259,7 @@ impl Messenger for RedisMessenger {
             .connection
             .as_mut()
             .unwrap()
-            .xadd_maxlen(stream_key, maxlen, "*", &[(DATA_KEY, &bytes)])
+            .xadd(stream_key, "*", &[(DATA_KEY, &bytes)])
             .await;
 
         if let Err(e) = result {
