@@ -1,5 +1,3 @@
-#[cfg(feature = "pulsar")]
-pub mod pulsar_messenger;
 #[cfg(feature = "redis")]
 pub mod redis_messenger;
 

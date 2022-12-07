@@ -1,5 +1,6 @@
 use crate::{error::MessengerError, Messenger, MessengerConfig, MessengerType, RecvData};
 use async_trait::async_trait;
+use futures::Stream;
 use log::*;
 use redis::{
     aio::AsyncStream,
@@ -23,16 +24,19 @@ pub const GROUP_NAME: &str = "plerkle";
 pub const DATA_KEY: &str = "data";
 pub const DEFAULT_RETRIES: usize = 3;
 pub const DEFAULT_MSG_BATCH_SIZE: usize = 10;
-pub const IDLE_TIMEOUT: usize = 2000;
+pub const MESSAGE_WAIT_TIMEOUT: usize = 10;
+pub const IDLE_TIMEOUT: usize = 5000;
 
 #[derive(Default)]
 pub struct RedisMessenger {
     connection: Option<redis::aio::Connection<Pin<Box<dyn AsyncStream + Send + Sync>>>>,
     streams: HashMap<&'static str, RedisMessengerStream>,
-    stream_read_reply: StreamReadReply,
     consumer_id: String,
     retries: usize,
     batch_size: usize,
+    idle_timeout: usize,
+    message_wait_timeout: usize,
+    consumer_group_name: String,
 }
 
 pub struct RedisMessengerStream {
@@ -45,80 +49,97 @@ impl RedisMessenger {
     async fn xautoclaim(
         &mut self,
         stream_key: &'static str,
-    ) -> Result<StreamRangeReply, MessengerError> {
+    ) -> Result<Vec<RecvData>, MessengerError> {
         let mut id = "0-0".to_owned();
         // We need to call `XAUTOCLAIM` repeatedly because it will (according to the docs)
         // only look at up to 10 * `count` PEL entries each time, and `id` is used to
         // know where we left off to continue from next call.
-        loop {
-            // The `redis` crate doesn't appear to support this command so we have
-            // to call it via the lower level primitives it provides.
-            let mut xauto = cmd("XAUTOCLAIM");
-            xauto
-                .arg(stream_key)
-                .arg(GROUP_NAME)
-                .arg(self.consumer_id.as_str())
-                // We only reclaim items that have been idle for at least 2 sec.
-                .arg(IDLE_TIMEOUT)
-                .arg(id.as_str())
-                // For now, we're only looking for one message.
-                .arg("COUNT")
-                .arg(self.batch_size / 10);
 
-            // Before Redis 7 (we're using 6.2.x presently), `XAUTOCLAIM` returns an array of
-            // two items: an id to be used for the next call to continue scanning the PEL,
-            // and a list of successfully claimed messages in the same format as `XRANGE`.
-            let result: (String, StreamRangeReply) = xauto
-                .query_async(self.connection.as_mut().unwrap())
-                .await
-                .map_err(|e| MessengerError::AutoclaimError { msg: e.to_string() })?;
+        // The `redis` crate doesn't appear to support this command so we have
+        // to call it via the lower level primitives it provides.
+        let mut xauto = cmd("XAUTOCLAIM");
+        xauto
+            .arg(stream_key)
+            .arg(self.consumer_group_name.clone())
+            .arg(self.consumer_id.as_str())
+            // We only reclaim items that have been idle for at least 2 sec.
+            .arg(self.idle_timeout)
+            .arg(id.as_str())
+            .arg("COUNT")
+            .arg(self.batch_size);
 
-            id = result.0;
-            let mut range_reply = result.1;
+        // Before Redis 7 (we're using 6.2.x presently), `XAUTOCLAIM` returns an array of
+        // two items: an id to be used for the next call to continue scanning the PEL,
+        // and a list of successfully claimed messages in the same format as `XRANGE`.
+        let result: (String, StreamRangeReply) = xauto
+            .query_async(self.connection.as_mut().unwrap())
+            .await
+            .map_err(|e| MessengerError::AutoclaimError { msg: e.to_string() })?;
 
-            let mut retained_ids = Vec::new();
+        id = result.0;
+        let range_reply = result.1;
 
-            // We need to use `xpending_count` to get a `StreamPendingCountReply` which
-            // contains information about the number of times a message has been
-            // delivered.
-            for sid in range_reply.ids {
-                let pending_result: RedisResult<StreamPendingCountReply> = self
-                    .connection
-                    .as_mut()
-                    .unwrap()
-                    .xpending_count(stream_key, GROUP_NAME, &sid.id, &sid.id, 1)
-                    .await;
+        if id == "0-0" || range_reply.ids.is_empty() {
+            // We've reached the end of the PEL.
+            return Ok(Vec::new());
+        }
 
-                match pending_result {
-                    Ok(reply) => {
-                        if reply.ids.is_empty() {
-                            error!("Missing pending message information for id {}", id);
+        let mut retained_ids = Vec::new();
+
+        // We need to use `xpending_count` to get a `StreamPendingCountReply` which
+        // contains information about the number of times a message has been
+        // delivered.
+
+        for sid in range_reply.ids {
+            let pending_result: RedisResult<StreamPendingCountReply> = self
+                .connection
+                .as_mut()
+                .unwrap()
+                .xpending_count(
+                    stream_key,
+                    self.consumer_group_name.clone(),
+                    &sid.id,
+                    &sid.id,
+                    1,
+                )
+                .await;
+
+            match pending_result {
+                Ok(reply) => {
+                    if reply.ids.is_empty() {
+                        error!("Missing pending message information for id {}", id);
+                    } else {
+                        let info = reply.ids.first().unwrap();
+                        let StreamId { id, map } = sid;
+                        let data = if let Some(data) = map.get(DATA_KEY) {
+                            data
                         } else {
-                            let info = reply.ids.first().unwrap();
+                            println!("No Data was stored in Redis for ID {id}");
+                            continue;
+                        };
+                        // Get data from map.
 
-                            if info.times_delivered > self.retries {
-                                self.ack_msg(stream_key, &[sid.id]).await?;
-                                error!("Message has reached maximum retries {} for id", id);
+                        let bytes = match data {
+                            Value::Data(bytes) => bytes,
+                            _ => {
+                                println!("Redis data for ID {id} in wrong format");
                                 continue;
                             }
+                        };
+
+                        if info.times_delivered > self.retries {
+                            self.ack_msg(stream_key, &[id.clone()]).await?;
+                            error!("Message has reached maximum retries {} for id", id);
+                            continue;
                         }
+                        retained_ids.push(RecvData::new_retry(id, bytes.to_vec(), info.times_delivered));
                     }
-                    Err(e) => error!("Redis xpending_count error {} for id {}", e, id),
                 }
-
-                // We explicitly keep the message before moving on to the next.
-                retained_ids.push(sid);
-            }
-
-            range_reply.ids = retained_ids;
-
-            // An id of "0-0" means all the PEL has been searched so we need to return anyway,
-            // even if the reply is empty. We also want to immediately return if we have
-            // a non-empty reply.
-            if id == "0-0" || !range_reply.ids.is_empty() {
-                return Ok(range_reply);
+                Err(e) => error!("Redis xpending_count error {} for id {}", e, id),
             }
         }
+
+        Ok(retained_ids)
     }
 }
 
@@ -158,13 +179,28 @@ impl Messenger for RedisMessenger {
             .and_then(|r| r.clone().to_u128().map(|n| n as usize))
             .unwrap_or(DEFAULT_MSG_BATCH_SIZE);
 
+        let idle_timeout = config
+            .get("idle_timeout")
+            .and_then(|r| r.clone().to_u128().map(|n| n as usize))
+            .unwrap_or(IDLE_TIMEOUT);
+        let message_wait_timeout = config
+            .get("message_wait_timeout")
+            .and_then(|r| r.clone().to_u128().map(|n| n as usize))
+            .unwrap_or(MESSAGE_WAIT_TIMEOUT);
+        let consumer_group_name = config
+            .get("consumer_group_name")
+            .and_then(|r| r.clone().into_string())
+            .unwrap_or(GROUP_NAME.to_string());
+
         Ok(Self {
             connection: Some(connection),
             streams: HashMap::<&'static str, RedisMessengerStream>::default(),
-            stream_read_reply: StreamReadReply::default(),
             consumer_id,
             retries,
             batch_size,
+            idle_timeout,
+            message_wait_timeout,
+            consumer_group_name,
         })
     }
 
@@ -183,7 +219,7 @@ impl Messenger for RedisMessenger {
             .connection
             .as_mut()
             .unwrap()
-            .xgroup_create_mkstream(stream_key, GROUP_NAME, "$")
+            .xgroup_create_mkstream(stream_key, self.consumer_group_name.as_str(), "$")
             .await;
 
         if let Err(e) = result {
@@ -238,70 +274,47 @@ impl Messenger for RedisMessenger {
 
     async fn recv(&mut self, stream_key: &'static str) -> Result<Vec<RecvData>, MessengerError> {
         let xauto_reply = self.xautoclaim(stream_key).await?;
-
-        if !xauto_reply.ids.is_empty() {
-            // We construct a `StreamReadReply` to match the expected type we store
-            // in `self`. This is possible because the two types we're working with
-            // have a compatible inner structure.
-            self.stream_read_reply = StreamReadReply {
-                keys: vec![StreamKey {
-                    key: stream_key.to_owned(),
-                    ids: xauto_reply.ids,
-                }],
-            };
-        }
+        let mut pending_messages = xauto_reply;
         let opts = StreamReadOptions::default()
-            // Wait for up to 2 sec for a message. We're no longer blocking indefinitely
-            // here to avoid situations where we might be blocked on `XREAD` while pending
-            // messages accumulate that can be claimed.
-            .block(IDLE_TIMEOUT)
-            .count(self.batch_size) // Get one item.
-            .group(GROUP_NAME, self.consumer_id.as_str());
+            .block(self.message_wait_timeout)
+            .count(self.batch_size)
+            .group(self.consumer_group_name.as_str(), self.consumer_id.as_str());
 
         // Read on stream key and save the reply. Log but do not return errors.
-        self.stream_read_reply = match self
+        let reply: StreamReadReply = self
             .connection
             .as_mut()
             .unwrap()
             .xread_options(&[stream_key], &[">"], &opts)
             .await
-        {
-            Ok(reply) => reply,
-            Err(e) => {
+            .map_err(|e| {
                 error!("Redis receive error: {e}");
-                return Err(MessengerError::ReceiveError { msg: e.to_string() });
-            }
-        };
+                MessengerError::ReceiveError { msg: e.to_string() }
+            })?;
 
-        // Data vec that will be returned with parsed data from stream read reply. Since
-        // we're only waiting for up to 2 seconds for `XREAD` to return, we may end up
-        // returning an empty vec, and the caller will have to call `recv` again.
         let mut data_vec = Vec::new();
-
+        data_vec.append(&mut pending_messages);
         // Parse data in stream read reply and store in Vec to return to caller.
-        for StreamKey { key, ids } in self.stream_read_reply.keys.iter() {
-            if key == stream_key {
-                for StreamId { id, map } in ids {
-                    // Get data from map.
-                    let data = if let Some(data) = map.get(DATA_KEY) {
-                        data
-                    } else {
-                        println!("No Data was stored in Redis for ID {id}");
+        for StreamKey { key, ids } in reply.keys.into_iter() {
+            for StreamId { id, map } in ids {
+                // Get data from map.
+                let data = if let Some(data) = map.get(DATA_KEY) {
+                    data
+                } else {
+                    println!("No Data was stored in Redis for ID {id}");
+                    continue;
+                };
+                let bytes = match data {
+                    Value::Data(bytes) => bytes,
+                    _ => {
+                        println!("Redis data for ID {id} in wrong format");
                         continue;
-                    };
-                    let bytes = match data {
-                        Value::Data(bytes) => bytes,
-                        _ => {
-                            println!("Redis data for ID {id} in wrong format");
-                            continue;
-                        }
-                    };
+                    }
+                };
 
-                    data_vec.push(RecvData::new(id.clone(), bytes));
-                }
+                data_vec.push(RecvData::new(id.clone(), bytes.to_vec()));
             }
         }
-
         Ok(data_vec)
     }
 
@@ -317,7 +330,7 @@ impl Messenger for RedisMessenger {
         self.connection
             .as_mut()
             .unwrap()
-            .xack(stream_key, GROUP_NAME, ids)
+            .xack(stream_key, self.consumer_group_name.as_str(), ids)
             .await
             .map_err(|e| MessengerError::AckError { msg: e.to_string() })
     }

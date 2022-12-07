@@ -69,6 +69,7 @@ args=(
   --config config.yaml
   --log
   --reset
+  --limit-ledger-size 10000000000000000
   --rpc-port 8899
   --geyser-plugin-config /plugin-config/accountsdb-plugin-config.json
 )

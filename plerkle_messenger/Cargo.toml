@@ -1,7 +1,7 @@
 [package]
 name = "plerkle_messenger"
 description = "Metaplex Messenger trait for Geyser plugin producer/consumer patterns."
-version = "0.6.0"
+version = "1.0.0"
 authors = ["Metaplex Developers <dev@metaplex.com>"]
 repository = "https://github.com/metaplex-foundation/digital-asset-validator-plugin"
 license = "AGPL-3.0"
@@ -10,7 +10,6 @@ readme = "Readme.md"
 
 [dependencies]
 redis = { version = "0.22.0", features = ["aio", "tokio-comp", "streams"], optional = true}
-metaplex-pulsar = { version = "4.1.1", optional = true}
 log = "0.4.11"
 thiserror = "1.0.30"
 async-trait = "0.1.53"
