@@ -15,14 +15,19 @@ pub const SLOT_STREAM: &str = "SLT";
 pub const TRANSACTION_STREAM: &str = "TXN";
 pub const BLOCK_STREAM: &str = "BLK";
 
-pub struct RecvData<'a> {
+pub struct RecvData {
     pub id: String,
-    pub data: &'a [u8],
+    pub tries: usize,
+    pub data: Vec<u8>,
 }
 
-impl<'a> RecvData<'a> {
-    pub fn new(id: String, data: &'a [u8]) -> Self {
-        RecvData { id, data }
+impl RecvData {
+    pub fn new(id: String, data: Vec<u8>) -> Self {
+        RecvData { id, data, tries: 0 }
+    }
+
+    pub fn new_retry(id: String, data: Vec<u8>, tries: usize) -> Self {
+        RecvData { id, data, tries }
     }
 }
 

@@ -13,6 +13,6 @@ flatbuffers = "22.10.26"
 solana-geyser-plugin-interface = { version = ">=1.10" }
 solana-runtime = ">=1.10"
 chrono = "0.4.22"
-
+serde = { version = "1.0.149"}
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
