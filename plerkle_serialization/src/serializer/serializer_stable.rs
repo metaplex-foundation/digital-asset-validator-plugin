@@ -4,16 +4,16 @@ use crate::{
     Reward, RewardArgs, RewardType as FBRewardType, SlotStatusInfo, SlotStatusInfoArgs,
     Status as FBSlotStatus, TransactionInfo, TransactionInfoArgs,
 };
-use chrono::Utc;
+use chrono::{Utc, format::format};
 use flatbuffers::FlatBufferBuilder;
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
-    ReplicaAccountInfo, ReplicaBlockInfo, ReplicaTransactionInfo, SlotStatus,
+    ReplicaBlockInfo, SlotStatus, ReplicaTransactionInfoV2, ReplicaAccountInfoV2,
 };
 use solana_runtime::bank::RewardType;
 
 pub fn serialize_account<'a>(
     mut builder: FlatBufferBuilder<'a>,
-    account: &ReplicaAccountInfo,
+    account: &ReplicaAccountInfoV2,
     slot: u64,
     is_startup: bool,
 ) -> FlatBufferBuilder<'a> {
@@ -77,7 +77,7 @@ pub fn serialize_slot_status<'a>(
 
 pub fn serialize_transaction<'a>(
     mut builder: FlatBufferBuilder<'a>,
-    transaction_info: &ReplicaTransactionInfo,
+    transaction_info: &ReplicaTransactionInfoV2,
     slot: u64,
 ) -> FlatBufferBuilder<'a> {
     // Flatten and serialize account keys.
@@ -170,6 +170,8 @@ pub fn serialize_transaction<'a>(
     let seen_at = Utc::now();
     let txn_sig = transaction_info.signature.to_string();
     let signature_offset = builder.create_string(&txn_sig);
+    let slot_idx = format!("{}_{}", slot, transaction_info.index);
+    let slot_index_offset = builder.create_string(&slot_idx);
     // Serialize everything into Transaction Info table.
     let transaction_info_ser = TransactionInfo::create(
         &mut builder,
@@ -180,7 +182,7 @@ pub fn serialize_transaction<'a>(
             inner_instructions,
             outer_instructions,
             slot,
-            slot_index: None,
+            slot_index: Some(slot_index_offset),
             seen_at: seen_at.timestamp_millis(),
             signature: Some(signature_offset),
         },

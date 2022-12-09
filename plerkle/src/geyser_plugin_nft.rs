@@ -16,8 +16,9 @@ use plerkle_serialization::serializer::{
 };
 use serde::Deserialize;
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
-    GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions, ReplicaBlockInfoVersions,
-    ReplicaTransactionInfo, ReplicaTransactionInfoVersions, Result, SlotStatus,
+    GeyserPlugin, GeyserPluginError, ReplicaAccountInfoV2, ReplicaAccountInfoVersions,
+    ReplicaBlockInfoVersions, ReplicaTransactionInfo, ReplicaTransactionInfoV2,
+    ReplicaTransactionInfoVersions, Result, SlotStatus,
 };
 use solana_sdk::{message::AccountKeys, pubkey::Pubkey};
 use std::{
@@ -53,7 +54,7 @@ pub struct PluginConfig {
     pub config_reload_ttl: Option<i64>,
 }
 
-const MSG_BUFFER_SIZE: usize = 100000;
+const MSG_BUFFER_SIZE: usize = 1000000;
 
 impl<'a> Plerkle<'a> {
     pub fn new() -> Self {
@@ -266,7 +267,23 @@ impl GeyserPlugin for Plerkle<'static> {
         slot: u64,
         is_startup: bool,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
-        let ReplicaAccountInfoVersions::V0_0_1(account) = account;
+        let rep: ReplicaAccountInfoV2;
+        let account = match account {
+            ReplicaAccountInfoVersions::V0_0_2(ai) => ai,
+            ReplicaAccountInfoVersions::V0_0_1(ai) => {
+                rep = ReplicaAccountInfoV2 {
+                    pubkey: ai.pubkey,
+                    lamports: ai.lamports,
+                    owner: ai.owner,
+                    executable: ai.executable,
+                    rent_epoch: ai.rent_epoch,
+                    data: ai.data,
+                    write_version: ai.write_version,
+                    txn_signature: None,
+                };
+                &rep
+            }
+        };
         if let Some(accounts_selector) = &self.accounts_selector {
             if !accounts_selector.is_account_selected(account.pubkey, account.owner) {
                 return Ok(());
@@ -338,15 +355,16 @@ impl GeyserPlugin for Plerkle<'static> {
         transaction_info: ReplicaTransactionInfoVersions,
         slot: u64,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
-        let rep: ReplicaTransactionInfo;
+        let rep: ReplicaTransactionInfoV2;
         let transaction_info = match transaction_info {
-            // ReplicaTransactionInfoVersions::V0_0_2(ti) => ti,
+            ReplicaTransactionInfoVersions::V0_0_2(ti) => ti,
             ReplicaTransactionInfoVersions::V0_0_1(ti) => {
-                rep = ReplicaTransactionInfo {
+                rep = ReplicaTransactionInfoV2 {
                     signature: ti.signature,
                     is_vote: ti.is_vote,
                     transaction: ti.transaction,
                     transaction_status_meta: ti.transaction_status_meta,
+                    index: 0,
                 };
                 &rep
             }
@@ -374,7 +392,7 @@ impl GeyserPlugin for Plerkle<'static> {
         // Serialize data.
         let builder = FlatBufferBuilder::new();
         let builder = serialize_transaction(builder, transaction_info, slot);
-        let slt_idx = format!("{}-{}", slot, 0);
+        let slt_idx = format!("{}-{}", slot, transaction_info.index);
         // Send transaction info over channel.
         runtime.spawn(async move {
             let data = SerializedData {

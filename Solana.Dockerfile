@@ -24,7 +24,7 @@ COPY Cargo.lock /rust/
 WORKDIR /rust
 RUN cargo build --release
 
-FROM solanalabs/solana:v1.10.39
+FROM solanalabs/solana:v1.10.41
 COPY --from=builder /rust/target/release/libplerkle.so /plugin/plugin.so
 COPY ./docker .
 RUN chmod +x ./*.sh
