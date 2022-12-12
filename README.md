@@ -43,6 +43,9 @@ The plugin config for plerkle must have this format
 ```json
 {
     "libpath": "/.../libplerkle.so",
+    "enable_metrics": false,
+    "env": "local",
+    "handle_startup": true, // set to false if you dont want initial account flush
     "accounts_selector" : {
         "owners" : [
             "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",

@@ -1,7 +1,7 @@
 [package]
 name = "plerkle"
 description = "Geyser plugin with dynamic config reloading, message bus agnostic abstractions and a whole lot of fun."
-version = "1.1.1"
+version = "1.1.2"
 authors = ["Metaplex Developers <dev@metaplex.com>"]
 repository = "https://github.com/metaplex-foundation/digital-asset-validator-plugin"
 license = "AGPL-3.0"
@@ -31,9 +31,9 @@ cadence-macros = "0.29.0"
 chrono = "0.4.19"
 tracing = "0.1.35"
 hex = "0.4.3"
-plerkle_messenger = { path = "../plerkle_messenger", version = "1.1.1", features = ["redis"] }
+plerkle_messenger = { path = "../plerkle_messenger", version = "1.1.2", features = ["redis"] }
 flatbuffers = "22.10.26"
-plerkle_serialization = { path = "../plerkle_serialization", version = "1.1.1" }
+plerkle_serialization = { path = "../plerkle_serialization", version = "1.1.2" }
 tokio = { version = "1.23.0", features = ["full"] }
 figment = { version = "0.10.6", features = ["env", "test"] }
 

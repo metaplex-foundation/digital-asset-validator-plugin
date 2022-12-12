@@ -15,6 +15,7 @@ use plerkle_serialization::serializer::{
     serialize_account, serialize_block, serialize_slot_status, serialize_transaction,
 };
 use serde::Deserialize;
+use serde_json::Value;
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
     GeyserPlugin, GeyserPluginError, ReplicaAccountInfoV2, ReplicaAccountInfoVersions,
     ReplicaBlockInfoVersions, ReplicaTransactionInfo, ReplicaTransactionInfoV2,
@@ -46,6 +47,7 @@ pub(crate) struct Plerkle<'a> {
     transaction_selector: Option<TransactionSelector>,
     sender: Option<Sender<SerializedData<'a>>>,
     started_at: Option<Instant>,
+    handle_startup: bool,
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
@@ -196,6 +198,7 @@ impl GeyserPlugin for Plerkle<'static> {
                     set_global_default(client);
                     statsd_count!("plugin.startup", 1);
                 }
+                self.handle_startup = config["handle_startup"].as_bool().unwrap_or(false);
             }
             Err(err) => {
                 return Err(GeyserPluginError::ConfigFileReadError {
@@ -267,6 +270,9 @@ impl GeyserPlugin for Plerkle<'static> {
         slot: u64,
         is_startup: bool,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
+        if !self.handle_startup && is_startup {
+            return Ok(());
+        }
         let rep: ReplicaAccountInfoV2;
         let account = match account {
             ReplicaAccountInfoVersions::V0_0_2(ai) => ai,
