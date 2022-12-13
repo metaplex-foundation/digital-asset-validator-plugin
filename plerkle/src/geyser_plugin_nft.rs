@@ -242,10 +242,12 @@ impl GeyserPlugin for Plerkle<'static> {
                     error!("Error adding BLOCK stream");
                 }
 
-                messenger.set_buffer_size(ACCOUNT_STREAM, 5000).await;
-                messenger.set_buffer_size(SLOT_STREAM, 5000).await;
-                messenger.set_buffer_size(TRANSACTION_STREAM, 500000).await;
-                messenger.set_buffer_size(BLOCK_STREAM, 5000).await;
+                messenger.set_buffer_size(ACCOUNT_STREAM, 10_000_000).await;
+                messenger.set_buffer_size(SLOT_STREAM, 100_000).await;
+                messenger
+                    .set_buffer_size(TRANSACTION_STREAM, 10_000_000)
+                    .await;
+                messenger.set_buffer_size(BLOCK_STREAM, 100_000).await;
 
                 // Receive messages in a loop as long as at least one Sender is in scope.
                 while let Some(data) = receiver.recv().await {
@@ -379,7 +381,7 @@ impl GeyserPlugin for Plerkle<'static> {
         if transaction_info.is_vote || transaction_info.transaction_status_meta.status.is_err() {
             return Ok(());
         }
-
+        
         // Check if transaction was selected in config.
         if let Some(transaction_selector) = &self.transaction_selector {
             if !transaction_selector.is_transaction_selected(
@@ -406,11 +408,10 @@ impl GeyserPlugin for Plerkle<'static> {
                 builder,
             };
             let _ = sender.send(data).await;
+            safe_metric(|| {
+                statsd_count!("transaction_seen_event", 1, "slot-idx" => &slt_idx);
+            });
         });
-        safe_metric(|| {
-            statsd_count!("transaction_seen_event", 1, "slot-idx" => &slt_idx);
-        });
-
         Ok(())
     }
 

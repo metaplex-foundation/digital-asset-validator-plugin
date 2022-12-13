@@ -132,7 +132,11 @@ impl RedisMessenger {
                             error!("Message has reached maximum retries {} for id", id);
                             continue;
                         }
-                        retained_ids.push(RecvData::new_retry(id, bytes.to_vec(), info.times_delivered));
+                        retained_ids.push(RecvData::new_retry(
+                            id,
+                            bytes.to_vec(),
+                            info.times_delivered,
+                        ));
                     }
                 }
                 Err(e) => error!("Redis xpending_count error {} for id {}", e, id),
@@ -259,7 +263,7 @@ impl Messenger for RedisMessenger {
             .connection
             .as_mut()
             .unwrap()
-            .xadd(stream_key, "*", &[(DATA_KEY, &bytes)])
+            .xadd_maxlen(stream_key, maxlen, "*", &[(DATA_KEY, &bytes)])
             .await;
 
         if let Err(e) = result {
