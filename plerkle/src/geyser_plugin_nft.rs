@@ -381,7 +381,7 @@ impl GeyserPlugin for Plerkle<'static> {
         if transaction_info.is_vote || transaction_info.transaction_status_meta.status.is_err() {
             return Ok(());
         }
-        
+
         // Check if transaction was selected in config.
         if let Some(transaction_selector) = &self.transaction_selector {
             if !transaction_selector.is_transaction_selected(
@@ -408,9 +408,9 @@ impl GeyserPlugin for Plerkle<'static> {
                 builder,
             };
             let _ = sender.send(data).await;
-            safe_metric(|| {
-                statsd_count!("transaction_seen_event", 1, "slot-idx" => &slt_idx);
-            });
+        });
+        safe_metric(|| {
+            statsd_count!("transaction_seen_event", 1, "slot-idx" => &slt_idx);
         });
         Ok(())
     }

@@ -4,10 +4,10 @@ use crate::{
     Reward, RewardArgs, RewardType as FBRewardType, SlotStatusInfo, SlotStatusInfoArgs,
     Status as FBSlotStatus, TransactionInfo, TransactionInfoArgs,
 };
-use chrono::{Utc, format::format};
+use chrono::{format::format, Utc};
 use flatbuffers::FlatBufferBuilder;
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
-    ReplicaBlockInfo, SlotStatus, ReplicaTransactionInfoV2, ReplicaAccountInfoV2,
+    ReplicaAccountInfoV2, ReplicaBlockInfo, ReplicaTransactionInfoV2, SlotStatus,
 };
 use solana_runtime::bank::RewardType;
 

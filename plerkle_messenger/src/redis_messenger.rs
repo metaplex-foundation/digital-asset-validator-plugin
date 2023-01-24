@@ -166,6 +166,11 @@ impl Messenger for RedisMessenger {
             MessengerError::ConnectionError { msg: e.to_string() }
         })?;
 
+        let cluster_mode = config
+            .get("cluster_mode")
+            .and_then(|r| r.clone().to_bool())
+            .unwrap_or(false);
+            
         let consumer_id = config
             .get("consumer_id")
             .and_then(|id| id.clone().into_string())
