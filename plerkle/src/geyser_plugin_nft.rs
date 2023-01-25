@@ -250,7 +250,7 @@ impl GeyserPlugin for Plerkle<'static> {
                 messenger.set_buffer_size(BLOCK_STREAM, 100_000).await;
                 // Receive messages in a loop as long as at least one Sender is in scope.
                 let marc = Arc::new(Mutex::new(messenger));
-                let sem = Arc::new(Semaphore::new(10000));
+                let sem = Arc::new(Semaphore::new(100_000_000));
                 while let Some(data) = receiver.recv().await {
                     let marc_clone = marc.clone();
                     let sem_clone = sem.clone();
