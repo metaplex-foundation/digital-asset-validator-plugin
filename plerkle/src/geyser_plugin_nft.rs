@@ -325,12 +325,11 @@ impl GeyserPlugin for Plerkle<'static> {
                 builder,
             };
             let _ = sender.send(data).await;
+            safe_metric(|| {
+                let s = is_startup.to_string();
+                statsd_count!("account_seen_event", 1, "owner" => &owner, "is_startup" => &s);
+            });
         });
-        safe_metric(|| {
-            let s = is_startup.to_string();
-            statsd_count!("account_seen_event", 1, "owner" => &owner, "is_startup" => &s);
-        });
-
         Ok(())
     }
 
