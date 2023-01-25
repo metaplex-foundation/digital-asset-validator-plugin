@@ -283,7 +283,7 @@ impl Messenger for RedisMessenger {
             for bytes in stream.local_buffer.iter() {
                 pipe.xadd_maxlen(stream_key, maxlen, "*", &[(DATA_KEY, &bytes)]);
             }
-            let result: Result<String, redis::RedisError> = pipe.query_async(&mut self.connection).await;
+            let result: Result<Vec<String>, redis::RedisError> = pipe.query_async(&mut self.connection).await;
             if let Err(e) = result {
                 error!("Redis send error: {e}");
                 return Err(MessengerError::SendError { msg: e.to_string() });
