@@ -403,11 +403,15 @@ impl GeyserPlugin for Plerkle<'static> {
         let slt_idx = format!("{}-{}", slot, transaction_info.index);
         // Send transaction info over channel.
         runtime.spawn(async move {
+            let s = Instant::now();
             let data = SerializedData {
                 stream: TRANSACTION_STREAM,
                 builder,
             };
             let _ = sender.send(data).await;
+            safe_metric(|| {
+                statsd_time!("message_send_latency", s.elapsed());
+            });
         });
         safe_metric(|| {
             statsd_count!("transaction_seen_event", 1, "slot-idx" => &slt_idx);
