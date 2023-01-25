@@ -272,6 +272,7 @@ impl Messenger for RedisMessenger {
             return Ok(());
         };  
         stream.local_buffer.push_back(bytes.to_vec());
+        stream.local_buffer_total += bytes.len();
         // Put serialized data into Redis.
         if stream.local_buffer_total < self.pipeline_size {
             info!("Redis local buffer bytes {} and message pipeline size {} ", stream.local_buffer_total, stream.local_buffer.len());
@@ -289,6 +290,7 @@ impl Messenger for RedisMessenger {
             } else {
                 info!("Data Sent to {}", stream_key);
                 stream.local_buffer.clear();
+                stream.local_buffer_total = 0;
             }
         }        
         Ok(())
