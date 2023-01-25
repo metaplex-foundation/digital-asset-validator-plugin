@@ -309,12 +309,15 @@ impl GeyserPlugin for Plerkle<'static> {
         let owner = bs58::encode(account.owner).into_string();
         // Send account info over channel.
         runtime.spawn(async move {
-            
+            let s = Instant::now();
             let data = SerializedData {
                 stream: ACCOUNT_STREAM,
                 builder,
             };
             let _ = sender.send(data).await;
+            safe_metric(|| {
+                statsd_time!("message_send_latency", s.elapsed());
+            });
         });
         safe_metric(|| {
             statsd_count!("account_seen_event", 1, "owner" => &owner);
