@@ -26,12 +26,12 @@ use std::{
     fmt::{Debug, Formatter},
     fs::File,
     io::Read,
-    net::UdpSocket,
+    net::UdpSocket, sync::Arc,
 };
 use tokio::{
     self as tokio,
     runtime::{Builder, Runtime},
-    sync::{mpsc::{self as mpsc, Sender}, Semaphore},
+    sync::{mpsc::{self as mpsc, Sender}, Semaphore, Mutex},
     time::Instant,
 };
 
@@ -249,10 +249,23 @@ impl GeyserPlugin for Plerkle<'static> {
                     .await;
                 messenger.set_buffer_size(BLOCK_STREAM, 100_000).await;
                 // Receive messages in a loop as long as at least one Sender is in scope.
+                let marc = Arc::new(Mutex::new(messenger));
+                let sem = Arc::new(Semaphore::new(1000));
                 while let Some(data) = receiver.recv().await {
-                    println!("Received message: {:?}", data.stream);
-                    let bytes = data.builder.finished_data();
-                    let _ = messenger.send(data.stream, bytes).await;
+                    let marc_clone = marc.clone();
+                    let sem_clone = sem.clone();
+                    tokio::spawn(async move {
+                        let start = Instant::now();
+                        let _permit = sem_clone.acquire().await;
+                        println!("Received message: {:?}", data.stream);
+                        let bytes = data.builder.finished_data();
+                        let mut lock = marc_clone.lock().await;
+                        let _ = lock.send(data.stream, bytes).await;
+                        safe_metric(|| {
+                            statsd_time!("message_send_latency", start.elapsed());
+                        })
+                        
+                    });
                 }
             }
         });
@@ -275,7 +288,6 @@ impl GeyserPlugin for Plerkle<'static> {
         if !self.handle_startup && is_startup {
             return Ok(());
         }
-        info!("GOT ACCOUNT UPDATE");
         let rep: ReplicaAccountInfoV2;
         let account = match account {
             ReplicaAccountInfoVersions::V0_0_2(ai) => ai,
@@ -311,21 +323,12 @@ impl GeyserPlugin for Plerkle<'static> {
         let builder = serialize_account(builder, account, slot, is_startup);
         let owner = bs58::encode(account.owner).into_string();
         // Send account info over channel.
-        let sem = Semaphore::new(1000);
-        info!("SPAWNING");
         runtime.spawn(async move {
-            info!("SPAWNED, avail permits {}",sem.available_permits());
-            let _permit = sem.acquire().await;
-            info!("got PErmit");
-            let s = Instant::now();
             let data = SerializedData {
                 stream: ACCOUNT_STREAM,
                 builder,
             };
             let _ = sender.send(data).await;
-            safe_metric(|| {
-                statsd_time!("message_send_latency", s.elapsed());
-            });
         });
         safe_metric(|| {
             let s = is_startup.to_string();
@@ -416,15 +419,11 @@ impl GeyserPlugin for Plerkle<'static> {
         let slt_idx = format!("{}-{}", slot, transaction_info.index);
         // Send transaction info over channel.
         runtime.spawn(async move {
-            let s = Instant::now();
             let data = SerializedData {
                 stream: TRANSACTION_STREAM,
                 builder,
             };
             let _ = sender.send(data).await;
-            safe_metric(|| {
-                statsd_time!("message_send_latency", s.elapsed());
-            });
         });
         safe_metric(|| {
             statsd_count!("transaction_seen_event", 1, "slot-idx" => &slt_idx);
