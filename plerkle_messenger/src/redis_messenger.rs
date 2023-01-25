@@ -17,7 +17,7 @@ use std::{
     collections::{HashMap, LinkedList},
     fmt::{Debug, Formatter},
     pin::Pin,
-    time::Instant,
+    time::{Instant, Duration}, f32::consts::PI,
 };
 
 // Redis stream values.
@@ -28,7 +28,7 @@ pub const DEFAULT_MSG_BATCH_SIZE: usize = 10;
 pub const MESSAGE_WAIT_TIMEOUT: usize = 10;
 pub const IDLE_TIMEOUT: usize = 5000;
 pub const PIPELINE_SIZE_BYTES: usize = 536870912 / 2;
-pub const PIPELINE_MAX_TIME: usize = 100;
+pub const PIPELINE_MAX_TIME: u64 = 1;
 
 pub struct RedisMessenger {
     connection: ConnectionManager,
@@ -40,6 +40,7 @@ pub struct RedisMessenger {
     message_wait_timeout: usize,
     consumer_group_name: String,
     pipeline_size: usize,
+    pipeline_max_time: u64,
 }
 
 pub struct RedisMessengerStream {
@@ -210,6 +211,11 @@ impl Messenger for RedisMessenger {
             .and_then(|r| r.clone().to_u128().map(|n| n as usize))
             .unwrap_or(PIPELINE_SIZE_BYTES);
 
+        let pipeline_max_time = config
+            .get("local_buffer_max_window")
+            .and_then(|r| r.clone().to_u128().map(|n| n as u64))
+            .unwrap_or(PIPELINE_MAX_TIME);    
+
         Ok(Self {
             connection: connection,
             streams: HashMap::<&'static str, RedisMessengerStream>::default(),
@@ -220,11 +226,21 @@ impl Messenger for RedisMessenger {
             message_wait_timeout,
             consumer_group_name,
             pipeline_size,
+            pipeline_max_time
+
         })
     }
 
     fn messenger_type(&self) -> MessengerType {
         MessengerType::Redis
+    }
+
+    async fn stream_size(&mut self, stream_key: &'static str) -> Result<u64, MessengerError> {
+        let result: RedisResult<u64> = self.connection.xlen(stream_key).await;
+        match result {
+            Ok(reply) => Ok(reply),
+            Err(e) => Err(MessengerError::ConnectionError { msg: e.to_string() }),
+        }
     }
 
     async fn add_stream(&mut self, stream_key: &'static str) -> Result<(), MessengerError> {
@@ -279,7 +295,7 @@ impl Messenger for RedisMessenger {
         stream.local_buffer.push_back(bytes.to_vec());
         stream.local_buffer_total += bytes.len();
         // Put serialized data into Redis.
-        if stream.local_buffer_total < self.pipeline_size {
+        if stream.local_buffer_total < self.pipeline_size || stream.local_buffer_last_flush.elapsed() >= Duration::from_secs(self.pipeline_max_time as u64) {
             debug!(
                 "Redis local buffer bytes {} and message pipeline size {} ",
                 stream.local_buffer_total,
@@ -301,6 +317,7 @@ impl Messenger for RedisMessenger {
                 info!("Data Sent to {}", stream_key);
                 stream.local_buffer.clear();
                 stream.local_buffer_total = 0;
+                stream.local_buffer_last_flush = Instant::now();
             }
         }
         Ok(())

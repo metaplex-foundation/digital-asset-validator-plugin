@@ -41,6 +41,7 @@ pub trait Messenger: Sync + Send {
     async fn set_buffer_size(&mut self, stream_key: &'static str, max_buffer_size: usize);
     async fn send(&mut self, stream_key: &'static str, bytes: &[u8]) -> Result<(), MessengerError>;
     async fn recv(&mut self, stream_key: &'static str) -> Result<Vec<RecvData>, MessengerError>;
+    async fn stream_size(&mut self, stream_key: &'static str) -> Result<u64, MessengerError>;
 
     // Ack-ing messages is made a bit awkward by the current interface layout because
     // the sequence of msgs returned by `recv` will mutably borrow `self`, and calling
