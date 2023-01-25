@@ -297,7 +297,9 @@ impl GeyserPlugin for Plerkle<'static> {
                 return Ok(());
             }
         } else {
-            return Ok(());
+            return Err(GeyserPluginError::ConfigFileReadError {
+                msg: format!("Accounts selector not initialized"),
+            });
         }
         // Get runtime and sender channel.
         let runtime = self.get_runtime()?;
@@ -320,7 +322,8 @@ impl GeyserPlugin for Plerkle<'static> {
             });
         });
         safe_metric(|| {
-            statsd_count!("account_seen_event", 1, "owner" => &owner);
+            let s = is_startup.to_string();
+            statsd_count!("account_seen_event", 1, "owner" => &owner, "is_startup" => &s);
         });
 
         Ok(())
