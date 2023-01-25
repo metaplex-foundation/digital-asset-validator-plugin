@@ -248,10 +248,8 @@ impl GeyserPlugin for Plerkle<'static> {
                     .set_buffer_size(TRANSACTION_STREAM, 10_000_000)
                     .await;
                 messenger.set_buffer_size(BLOCK_STREAM, 100_000).await;
-                let sem = Semaphore::new(1000);
                 // Receive messages in a loop as long as at least one Sender is in scope.
                 while let Some(data) = receiver.recv().await {
-                    let _permit = sem.acquire().await;
                     println!("Received message: {:?}", data.stream);
                     let bytes = data.builder.finished_data();
                     let _ = messenger.send(data.stream, bytes).await;
