@@ -256,7 +256,6 @@ impl GeyserPlugin for Plerkle<'static> {
                     let sem_clone = sem.clone();
                     tokio::spawn(async move {
                         let start = Instant::now();
-                        info!("Received message: {:?}, permits: {}", data.stream, sem_clone.available_permits());
                         let _permit = sem_clone.acquire().await;
                         let bytes = data.builder.finished_data();
                         let mut lock = marc_clone.lock().await;
