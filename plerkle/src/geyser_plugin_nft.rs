@@ -314,7 +314,7 @@ impl GeyserPlugin for Plerkle<'static> {
         let sem = Semaphore::new(1000);
         info!("SPAWNING");
         runtime.spawn(async move {
-            info!("SPAWNED");
+            info!("SPAWNED, avail permits {}",sem.available_permits());
             let _permit = sem.acquire().await;
             info!("got PErmit");
             let s = Instant::now();
