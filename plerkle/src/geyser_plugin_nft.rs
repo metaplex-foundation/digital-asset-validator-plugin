@@ -275,6 +275,7 @@ impl GeyserPlugin for Plerkle<'static> {
         if !self.handle_startup && is_startup {
             return Ok(());
         }
+        info!("GOT ACCOUNT UPDATE");
         let rep: ReplicaAccountInfoV2;
         let account = match account {
             ReplicaAccountInfoVersions::V0_0_2(ai) => ai,
@@ -310,7 +311,12 @@ impl GeyserPlugin for Plerkle<'static> {
         let builder = serialize_account(builder, account, slot, is_startup);
         let owner = bs58::encode(account.owner).into_string();
         // Send account info over channel.
+        let sem = Semaphore::new(1000);
+        info!("SPAWNING");
         runtime.spawn(async move {
+            info!("SPAWNED");
+            let _permit = sem.acquire().await;
+            info!("got PErmit");
             let s = Instant::now();
             let data = SerializedData {
                 stream: ACCOUNT_STREAM,
