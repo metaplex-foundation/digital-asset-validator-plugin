@@ -275,7 +275,7 @@ impl Messenger for RedisMessenger {
         stream.local_buffer_total += bytes.len();
         // Put serialized data into Redis.
         if stream.local_buffer_total < self.pipeline_size {
-            info!("Redis local buffer bytes {} and message pipeline size {} ", stream.local_buffer_total, stream.local_buffer.len());
+            debug!("Redis local buffer bytes {} and message pipeline size {} ", stream.local_buffer_total, stream.local_buffer.len());
             return Ok(());
         } else {
             let mut pipe = redis::pipe();
