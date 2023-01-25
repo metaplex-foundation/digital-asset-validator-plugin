@@ -27,7 +27,7 @@ pub const DEFAULT_RETRIES: usize = 3;
 pub const DEFAULT_MSG_BATCH_SIZE: usize = 10;
 pub const MESSAGE_WAIT_TIMEOUT: usize = 10;
 pub const IDLE_TIMEOUT: usize = 5000;
-pub const PIPELINE_SIZE_BYTES: usize = 536870912 / 100;
+pub const PIPELINE_SIZE_BYTES: usize = 536870912 / 2;
 pub const PIPELINE_MAX_TIME: usize = 100;
 
 pub struct RedisMessenger {
