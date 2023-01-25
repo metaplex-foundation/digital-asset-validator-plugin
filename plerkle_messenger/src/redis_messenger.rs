@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use futures::Stream;
 use log::*;
 use redis::{
-    aio::AsyncStream,
+    aio::{AsyncStream, ConnectionManager},
     cmd,
     streams::{
         StreamId, StreamKey, StreamMaxlen, StreamPendingCountReply, StreamReadOptions,
@@ -14,9 +14,9 @@ use redis::{
 
 use redis::streams::StreamRangeReply;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, LinkedList},
     fmt::{Debug, Formatter},
-    pin::Pin,
+    pin::Pin, time::Instant,
 };
 
 // Redis stream values.
@@ -26,10 +26,12 @@ pub const DEFAULT_RETRIES: usize = 3;
 pub const DEFAULT_MSG_BATCH_SIZE: usize = 10;
 pub const MESSAGE_WAIT_TIMEOUT: usize = 10;
 pub const IDLE_TIMEOUT: usize = 5000;
+pub const PIPELINE_SIZE_BYTES: usize = 536870912 / 100;
+pub const PIPELINE_MAX_TIME: usize = 100;
 
-#[derive(Default)]
+
 pub struct RedisMessenger {
-    connection: Option<redis::aio::Connection<Pin<Box<dyn AsyncStream + Send + Sync>>>>,
+    connection: ConnectionManager,
     streams: HashMap<&'static str, RedisMessengerStream>,
     consumer_id: String,
     retries: usize,
@@ -37,10 +39,14 @@ pub struct RedisMessenger {
     idle_timeout: usize,
     message_wait_timeout: usize,
     consumer_group_name: String,
+    pipeline_size: usize,
 }
 
 pub struct RedisMessengerStream {
-    buffer_size: Option<StreamMaxlen>,
+    max_len: Option<StreamMaxlen>,
+    local_buffer: LinkedList<Vec<u8>>,
+    local_buffer_total: usize,
+    local_buffer_last_flush: Instant,
 }
 
 const REDIS_CON_STR: &str = "redis_connection_str";
@@ -72,7 +78,7 @@ impl RedisMessenger {
         // two items: an id to be used for the next call to continue scanning the PEL,
         // and a list of successfully claimed messages in the same format as `XRANGE`.
         let result: (String, StreamRangeReply) = xauto
-            .query_async(self.connection.as_mut().unwrap())
+            .query_async(&mut self.connection)
             .await
             .map_err(|e| MessengerError::AutoclaimError { msg: e.to_string() })?;
 
@@ -93,8 +99,6 @@ impl RedisMessenger {
         for sid in range_reply.ids {
             let pending_result: RedisResult<StreamPendingCountReply> = self
                 .connection
-                .as_mut()
-                .unwrap()
                 .xpending_count(
                     stream_key,
                     self.consumer_group_name.clone(),
@@ -161,7 +165,7 @@ impl Messenger for RedisMessenger {
         let client = redis::Client::open(uri).unwrap();
 
         // Get connection.
-        let connection = client.get_tokio_connection().await.map_err(|e| {
+        let connection = client.get_tokio_connection_manager().await.map_err(|e| {
             error!("{}", e.to_string());
             MessengerError::ConnectionError { msg: e.to_string() }
         })?;
@@ -176,7 +180,7 @@ impl Messenger for RedisMessenger {
             .and_then(|id| id.clone().into_string())
             // Using the previous default name when the configuration does not
             // specify any particular consumer_id.
-            .unwrap_or(String::from("ingester"));
+            .unwrap_or(String::from("ingester"));   
 
         let retries = config
             .get("retries")
@@ -201,8 +205,13 @@ impl Messenger for RedisMessenger {
             .and_then(|r| r.clone().into_string())
             .unwrap_or(GROUP_NAME.to_string());
 
+        let pipeline_size = config
+            .get("pipeline_size_bytes")
+            .and_then(|r| r.clone().to_u128().map(|n| n as usize))
+            .unwrap_or(PIPELINE_SIZE_BYTES);
+
         Ok(Self {
-            connection: Some(connection),
+            connection: connection,
             streams: HashMap::<&'static str, RedisMessengerStream>::default(),
             consumer_id,
             retries,
@@ -210,6 +219,7 @@ impl Messenger for RedisMessenger {
             idle_timeout,
             message_wait_timeout,
             consumer_group_name,
+            pipeline_size,
         })
     }
 
@@ -221,13 +231,11 @@ impl Messenger for RedisMessenger {
         // Add to streams hashmap.
         let _result = self
             .streams
-            .insert(stream_key, RedisMessengerStream { buffer_size: None });
+            .insert(stream_key, RedisMessengerStream { max_len: None, local_buffer: LinkedList::new(), local_buffer_total: 0, local_buffer_last_flush: Instant::now()});
 
         // Add stream to Redis.
         let result: RedisResult<()> = self
             .connection
-            .as_mut()
-            .unwrap()
             .xgroup_create_mkstream(stream_key, self.consumer_group_name.as_str(), "$")
             .await;
 
@@ -240,7 +248,7 @@ impl Messenger for RedisMessenger {
     async fn set_buffer_size(&mut self, stream_key: &'static str, max_buffer_size: usize) {
         // Set max length for the stream.
         if let Some(stream) = self.streams.get_mut(stream_key) {
-            stream.buffer_size = Some(StreamMaxlen::Approx(max_buffer_size));
+            stream.max_len = Some(StreamMaxlen::Approx(max_buffer_size));
         } else {
             error!("Stream key {stream_key} not configured");
         }
@@ -248,7 +256,7 @@ impl Messenger for RedisMessenger {
 
     async fn send(&mut self, stream_key: &'static str, bytes: &[u8]) -> Result<(), MessengerError> {
         // Check if stream is configured.
-        let stream = if let Some(stream) = self.streams.get(stream_key) {
+        let stream = if let Some(stream) = self.streams.get_mut(stream_key) {
             stream
         } else {
             error!("Cannot send data for stream key {stream_key}, it is not configured");
@@ -256,28 +264,32 @@ impl Messenger for RedisMessenger {
         };
 
         // Get max length for the stream.
-        let maxlen = if let Some(maxlen) = stream.buffer_size {
+        let maxlen = if let Some(maxlen) = stream.max_len {
             maxlen
         } else {
             error!("Cannot send data for stream key {stream_key}, buffer size not set.");
             return Ok(());
-        };
-
+        };  
+        stream.local_buffer.push_back(bytes.to_vec());
         // Put serialized data into Redis.
-        let result: RedisResult<()> = self
-            .connection
-            .as_mut()
-            .unwrap()
-            .xadd_maxlen(stream_key, maxlen, "*", &[(DATA_KEY, &bytes)])
-            .await;
-
-        if let Err(e) = result {
-            error!("Redis send error: {e}");
-            return Err(MessengerError::SendError { msg: e.to_string() });
+        if stream.local_buffer_total < self.pipeline_size {
+            info!("Redis local buffer bytes {} and message pipeline size {} ", stream.local_buffer_total, stream.local_buffer.len());
+            return Ok(());
         } else {
-            debug!("Data Sent to {}", stream_key);
-        }
-
+            let mut pipe = redis::pipe();
+            pipe.atomic();
+            for bytes in stream.local_buffer.iter() {
+                pipe.xadd_maxlen(stream_key, maxlen, "*", &[(DATA_KEY, &bytes)]);
+            }
+            let result: Result<String, redis::RedisError> = pipe.query_async(&mut self.connection).await;
+            if let Err(e) = result {
+                error!("Redis send error: {e}");
+                return Err(MessengerError::SendError { msg: e.to_string() });
+            } else {
+                info!("Data Sent to {}", stream_key);
+                stream.local_buffer.clear();
+            }
+        }        
         Ok(())
     }
 
@@ -292,8 +304,6 @@ impl Messenger for RedisMessenger {
         // Read on stream key and save the reply. Log but do not return errors.
         let reply: StreamReadReply = self
             .connection
-            .as_mut()
-            .unwrap()
             .xread_options(&[stream_key], &[">"], &opts)
             .await
             .map_err(|e| {
@@ -337,8 +347,6 @@ impl Messenger for RedisMessenger {
         }
 
         self.connection
-            .as_mut()
-            .unwrap()
             .xack(stream_key, self.consumer_group_name.as_str(), ids)
             .await
             .map_err(|e| MessengerError::AckError { msg: e.to_string() })
