@@ -26,12 +26,16 @@ use std::{
     fmt::{Debug, Formatter},
     fs::File,
     io::Read,
-    net::UdpSocket, sync::Arc,
+    net::UdpSocket,
+    sync::Arc,
 };
 use tokio::{
     self as tokio,
     runtime::{Builder, Runtime},
-    sync::{mpsc::{self as mpsc, Sender}, Semaphore, Mutex},
+    sync::{
+        mpsc::{self as mpsc, Sender},
+        Mutex, Semaphore,
+    },
     time::Instant,
 };
 
@@ -249,22 +253,15 @@ impl GeyserPlugin for Plerkle<'static> {
                     .await;
                 messenger.set_buffer_size(BLOCK_STREAM, 100_000).await;
                 // Receive messages in a loop as long as at least one Sender is in scope.
-                let marc = Arc::new(Mutex::new(messenger));
-                let sem = Arc::new(Semaphore::new(100_000_000));
                 while let Some(data) = receiver.recv().await {
-                    let marc_clone = marc.clone();
-                    let sem_clone = sem.clone();
-                    tokio::spawn(async move {
-                        let start = Instant::now();
-                        let _permit = sem_clone.acquire().await;
-                        let bytes = data.builder.finished_data();
-                        let mut lock = marc_clone.lock().await;
-                        let _ = lock.send(data.stream, bytes).await;
-                        safe_metric(|| {
-                            statsd_time!("message_send_latency", start.elapsed());
-                        })
-                        
-                    });
+                    let start = Instant::now();
+
+                    let bytes = data.builder.finished_data();
+
+                    let _ = messenger.send(data.stream, bytes).await;
+                    safe_metric(|| {
+                        statsd_time!("message_send_latency", start.elapsed());
+                    })
                 }
             }
         });

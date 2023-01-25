@@ -16,7 +16,8 @@ use redis::streams::StreamRangeReply;
 use std::{
     collections::{HashMap, LinkedList},
     fmt::{Debug, Formatter},
-    pin::Pin, time::Instant,
+    pin::Pin,
+    time::Instant,
 };
 
 // Redis stream values.
@@ -26,9 +27,8 @@ pub const DEFAULT_RETRIES: usize = 3;
 pub const DEFAULT_MSG_BATCH_SIZE: usize = 10;
 pub const MESSAGE_WAIT_TIMEOUT: usize = 10;
 pub const IDLE_TIMEOUT: usize = 5000;
-pub const PIPELINE_SIZE_BYTES: usize = 536870912 / 1000;
+pub const PIPELINE_SIZE_BYTES: usize = 536870912 / 100;
 pub const PIPELINE_MAX_TIME: usize = 100;
-
 
 pub struct RedisMessenger {
     connection: ConnectionManager,
@@ -170,18 +170,17 @@ impl Messenger for RedisMessenger {
             MessengerError::ConnectionError { msg: e.to_string() }
         })?;
 
-
         let cluster_mode = config
             .get("cluster_mode")
             .and_then(|r| r.clone().to_bool())
             .unwrap_or(false);
-            
+
         let consumer_id = config
             .get("consumer_id")
             .and_then(|id| id.clone().into_string())
             // Using the previous default name when the configuration does not
             // specify any particular consumer_id.
-            .unwrap_or(String::from("ingester"));   
+            .unwrap_or(String::from("ingester"));
 
         let retries = config
             .get("retries")
@@ -230,9 +229,15 @@ impl Messenger for RedisMessenger {
 
     async fn add_stream(&mut self, stream_key: &'static str) -> Result<(), MessengerError> {
         // Add to streams hashmap.
-        let _result = self
-            .streams
-            .insert(stream_key, RedisMessengerStream { max_len: None, local_buffer: LinkedList::new(), local_buffer_total: 0, local_buffer_last_flush: Instant::now()});
+        let _result = self.streams.insert(
+            stream_key,
+            RedisMessengerStream {
+                max_len: None,
+                local_buffer: LinkedList::new(),
+                local_buffer_total: 0,
+                local_buffer_last_flush: Instant::now(),
+            },
+        );
 
         // Add stream to Redis.
         let result: RedisResult<()> = self
@@ -270,12 +275,16 @@ impl Messenger for RedisMessenger {
         } else {
             error!("Cannot send data for stream key {stream_key}, buffer size not set.");
             return Ok(());
-        };  
+        };
         stream.local_buffer.push_back(bytes.to_vec());
         stream.local_buffer_total += bytes.len();
         // Put serialized data into Redis.
         if stream.local_buffer_total < self.pipeline_size {
-            debug!("Redis local buffer bytes {} and message pipeline size {} ", stream.local_buffer_total, stream.local_buffer.len());
+            debug!(
+                "Redis local buffer bytes {} and message pipeline size {} ",
+                stream.local_buffer_total,
+                stream.local_buffer.len()
+            );
             return Ok(());
         } else {
             let mut pipe = redis::pipe();
@@ -283,7 +292,8 @@ impl Messenger for RedisMessenger {
             for bytes in stream.local_buffer.iter() {
                 pipe.xadd_maxlen(stream_key, maxlen, "*", &[(DATA_KEY, &bytes)]);
             }
-            let result: Result<Vec<String>, redis::RedisError> = pipe.query_async(&mut self.connection).await;
+            let result: Result<Vec<String>, redis::RedisError> =
+                pipe.query_async(&mut self.connection).await;
             if let Err(e) = result {
                 error!("Redis send error: {e}");
                 return Err(MessengerError::SendError { msg: e.to_string() });
@@ -292,7 +302,7 @@ impl Messenger for RedisMessenger {
                 stream.local_buffer.clear();
                 stream.local_buffer_total = 0;
             }
-        }        
+        }
         Ok(())
     }
 

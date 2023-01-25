@@ -51,7 +51,7 @@ impl TransactionSelector {
             .iter()
             .map(|key| bs58::decode(key).into_vec().unwrap())
             .collect();
-        
+
         Self {
             mentioned_addresses,
             select_all_transactions: false,
