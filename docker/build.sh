@@ -5,7 +5,7 @@ set -eux
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 
-docker-compose build
+docker compose build
 docker create --name temp digital-asset-validator-plugin_solana:latest
 mkdir -p $SCRIPT_DIR/geyser-outputs
 mkdir -p $SCRIPT_DIR/solana-outputs
