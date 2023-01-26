@@ -5,7 +5,7 @@ set -eux
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 
-docker build -t das-geyser/build
+docker build -t das-geyser/build -f Solana.Dockerfile .
 docker create --name temp das-geyser/build
 mkdir -p $SCRIPT_DIR/geyser-outputs
 mkdir -p $SCRIPT_DIR/solana-outputs
