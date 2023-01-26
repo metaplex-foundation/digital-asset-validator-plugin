@@ -255,9 +255,7 @@ impl GeyserPlugin for Plerkle<'static> {
                 // Receive messages in a loop as long as at least one Sender is in scope.
                 while let Some(data) = receiver.recv().await {
                     let start = Instant::now();
-
                     let bytes = data.builder.finished_data();
-
                     let _ = messenger.send(data.stream, bytes).await;
                     safe_metric(|| {
                         statsd_time!("message_send_latency", start.elapsed());
@@ -265,9 +263,7 @@ impl GeyserPlugin for Plerkle<'static> {
                 }
             }
         });
-
         self.runtime = Some(runtime);
-
         Ok(())
     }
 
