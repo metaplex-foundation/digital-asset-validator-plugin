@@ -295,7 +295,7 @@ impl Messenger for RedisMessenger {
         stream.local_buffer.push_back(bytes.to_vec());
         stream.local_buffer_total += bytes.len();
         // Put serialized data into Redis.
-        if stream.local_buffer_total < self.pipeline_size || stream.local_buffer_last_flush.elapsed() >= Duration::from_secs(self.pipeline_max_time as u64) {
+        if stream.local_buffer_total < self.pipeline_size && stream.local_buffer_last_flush.elapsed() <= Duration::from_secs(self.pipeline_max_time as u64) {
             debug!(
                 "Redis local buffer bytes {} and message pipeline size {} ",
                 stream.local_buffer_total,
