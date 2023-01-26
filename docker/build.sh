@@ -5,8 +5,8 @@ set -eux
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 
-docker compose build
-docker create --name temp digital-asset-validator-plugin_solana:latest
+docker build -t das-geyser/build
+docker create --name temp das-geyser/build
 mkdir -p $SCRIPT_DIR/geyser-outputs
 mkdir -p $SCRIPT_DIR/solana-outputs
 # copy plugin .so file
