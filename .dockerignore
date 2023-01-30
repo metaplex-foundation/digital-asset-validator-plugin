@@ -5,5 +5,5 @@ db-data
 node-modules
 ledger
 .anchor
-docker/geyser-outputs/*
-docker/solana-outputs/*
+docker/geyser-outputs
+docker/solana-outputs
