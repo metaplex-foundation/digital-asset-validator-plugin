@@ -15,9 +15,10 @@ use redis::{
 use redis::streams::StreamRangeReply;
 use std::{
     collections::{HashMap, LinkedList},
+    f32::consts::PI,
     fmt::{Debug, Formatter},
     pin::Pin,
-    time::{Instant, Duration}, f32::consts::PI,
+    time::{Duration, Instant},
 };
 
 // Redis stream values.
@@ -27,8 +28,9 @@ pub const DEFAULT_RETRIES: usize = 3;
 pub const DEFAULT_MSG_BATCH_SIZE: usize = 10;
 pub const MESSAGE_WAIT_TIMEOUT: usize = 10;
 pub const IDLE_TIMEOUT: usize = 5000;
-pub const PIPELINE_SIZE_BYTES: usize = 536870912 / 100;
-pub const PIPELINE_MAX_TIME: u64 = 1;
+pub const REDIS_MAX_BYTES_COMMAND: usize = 536870912;
+pub const PIPELINE_SIZE_BYTES: usize = REDIS_MAX_BYTES_COMMAND / 100;
+pub const PIPELINE_MAX_TIME: u64 = 1000;
 
 pub struct RedisMessenger {
     connection: ConnectionManager,
@@ -208,13 +210,13 @@ impl Messenger for RedisMessenger {
 
         let pipeline_size = config
             .get("pipeline_size_bytes")
-            .and_then(|r| r.clone().to_u128().map(|n| n as usize))
+            .and_then(|r| r.clone().to_u128().map(|n| n as usize).min(Some(PIPELINE_SIZE_BYTES)))
             .unwrap_or(PIPELINE_SIZE_BYTES);
 
         let pipeline_max_time = config
             .get("local_buffer_max_window")
             .and_then(|r| r.clone().to_u128().map(|n| n as u64))
-            .unwrap_or(PIPELINE_MAX_TIME);    
+            .unwrap_or(PIPELINE_MAX_TIME);
 
         Ok(Self {
             connection: connection,
@@ -226,8 +228,7 @@ impl Messenger for RedisMessenger {
             message_wait_timeout,
             consumer_group_name,
             pipeline_size,
-            pipeline_max_time
-
+            pipeline_max_time,
         })
     }
 
@@ -295,7 +296,10 @@ impl Messenger for RedisMessenger {
         stream.local_buffer.push_back(bytes.to_vec());
         stream.local_buffer_total += bytes.len();
         // Put serialized data into Redis.
-        if stream.local_buffer_total < self.pipeline_size && stream.local_buffer_last_flush.elapsed() <= Duration::from_secs(self.pipeline_max_time as u64) {
+        if stream.local_buffer_total < self.pipeline_size
+            && stream.local_buffer_last_flush.elapsed()
+                <= Duration::from_millis(self.pipeline_max_time as u64)
+        {
             debug!(
                 "Redis local buffer bytes {} and message pipeline size {} ",
                 stream.local_buffer_total,
@@ -375,11 +379,14 @@ impl Messenger for RedisMessenger {
         if ids.is_empty() {
             return Ok(());
         }
+        let mut pipe = redis::pipe();
+        pipe.xack(stream_key, self.consumer_group_name.as_str(), ids);
+        pipe.xdel(stream_key, ids);
 
-        self.connection
-            .xack(stream_key, self.consumer_group_name.as_str(), ids)
+        let result: Result<Vec<String>, MessengerError> = pipe
+            .query_async(&mut self.connection)
             .await
-            .map_err(|e| MessengerError::AckError { msg: e.to_string() })
+            .map_err(|e| MessengerError::AckError { msg: e.to_string() });
     }
 }
 

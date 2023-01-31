@@ -246,7 +246,7 @@ impl GeyserPlugin for Plerkle<'static> {
                     error!("Error adding BLOCK stream");
                 }
 
-                messenger.set_buffer_size(ACCOUNT_STREAM, 100_000_000).await;
+                messenger.set_buffer_size(ACCOUNT_STREAM, 10_000_000).await;
                 messenger.set_buffer_size(SLOT_STREAM, 100_000).await;
                 messenger
                     .set_buffer_size(TRANSACTION_STREAM, 10_000_000)
