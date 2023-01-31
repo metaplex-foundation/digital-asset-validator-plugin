@@ -18,8 +18,8 @@ use serde::Deserialize;
 
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
     GeyserPlugin, GeyserPluginError, ReplicaAccountInfoV2, ReplicaAccountInfoVersions,
-    ReplicaBlockInfoVersions, ReplicaTransactionInfoV2,
-    ReplicaTransactionInfoVersions, Result, SlotStatus,
+    ReplicaBlockInfoVersions, ReplicaTransactionInfoV2, ReplicaTransactionInfoVersions, Result,
+    SlotStatus,
 };
 use solana_sdk::{message::AccountKeys, pubkey::Pubkey};
 use std::{
@@ -31,9 +31,7 @@ use std::{
 use tokio::{
     self as tokio,
     runtime::{Builder, Runtime},
-    sync::{
-        mpsc::{self as mpsc, Sender},
-    },
+    sync::mpsc::{self as mpsc, Sender},
     time::Instant,
 };
 

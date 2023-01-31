@@ -3,7 +3,7 @@ use async_trait::async_trait;
 
 use log::*;
 use redis::{
-    aio::{ConnectionManager},
+    aio::ConnectionManager,
     cmd,
     streams::{
         StreamId, StreamKey, StreamMaxlen, StreamPendingCountReply, StreamReadOptions,
@@ -208,7 +208,12 @@ impl Messenger for RedisMessenger {
 
         let pipeline_size = config
             .get("pipeline_size_bytes")
-            .and_then(|r| r.clone().to_u128().map(|n| n as usize).min(Some(PIPELINE_SIZE_BYTES)))
+            .and_then(|r| {
+                r.clone()
+                    .to_u128()
+                    .map(|n| n as usize)
+                    .min(Some(PIPELINE_SIZE_BYTES))
+            })
             .unwrap_or(PIPELINE_SIZE_BYTES);
 
         let pipeline_max_time = config
@@ -381,8 +386,7 @@ impl Messenger for RedisMessenger {
         pipe.xack(stream_key, self.consumer_group_name.as_str(), ids);
         pipe.xdel(stream_key, ids);
 
-       pipe
-            .query_async(&mut self.connection)
+        pipe.query_async(&mut self.connection)
             .await
             .map_err(|e| MessengerError::AckError { msg: e.to_string() })
     }
