@@ -9,7 +9,7 @@ edition = "2021"
 readme = "Readme.md"
 
 [dependencies]
-redis = { version = "0.22.3", features = ["aio", "tokio-comp", "streams","tls","tokio-native-tls-comp"], optional = true}
+redis = { version = "0.22.3", features = ["aio", "tokio-comp", "streams", "tokio-native-tls-comp", "connection-manager"], optional = true}
 log = "0.4.11"
 thiserror = "1.0.30"
 async-trait = "0.1.53"

@@ -86,6 +86,40 @@ PLUGIN_MESSENGER_CONFIG='{ messenger_type="Redis", connection_config={ redis_con
 The PLUGIN_CONFIG_TTL_RELOAD tells the plugin how long to keep the geyser plugin file cached in seconds. This allows hot reloading of what programs you are listening to without restarting the validator.
 The PLUGIN_MESSENGER_CONFIG determins which compiled messenger to select and a specific configuration for the messenger.
 
+
+#### Additional Configuration Examples
+
+***Producer Configuration***
+
+- "pipeline_size_bytes" - Maximum command size, roughly equates to the payload size. This setting locally buffers bytes in a queue to be flushed when the buffere grows past the desired amount. Default is 512mb(max redis command size) / 100, maximum is 512mb(max redis command size) / 100. You should test your optimal size to avoid high send latency and avoid RTT.
+- "local_buffer_max_window" - Maximum time to wait for the buffer to fill be for flushing. For lower traffic you dont want to be waiting around so set a max window and it will send at a minumum of every X milliseconds . Default 1000
+
+```
+Lower Scale Low network latency 
+
+PLUGIN_MESSENGER_CONFIG='{pipeline_size_bytes=1000000,local_buffer_max_window=10, messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
+
+High Scale Higher latency
+
+PLUGIN_MESSENGER_CONFIG='{pipeline_size_bytes=50000000,local_buffer_max_window=500, messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
+
+
+```
+
+***Consumer Configuration***
+
+- "retries" - Amount of times to deliver the message. If delivered this many times and not acked, then its deleted
+- "batch_size" - Max Amout of messages to grab within the wait timeout window.
+- "message_wait_timeout" - Amount of time the consumer will keep the stream open and wait for messages 
+- "idle_timeout" - Amount of time a consumer can have the message before it goes back on the queue
+- "consumer_id" - VERY important. This is used to scaler horizontally so messages arent duplicated over instances.Make sure this is different per instance
+
+```
+
+PLUGIN_MESSENGER_CONFIG='{batch_size=100,message_wait_timeout=5,retries=5, consumer_id="random_string",messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
+
+```
+
 ### Building With Docker
 
 This repo contains a docker File that allows you to run an test the plerkle plugin using a test validator.

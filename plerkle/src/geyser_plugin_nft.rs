@@ -15,10 +15,10 @@ use plerkle_serialization::serializer::{
     serialize_account, serialize_block, serialize_slot_status, serialize_transaction,
 };
 use serde::Deserialize;
-use serde_json::Value;
+
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
     GeyserPlugin, GeyserPluginError, ReplicaAccountInfoV2, ReplicaAccountInfoVersions,
-    ReplicaBlockInfoVersions, ReplicaTransactionInfo, ReplicaTransactionInfoV2,
+    ReplicaBlockInfoVersions, ReplicaTransactionInfoV2,
     ReplicaTransactionInfoVersions, Result, SlotStatus,
 };
 use solana_sdk::{message::AccountKeys, pubkey::Pubkey};
@@ -31,7 +31,9 @@ use std::{
 use tokio::{
     self as tokio,
     runtime::{Builder, Runtime},
-    sync::mpsc::{self as mpsc, Sender},
+    sync::{
+        mpsc::{self as mpsc, Sender},
+    },
     time::Instant,
 };
 
@@ -248,17 +250,18 @@ impl GeyserPlugin for Plerkle<'static> {
                     .set_buffer_size(TRANSACTION_STREAM, 10_000_000)
                     .await;
                 messenger.set_buffer_size(BLOCK_STREAM, 100_000).await;
-
                 // Receive messages in a loop as long as at least one Sender is in scope.
                 while let Some(data) = receiver.recv().await {
+                    let start = Instant::now();
                     let bytes = data.builder.finished_data();
                     let _ = messenger.send(data.stream, bytes).await;
+                    safe_metric(|| {
+                        statsd_time!("message_send_latency", start.elapsed());
+                    })
                 }
             }
         });
-
         self.runtime = Some(runtime);
-
         Ok(())
     }
 
@@ -297,7 +300,9 @@ impl GeyserPlugin for Plerkle<'static> {
                 return Ok(());
             }
         } else {
-            return Ok(());
+            return Err(GeyserPluginError::ConfigFileReadError {
+                msg: "Accounts selector not initialized".to_string(),
+            });
         }
         // Get runtime and sender channel.
         let runtime = self.get_runtime()?;
@@ -314,11 +319,11 @@ impl GeyserPlugin for Plerkle<'static> {
                 builder,
             };
             let _ = sender.send(data).await;
+            safe_metric(|| {
+                let s = is_startup.to_string();
+                statsd_count!("account_seen_event", 1, "owner" => &owner, "is_startup" => &s);
+            });
         });
-        safe_metric(|| {
-            statsd_count!("account_seen_event", 1, "owner" => &owner);
-        });
-
         Ok(())
     }
 
