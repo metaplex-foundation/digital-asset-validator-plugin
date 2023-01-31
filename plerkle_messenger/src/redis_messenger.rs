@@ -1,9 +1,9 @@
 use crate::{error::MessengerError, Messenger, MessengerConfig, MessengerType, RecvData};
 use async_trait::async_trait;
-use futures::Stream;
+
 use log::*;
 use redis::{
-    aio::{AsyncStream, ConnectionManager},
+    aio::{ConnectionManager},
     cmd,
     streams::{
         StreamId, StreamKey, StreamMaxlen, StreamPendingCountReply, StreamReadOptions,
@@ -15,9 +15,7 @@ use redis::{
 use redis::streams::StreamRangeReply;
 use std::{
     collections::{HashMap, LinkedList},
-    f32::consts::PI,
     fmt::{Debug, Formatter},
-    pin::Pin,
     time::{Duration, Instant},
 };
 
@@ -173,7 +171,7 @@ impl Messenger for RedisMessenger {
             MessengerError::ConnectionError { msg: e.to_string() }
         })?;
 
-        let cluster_mode = config
+        let _cluster_mode = config
             .get("cluster_mode")
             .and_then(|r| r.clone().to_bool())
             .unwrap_or(false);
@@ -219,7 +217,7 @@ impl Messenger for RedisMessenger {
             .unwrap_or(PIPELINE_MAX_TIME);
 
         Ok(Self {
-            connection: connection,
+            connection,
             streams: HashMap::<&'static str, RedisMessengerStream>::default(),
             consumer_id,
             retries,
@@ -348,7 +346,7 @@ impl Messenger for RedisMessenger {
         let mut data_vec = Vec::new();
         data_vec.append(&mut pending_messages);
         // Parse data in stream read reply and store in Vec to return to caller.
-        for StreamKey { key, ids } in reply.keys.into_iter() {
+        for StreamKey { key: _, ids } in reply.keys.into_iter() {
             for StreamId { id, map } in ids {
                 // Get data from map.
                 let data = if let Some(data) = map.get(DATA_KEY) {
@@ -383,10 +381,10 @@ impl Messenger for RedisMessenger {
         pipe.xack(stream_key, self.consumer_group_name.as_str(), ids);
         pipe.xdel(stream_key, ids);
 
-        let result: Result<Vec<String>, MessengerError> = pipe
+       pipe
             .query_async(&mut self.connection)
             .await
-            .map_err(|e| MessengerError::AckError { msg: e.to_string() });
+            .map_err(|e| MessengerError::AckError { msg: e.to_string() })
     }
 }
 

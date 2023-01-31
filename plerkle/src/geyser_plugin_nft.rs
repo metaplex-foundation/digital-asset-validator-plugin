@@ -15,10 +15,10 @@ use plerkle_serialization::serializer::{
     serialize_account, serialize_block, serialize_slot_status, serialize_transaction,
 };
 use serde::Deserialize;
-use serde_json::Value;
+
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
     GeyserPlugin, GeyserPluginError, ReplicaAccountInfoV2, ReplicaAccountInfoVersions,
-    ReplicaBlockInfoVersions, ReplicaTransactionInfo, ReplicaTransactionInfoV2,
+    ReplicaBlockInfoVersions, ReplicaTransactionInfoV2,
     ReplicaTransactionInfoVersions, Result, SlotStatus,
 };
 use solana_sdk::{message::AccountKeys, pubkey::Pubkey};
@@ -27,14 +27,12 @@ use std::{
     fs::File,
     io::Read,
     net::UdpSocket,
-    sync::Arc,
 };
 use tokio::{
     self as tokio,
     runtime::{Builder, Runtime},
     sync::{
         mpsc::{self as mpsc, Sender},
-        Mutex, Semaphore,
     },
     time::Instant,
 };
@@ -303,7 +301,7 @@ impl GeyserPlugin for Plerkle<'static> {
             }
         } else {
             return Err(GeyserPluginError::ConfigFileReadError {
-                msg: format!("Accounts selector not initialized"),
+                msg: "Accounts selector not initialized".to_string(),
             });
         }
         // Get runtime and sender channel.
