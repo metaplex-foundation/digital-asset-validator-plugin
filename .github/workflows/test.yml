@@ -19,6 +19,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Set rust version
         run: |
+          export RUST_STABLE_VERSION=1.65.0
           source ci/rust-version.sh
           echo "RUST_STABLE=$rust_stable" | tee -a $GITHUB_ENV
 
