@@ -1,4 +1,6 @@
-FROM rust:1.64-bullseye as builder
+ARG SOLANA_VERSION=1.13.6
+ARG RUST_VERSION=1.65
+FROM rust:$RUST_VERSION-bullseye as builder
 RUN apt-get update \
       && apt-get -y install \
            wget \
@@ -24,7 +26,7 @@ COPY Cargo.lock /rust/
 WORKDIR /rust
 RUN cargo build --release
 
-FROM solanalabs/solana:v1.14.10
+FROM solanalabs/solana:$SOLANA_VERSION
 COPY --from=builder /rust/target/release/libplerkle.so /plugin/plugin.so
 COPY ./docker .
 RUN chmod +x ./*.sh
