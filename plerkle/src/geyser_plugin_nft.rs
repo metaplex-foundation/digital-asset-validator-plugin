@@ -38,6 +38,7 @@ use tokio::{
 struct SerializedData<'a> {
     stream: &'static str,
     builder: FlatBufferBuilder<'a>,
+    seen_at: Instant
 }
 
 #[derive(Default)]
@@ -254,6 +255,7 @@ impl GeyserPlugin for Plerkle<'static> {
                     let bytes = data.builder.finished_data();
                     let _ = messenger.send(data.stream, bytes).await;
                     safe_metric(|| {
+                        statsd_time!("message_send_queue_time", data.seen_at.elapsed());
                         statsd_time!("message_send_latency", start.elapsed());
                     })
                 }
@@ -273,6 +275,7 @@ impl GeyserPlugin for Plerkle<'static> {
         slot: u64,
         is_startup: bool,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
+        let seen = Instant::now();
         if !self.handle_startup && is_startup {
             return Ok(());
         }
@@ -315,6 +318,7 @@ impl GeyserPlugin for Plerkle<'static> {
             let data = SerializedData {
                 stream: ACCOUNT_STREAM,
                 builder,
+                seen_at: seen,
             };
             let _ = sender.send(data).await;
             safe_metric(|| {
@@ -341,6 +345,7 @@ impl GeyserPlugin for Plerkle<'static> {
         parent: Option<u64>,
         status: SlotStatus,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
+        let seen = Instant::now();
         // Get runtime and sender channel.
         let runtime = self.get_runtime()?;
         let sender = self.get_sender_clone()?;
@@ -354,6 +359,7 @@ impl GeyserPlugin for Plerkle<'static> {
             let data = SerializedData {
                 stream: SLOT_STREAM,
                 builder,
+                seen_at: seen,
             };
             let _ = sender.send(data).await;
         });
@@ -366,6 +372,7 @@ impl GeyserPlugin for Plerkle<'static> {
         transaction_info: ReplicaTransactionInfoVersions,
         slot: u64,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
+        let seen = Instant::now();
         let rep: ReplicaTransactionInfoV2;
         let transaction_info = match transaction_info {
             ReplicaTransactionInfoVersions::V0_0_2(ti) => ti,
@@ -409,6 +416,7 @@ impl GeyserPlugin for Plerkle<'static> {
             let data = SerializedData {
                 stream: TRANSACTION_STREAM,
                 builder,
+                seen_at: seen,
             };
             let _ = sender.send(data).await;
         });
@@ -422,6 +430,7 @@ impl GeyserPlugin for Plerkle<'static> {
         &mut self,
         blockinfo: ReplicaBlockInfoVersions,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
+        let seen = Instant::now();
         match blockinfo {
             ReplicaBlockInfoVersions::V0_0_1(block_info) => {
                 // Get runtime and sender channel.
@@ -437,6 +446,7 @@ impl GeyserPlugin for Plerkle<'static> {
                     let data = SerializedData {
                         stream: BLOCK_STREAM,
                         builder,
+                        seen_at: seen
                     };
                     let _ = sender.send(data).await;
                 });
