@@ -1,26 +1,22 @@
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   pull_request:
     paths:
-      - '.github/workflows/release.yml'
+      - ".github/workflows/release.yml"
 
 env:
   CARGO_TERM_COLOR: always
   IMAGE_NAME: plerkle-test-validator
-  SOLANA_VERSION_STABLE: 1.36.6
-  SOLANA_VERSION_REGRET: 1.14.13
+  RUST_VERSION: 1.65.0
+  SOLANA_VERSION_STABLE: v1.13.6
+  SOLANA_VERSION_REGRET: v1.14.13
 jobs:
   release:
     runs-on: buildjet-4vcpu-ubuntu-2004
     steps:
       - uses: actions/checkout@v2
-      - name: Set rust version
-        run: |
-          export RUST_STABLE_VERSION=1.65.0
-          source ci/rust-version.sh
-          echo "RUST_STABLE=$rust_stable" | tee -a $GITHUB_ENV
       - name: Set env vars
         run: |
           source ci/env.sh
@@ -40,7 +36,7 @@ jobs:
 
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: ${{ env.RUST_STABLE }}
+          toolchain: ${{ env.RUST_VERSION }}
           override: true
           profile: minimal
           components: rustfmt
@@ -49,9 +45,6 @@ jobs:
         run: |
           echo "CI_TAG=${GITHUB_REF#refs/*/}" >> "$GITHUB_ENV"
           echo "CI_OS_NAME=linux" >> "$GITHUB_ENV"
-          SOLANA_VERSION="v${SOLANA_VERSION#=}"
-          echo "SOLANA_VERSION=$SOLANA_VERSION" >> "$GITHUB_ENV"
-
       - name: Build release tarball
         run: ./ci/create-tarball.sh
       - name: Publish to crates registry
@@ -70,8 +63,8 @@ jobs:
         with:
           body: |
             ${{ env.GEYSER_PLUGIN_NAME }} ${{ env.CI_TAG }}
-            solana ${{ env.SOLANA_VERSION }}
-            rust ${{ env.RUST_STABLE }}
+            solana ${{ env.SOLANA_VERSION_STABLE }}
+            rust ${{ env.RUST_VERSION }}
           files: |
             ${{ env.GEYSER_PLUGIN_NAME }}-release-*
   push:
@@ -96,6 +89,6 @@ jobs:
           # Strip git ref prefix from version
           VERSION=$CI_TAG
           echo IMAGE_ID=$IMAGE_ID
-          echo VERSION=$VERSION-$RUST_STABLE-$SOLANA_VERSION
-          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION-$RUST_STABLE-$SOLANA_VERSION
-          docker push $IMAGE_ID:$VERSION-$RUST_STABLE-$SOLANA_VERSION
+          echo VERSION=$VERSION-${{ env.RUST_VERSION }}-${{ env.SOLANA_VERSION_STABLE }}
+          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION-${{ env.RUST_VERSION }}-${{ env.SOLANA_VERSION_STABLE }}
+          docker push $IMAGE_ID:$VERSION-$VERSION-${{ env.RUST_VERSION }}-${{ env.SOLANA_VERSION_STABLE }}
