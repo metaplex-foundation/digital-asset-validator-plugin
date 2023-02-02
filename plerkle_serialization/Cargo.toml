@@ -10,7 +10,7 @@ readme = "Readme.md"
 
 [dependencies]
 flatbuffers = "22.10.26"
-solana-geyser-plugin-interface = { version = ">=1.13.6" }
+solana-geyser-plugin-interface = { version = "1.13.6" }
 solana-runtime = ">=1.13.6"
 chrono = "0.4.22"
 serde = { version = "1.0.149"}

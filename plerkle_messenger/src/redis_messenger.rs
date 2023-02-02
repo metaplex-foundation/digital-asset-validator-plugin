@@ -211,7 +211,7 @@ impl Messenger for RedisMessenger {
             .and_then(|r| {
                 r.clone()
                     .to_u128()
-                    .map(|n| (n as usize).min(PIPELINE_SIZE_BYTES))
+                    .map(|n| n as usize)
             })
             .unwrap_or(PIPELINE_SIZE_BYTES);
 
