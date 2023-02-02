@@ -38,7 +38,7 @@ use tokio::{
 struct SerializedData<'a> {
     stream: &'static str,
     builder: FlatBufferBuilder<'a>,
-    seen_at: Instant
+    seen_at: Instant,
 }
 
 #[derive(Default)]
@@ -318,7 +318,7 @@ impl GeyserPlugin for Plerkle<'static> {
             let data = SerializedData {
                 stream: ACCOUNT_STREAM,
                 builder,
-                seen_at: seen,
+                seen_at: seen.clone(),
             };
             let _ = sender.send(data).await;
             safe_metric(|| {
@@ -359,7 +359,7 @@ impl GeyserPlugin for Plerkle<'static> {
             let data = SerializedData {
                 stream: SLOT_STREAM,
                 builder,
-                seen_at: seen,
+                seen_at: seen.clone(),
             };
             let _ = sender.send(data).await;
         });
@@ -416,7 +416,7 @@ impl GeyserPlugin for Plerkle<'static> {
             let data = SerializedData {
                 stream: TRANSACTION_STREAM,
                 builder,
-                seen_at: seen,
+                seen_at: seen.clone(),
             };
             let _ = sender.send(data).await;
         });
@@ -446,7 +446,7 @@ impl GeyserPlugin for Plerkle<'static> {
                     let data = SerializedData {
                         stream: BLOCK_STREAM,
                         builder,
-                        seen_at: seen
+                        seen_at: seen.clone(),
                     };
                     let _ = sender.send(data).await;
                 });
