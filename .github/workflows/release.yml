@@ -45,14 +45,6 @@ jobs:
           echo "CI_OS_NAME=linux" >> "$GITHUB_ENV"
       - name: Build release tarball
         run: ./ci/create-tarball.sh
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ env.RUST_VERSION_STABLE}}
-          override: true
-          profile: minimal
-          components: rustfmt
-      - name: Build release tarball
-        run: ./ci/create-tarball.sh 
       - name: Publish to crates registry
         run: |
           cargo publish -p plerkle_serialization --token $CARGO_TOKEN --no-verify || true
