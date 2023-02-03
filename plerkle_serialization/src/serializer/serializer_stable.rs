@@ -1,16 +1,14 @@
 use crate::{
     AccountInfo, AccountInfoArgs, BlockInfo, BlockInfoArgs, CompiledInstruction,
     CompiledInstructionArgs, InnerInstructions, InnerInstructionsArgs, Pubkey as FBPubkey, Pubkey,
-    Reward, RewardArgs, RewardType as FBRewardType, SlotStatusInfo, SlotStatusInfoArgs,
+     SlotStatusInfo, SlotStatusInfoArgs,
     Status as FBSlotStatus, TransactionInfo, TransactionInfoArgs,
 };
 use chrono::Utc;
 use flatbuffers::FlatBufferBuilder;
-use solana_geyser_plugin_interface::geyser_plugin_interface::{
-    ReplicaAccountInfoV2, ReplicaBlockInfo, ReplicaTransactionInfoV2, SlotStatus,
+use crate::solana_geyser_plugin_interface_shims::{
+    ReplicaAccountInfoV2, ReplicaBlockInfoV2, ReplicaTransactionInfoV2, SlotStatus,
 };
-use solana_runtime::bank::RewardType;
-
 pub fn serialize_account<'a>(
     mut builder: FlatBufferBuilder<'a>,
     account: &ReplicaAccountInfoV2,
@@ -195,47 +193,13 @@ pub fn serialize_transaction<'a>(
 
 pub fn serialize_block<'a>(
     mut builder: FlatBufferBuilder<'a>,
-    block_info: &ReplicaBlockInfo,
+    block_info: &ReplicaBlockInfoV2,
 ) -> FlatBufferBuilder<'a> {
     // Serialize blockash.
     let blockhash = Some(builder.create_string(block_info.blockhash));
 
     // Serialize rewards.
-    let rewards = if !block_info.rewards.is_empty() {
-        let mut rewards_fb_vec = Vec::with_capacity(block_info.rewards.len());
-        for reward in block_info.rewards.iter() {
-            let pubkey = Some(builder.create_vector(reward.pubkey.as_bytes()));
-            let lamports = reward.lamports;
-            let post_balance = reward.post_balance;
-
-            let reward_type = if let Some(reward) = reward.reward_type {
-                match reward {
-                    RewardType::Fee => Some(FBRewardType::Fee),
-                    RewardType::Rent => Some(FBRewardType::Rent),
-                    RewardType::Staking => Some(FBRewardType::Staking),
-                    RewardType::Voting => Some(FBRewardType::Voting),
-                }
-            } else {
-                None
-            };
-
-            let commission = reward.commission;
-
-            rewards_fb_vec.push(Reward::create(
-                &mut builder,
-                &RewardArgs {
-                    pubkey,
-                    lamports,
-                    post_balance,
-                    reward_type,
-                    commission,
-                },
-            ));
-        }
-        Some(builder.create_vector(&rewards_fb_vec))
-    } else {
-        None
-    };
+    let rewards =None;
 
     // Serialize everything into Block Info table.
     let seen_at = Utc::now();

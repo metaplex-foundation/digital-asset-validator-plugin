@@ -17,8 +17,8 @@ use plerkle_serialization::serializer::{
 use serde::Deserialize;
 
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
-    GeyserPlugin, GeyserPluginError, ReplicaAccountInfoV2, ReplicaAccountInfoVersions,
-    ReplicaBlockInfoVersions, ReplicaTransactionInfoV2, ReplicaTransactionInfoVersions, Result,
+    GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions,
+    ReplicaBlockInfoVersions, ReplicaTransactionInfoVersions, Result,
     SlotStatus,
 };
 use solana_sdk::{message::AccountKeys, pubkey::Pubkey};
@@ -279,11 +279,11 @@ impl GeyserPlugin for Plerkle<'static> {
         if !self.handle_startup && is_startup {
             return Ok(());
         }
-        let rep: ReplicaAccountInfoV2;
+        let rep: plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaAccountInfoV2;
         let account = match account {
-            ReplicaAccountInfoVersions::V0_0_2(ai) => ai,
+            //ReplicaAccountInfoVersions::V0_0_2(ai) => ai,
             ReplicaAccountInfoVersions::V0_0_1(ai) => {
-                rep = ReplicaAccountInfoV2 {
+                rep = plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaAccountInfoV2 {
                     pubkey: ai.pubkey,
                     lamports: ai.lamports,
                     owner: ai.owner,
@@ -352,6 +352,11 @@ impl GeyserPlugin for Plerkle<'static> {
 
         // Serialize data.
         let builder = FlatBufferBuilder::new();
+        let status = match status {
+            SlotStatus::Rooted => plerkle_serialization::solana_geyser_plugin_interface_shims::SlotStatus::Rooted,
+            SlotStatus::Processed => plerkle_serialization::solana_geyser_plugin_interface_shims::SlotStatus::Processed,
+            SlotStatus::Confirmed => plerkle_serialization::solana_geyser_plugin_interface_shims::SlotStatus::Confirmed,
+        };
         let builder = serialize_slot_status(builder, slot, parent, status);
 
         // Send slot status over channel.
@@ -373,11 +378,11 @@ impl GeyserPlugin for Plerkle<'static> {
         slot: u64,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
         let seen = Instant::now();
-        let rep: ReplicaTransactionInfoV2;
+        let rep: plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaTransactionInfoV2;
         let transaction_info = match transaction_info {
-            ReplicaTransactionInfoVersions::V0_0_2(ti) => ti,
+            //ReplicaTransactionInfoVersions::V0_0_2(ti) => ti,
             ReplicaTransactionInfoVersions::V0_0_1(ti) => {
-                rep = ReplicaTransactionInfoV2 {
+                rep = plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaTransactionInfoV2 {
                     signature: ti.signature,
                     is_vote: ti.is_vote,
                     transaction: ti.transaction,
@@ -439,7 +444,18 @@ impl GeyserPlugin for Plerkle<'static> {
 
                 // Serialize data.
                 let builder = FlatBufferBuilder::new();
-                let builder = serialize_block(builder, block_info);
+                // Hope to remove this when coupling is not an issue.
+                let block_info = plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaBlockInfoV2 {
+                     parent_slot: 0,
+                     parent_blockhash: "",
+                     slot: block_info.slot,
+                     blockhash: block_info.blockhash,
+                     block_time: block_info.block_time,
+                     block_height: block_info.block_height,
+                     executed_transaction_count: 0,
+                };
+              
+                let builder = serialize_block(builder, &block_info);
 
                 // Send block info over channel.
                 runtime.spawn(async move {
