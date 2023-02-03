@@ -89,6 +89,7 @@ jobs:
           # Strip git ref prefix from version
           VERSION=$CI_TAG
           echo IMAGE_ID=$IMAGE_ID
-          echo VERSION=$VERSION-${{ env.RUST_VERSION }}-${{ env.SOLANA_VERSION_STABLE }}
-          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION-${{ env.RUST_VERSION }}-${{ env.SOLANA_VERSION_STABLE }}
-          docker push $IMAGE_ID:$VERSION-$VERSION-${{ env.RUST_VERSION }}-${{ env.SOLANA_VERSION_STABLE }}
+          export TAG=$VERSION-${{ env.RUST_VERSION }}-${{ env.SOLANA_VERSION_STABLE }}
+          echo VERSION=$TAG
+          docker tag $IMAGE_NAME $IMAGE_ID:$TAG
+          docker push $IMAGE_ID:$TAG
