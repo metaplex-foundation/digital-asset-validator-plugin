@@ -39,10 +39,11 @@ jobs:
           override: true
           profile: minimal
           components: rustfmt
-      - name: Check Solana version
+      - name: Build Plugin
         run: |
           echo "CI_TAG=${GITHUB_REF#refs/*/}" >> "$GITHUB_ENV"
           echo "CI_OS_NAME=linux" >> "$GITHUB_ENV"
+          cargo build --release
       - name: Build release tarball
         run: ./ci/create-tarball.sh
       - name: Publish to crates registry
@@ -91,10 +92,11 @@ jobs:
           override: true
           profile: minimal
           components: rustfmt
-      - name: Check Solana version
+      - name: Build Plugin
         run: |
           echo "CI_TAG=${GITHUB_REF#refs/*/}" >> "$GITHUB_ENV"
           echo "CI_OS_NAME=linux" >> "$GITHUB_ENV"
+          cargo build --release
       - name: Build release tarball
         run: ./ci/create-tarball.sh
       - uses: actions-rs/toolchain@v1
