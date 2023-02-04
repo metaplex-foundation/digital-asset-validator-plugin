@@ -20,3 +20,5 @@ test-ledger
 *error.log
 *iml
 programs
+docker/geyser-outputs
+docker/solana-outputs
