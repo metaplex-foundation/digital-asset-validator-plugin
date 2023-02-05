@@ -20,8 +20,8 @@
 #   $ cargo +"$rust_nightly" build
 #
 
-if [[ -n $RUST_STABLE_VERSION ]]; then
-  stable_version="$RUST_STABLE_VERSION"
+if [[ -n $RUST_VERSION ]]; then
+  stable_version="$RUST_VERSION"
 else
   stable_version=1.64.0
 fi
