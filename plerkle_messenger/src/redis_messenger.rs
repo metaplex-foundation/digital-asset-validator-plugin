@@ -27,7 +27,7 @@ pub const DEFAULT_MSG_BATCH_SIZE: usize = 10;
 pub const MESSAGE_WAIT_TIMEOUT: usize = 10;
 pub const IDLE_TIMEOUT: usize = 5000;
 pub const REDIS_MAX_BYTES_COMMAND: usize = 536870912;
-pub const PIPELINE_SIZE_BYTES: usize = REDIS_MAX_BYTES_COMMAND / 1000;
+pub const PIPELINE_SIZE_BYTES: usize = REDIS_MAX_BYTES_COMMAND / 100;
 pub const PIPELINE_MAX_TIME: u64 = 100;
 
 pub struct RedisMessenger {
@@ -334,7 +334,7 @@ impl Messenger for RedisMessenger {
         let xauto_reply = self.xautoclaim(stream_key).await?;
         let mut pending_messages = xauto_reply;
         let opts = StreamReadOptions::default()
-            .block(self.message_wait_timeout)
+            //.block(self.message_wait_timeout)
             .count(self.batch_size)
             .group(self.consumer_group_name.as_str(), self.consumer_id.as_str());
 
