@@ -149,3 +149,10 @@ You can run `./docker/build.sh` to create a build of the geyser plugin and solan
 to your local filesystem so you can run the validator.
 
 Note that differences in image distro could cause incompatible GLibc versions.
+
+### Crates
+
+NOTE WE DO NOT PUBLISH THE PLUGIN ANY MORE:
+
+plerkle_messenger-https://crates.io/crates/plerkle_messenger
+plerkle_serialization-https://crates.io/crates/plerkle_serialization
