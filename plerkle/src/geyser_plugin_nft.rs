@@ -279,8 +279,8 @@ impl GeyserPlugin for Plerkle<'static> {
                     let bytes = data.builder.finished_data();
                     let _ = messenger.send(data.stream, bytes).await;
                     safe_metric(|| {
-                        statsd_time!("message_send_queue_time", data.seen_at.elapsed());
-                        statsd_time!("message_send_latency", start.elapsed());
+                        statsd_time!("message_send_queue_time", data.seen_at.elapsed().as_millis() as u64);
+                        statsd_time!("message_send_latency", start.elapsed().as_millis() as u64);
                     })
                 }
             }

@@ -78,7 +78,7 @@ impl RedisMessenger {
         // Before Redis 7 (we're using 6.2.x presently), `XAUTOCLAIM` returns an array of
         // two items: an id to be used for the next call to continue scanning the PEL,
         // and a list of successfully claimed messages in the same format as `XRANGE`.
-        let result: (String, StreamRangeReply) = xauto
+        let result: (String, StreamRangeReply, ) = xauto
             .query_async(&mut self.connection)
             .await
             .map_err(|e| MessengerError::AutoclaimError { msg: e.to_string() })?;
@@ -303,10 +303,11 @@ impl Messenger for RedisMessenger {
             && stream.local_buffer_last_flush.elapsed()
                 <= Duration::from_millis(self.pipeline_max_time as u64)
         {
-            debug!(
-                "Redis local buffer bytes {} and message pipeline size {} ",
+            info!(
+                "Redis local buffer bytes {} and message pipeline size {} elapsed time {}ms",
                 stream.local_buffer_total,
-                stream.local_buffer.len()
+                stream.local_buffer.len(),
+                stream.local_buffer_last_flush.elapsed().as_millis()
             );
             return Ok(());
         } else {
