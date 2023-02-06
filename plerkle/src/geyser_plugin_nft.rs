@@ -382,7 +382,7 @@ impl GeyserPlugin for Plerkle<'static> {
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
         info!("Slot status update: {:?} {:?}", slot, status);
         let runtime = self.get_runtime()?;
-        if status == SlotStatus::Confirmed {
+        if status == SlotStatus::Processed {
             let slot_map = self.account_event_cache.remove(&slot);
             if let Some((_,events)) = slot_map {
                 info!("Sending Account events for SLOT: {:?}", slot);
