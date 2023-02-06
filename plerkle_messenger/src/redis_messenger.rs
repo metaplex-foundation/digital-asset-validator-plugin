@@ -78,7 +78,7 @@ impl RedisMessenger {
         // Before Redis 7 (we're using 6.2.x presently), `XAUTOCLAIM` returns an array of
         // two items: an id to be used for the next call to continue scanning the PEL,
         // and a list of successfully claimed messages in the same format as `XRANGE`.
-        let result: (String, StreamRangeReply, ) = xauto
+        let result: (String, StreamRangeReply, Vec<String>) = xauto
             .query_async(&mut self.connection)
             .await
             .map_err(|e| MessengerError::AutoclaimError { msg: e.to_string() })?;
@@ -92,10 +92,22 @@ impl RedisMessenger {
         }
 
         let mut retained_ids = Vec::new();
+        let f = range_reply.ids.first().unwrap();
+        let l = range_reply.ids.last().unwrap();
 
         // We need to use `xpending_count` to get a `StreamPendingCountReply` which
         // contains information about the number of times a message has been
         // delivered.
+        let pending_result: RedisResult<StreamPendingCountReply> = self
+                .connection
+                .xpending_count(
+                    stream_key,
+                    self.consumer_group_name.clone(),
+                    &f.id.clone(),
+                    &l.id.clone(),
+                    1,
+                )
+                .await;
 
         for sid in range_reply.ids {
             let pending_result: RedisResult<StreamPendingCountReply> = self
@@ -332,8 +344,8 @@ impl Messenger for RedisMessenger {
     }
 
     async fn recv(&mut self, stream_key: &'static str) -> Result<Vec<RecvData>, MessengerError> {
-        let xauto_reply = self.xautoclaim(stream_key).await?;
-        let mut pending_messages = xauto_reply;
+        // let xauto_reply = self.xautoclaim(stream_key).await?;
+        // let mut pending_messages = xauto_reply;
         let opts = StreamReadOptions::default()
             //.block(self.message_wait_timeout)
             .count(self.batch_size)
@@ -350,7 +362,7 @@ impl Messenger for RedisMessenger {
             })?;
 
         let mut data_vec = Vec::new();
-        data_vec.append(&mut pending_messages);
+        // data_vec.append(&mut pending_messages);
         // Parse data in stream read reply and store in Vec to return to caller.
         for StreamKey { key: _, ids } in reply.keys.into_iter() {
             for StreamId { id, map } in ids {
