@@ -51,7 +51,6 @@ pub(crate) struct Plerkle<'a> {
     sender: Option<Sender<SerializedData<'a>>>,
     started_at: Option<Instant>,
     handle_startup: bool,
-    slot_cache: Arc<DashMap<u64, SlotStatus>>,
     account_event_cache: Arc<DashMap<u64, Vec<SerializedData<'a>>>>,
 }
 
@@ -72,7 +71,6 @@ impl<'a> Plerkle<'a> {
             sender: None,
             started_at: None,
             handle_startup: false,
-            slot_cache: Arc::new(DashMap::new()),
             account_event_cache: Arc::new(DashMap::new()),
         }
     }
@@ -376,14 +374,14 @@ impl GeyserPlugin for Plerkle<'static> {
         parent: Option<u64>,
         status: SlotStatus,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
-        debug!("Slot status update: {:?} {:?}", slot, status);
+        info!("Slot status update: {:?} {:?}", slot, status);
         let runtime = self.get_runtime()?;
         if status == SlotStatus::Confirmed {
             let events_in_slot = self.account_event_cache.remove(&slot);
             if let Some((slot, events)) = events_in_slot {
-                debug!("Sending events for SLOT: {:?}", slot);
+                info!("Sending events for SLOT: {:?}", slot);
                 for event in events.into_iter() {
-                    debug!("Sending event for stream: {:?}", event.stream);
+                    info!("Sending event for stream: {:?}", event.stream);
                     let sender = self.get_sender_clone()?;
                     Plerkle::send(sender, runtime, event)?;
                 }
