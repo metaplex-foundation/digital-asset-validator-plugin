@@ -51,7 +51,8 @@ pub(crate) struct Plerkle<'a> {
     sender: Option<Sender<SerializedData<'a>>>,
     started_at: Option<Instant>,
     handle_startup: bool,
-    account_event_cache: Arc<DashMap<u64, Vec<SerializedData<'a>>>>,
+
+    account_event_cache: Arc<DashMap<u64, DashMap<Pubkey, SerializedData<'a>>>>,
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
@@ -344,14 +345,19 @@ impl GeyserPlugin for Plerkle<'static> {
         };
         let runtime = self.get_runtime()?;
         let sender = self.get_sender_clone()?;
+        
         if is_startup {
             Plerkle::send(sender, runtime, data)?;
         } else {
+            let account_key = Pubkey::new(account.pubkey);
             let cache = self.account_event_cache.get_mut(&slot);
-            if let Some(mut cache) = cache {
-                cache.push(data);
+            if let Some(cache) = cache {
+                // TODO need to upgrade to 1.14 to get slot account update ordering and take greatest write version
+                cache.insert(account_key, data);
             } else {
-                self.account_event_cache.insert(slot, vec![data]);
+                let pubkey_cache = DashMap::new();
+                pubkey_cache.insert(account_key, data);
+                self.account_event_cache.insert(slot, pubkey_cache);
             }
         }
 
@@ -377,11 +383,12 @@ impl GeyserPlugin for Plerkle<'static> {
         info!("Slot status update: {:?} {:?}", slot, status);
         let runtime = self.get_runtime()?;
         if status == SlotStatus::Confirmed {
-            let events_in_slot = self.account_event_cache.remove(&slot);
-            if let Some((slot, events)) = events_in_slot {
-                info!("Sending events for SLOT: {:?}", slot);
-                for event in events.into_iter() {
-                    info!("Sending event for stream: {:?}", event.stream);
+            let slot_map = self.account_event_cache.remove(&slot);
+            if let Some((_,events)) = slot_map {
+                info!("Sending Account events for SLOT: {:?}", slot);
+                
+                for (_, event) in events.into_iter() {
+                    info!("Sending Account event for stream: {:?}", event.stream);
                     let sender = self.get_sender_clone()?;
                     Plerkle::send(sender, runtime, event)?;
                 }
