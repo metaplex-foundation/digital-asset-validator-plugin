@@ -4,6 +4,7 @@ use crate::{
 };
 use cadence::{BufferedUdpMetricSink, QueuingMetricSink, StatsdClient};
 use cadence_macros::*;
+use dashmap::DashMap;
 use figment::{providers::Env, Figment};
 use flatbuffers::FlatBufferBuilder;
 use log::*;
@@ -17,9 +18,8 @@ use plerkle_serialization::serializer::{
 use serde::Deserialize;
 
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
-    GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions,
-    ReplicaBlockInfoVersions, ReplicaTransactionInfoVersions, Result,
-    SlotStatus,
+    GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions, ReplicaBlockInfoVersions,
+    ReplicaTransactionInfoVersions, Result, SlotStatus,
 };
 use solana_sdk::{message::AccountKeys, pubkey::Pubkey};
 use std::{
@@ -27,11 +27,13 @@ use std::{
     fs::File,
     io::Read,
     net::UdpSocket,
+    sync::Arc,
 };
 use tokio::{
     self as tokio,
     runtime::{Builder, Runtime},
     sync::mpsc::{self as mpsc, Sender},
+    task::JoinHandle,
     time::Instant,
 };
 
@@ -49,6 +51,8 @@ pub(crate) struct Plerkle<'a> {
     sender: Option<Sender<SerializedData<'a>>>,
     started_at: Option<Instant>,
     handle_startup: bool,
+    slot_cache: Arc<DashMap<u64, SlotStatus>>,
+    account_event_cache: Arc<DashMap<u64, Vec<SerializedData<'a>>>>,
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
@@ -61,7 +65,28 @@ const MSG_BUFFER_SIZE: usize = 1000000;
 
 impl<'a> Plerkle<'a> {
     pub fn new() -> Self {
-        Self::default()
+        Plerkle {
+            runtime: None,
+            accounts_selector: None,
+            transaction_selector: None,
+            sender: None,
+            started_at: None,
+            handle_startup: false,
+            slot_cache: Arc::new(DashMap::new()),
+            account_event_cache: Arc::new(DashMap::new()),
+        }
+    }
+
+    fn send(
+        sender: Sender<SerializedData<'static>>,
+        runtime: &tokio::runtime::Runtime,
+        data: SerializedData<'static>,
+    ) -> Result<()> {
+        // Send account info over channel.
+        runtime.spawn(async move {
+            let _ = sender.send(data).await;
+        });
+        Ok(())
     }
 
     fn create_accounts_selector_from_config(config: &serde_json::Value) -> AccountsSelector {
@@ -275,7 +300,6 @@ impl GeyserPlugin for Plerkle<'static> {
         slot: u64,
         is_startup: bool,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
-        let seen = Instant::now();
         if !self.handle_startup && is_startup {
             return Ok(());
         }
@@ -305,27 +329,34 @@ impl GeyserPlugin for Plerkle<'static> {
                 msg: "Accounts selector not initialized".to_string(),
             });
         }
+        let seen = Instant::now();
         // Get runtime and sender channel.
-        let runtime = self.get_runtime()?;
-        let sender = self.get_sender_clone()?;
-
         // Serialize data.
         let builder = FlatBufferBuilder::new();
         let builder = serialize_account(builder, account, slot, is_startup);
         let owner = bs58::encode(account.owner).into_string();
-        // Send account info over channel.
-        runtime.spawn(async move {
-            let data = SerializedData {
-                stream: ACCOUNT_STREAM,
-                builder,
-                seen_at: seen.clone(),
-            };
-            let _ = sender.send(data).await;
-            safe_metric(|| {
-                let s = is_startup.to_string();
-                statsd_count!("account_seen_event", 1, "owner" => &owner, "is_startup" => &s);
-            });
+        safe_metric(|| {
+            let s = is_startup.to_string();
+            statsd_count!("account_seen_event", 1, "owner" => &owner, "is_startup" => &s);
         });
+        let data = SerializedData {
+            stream: ACCOUNT_STREAM,
+            builder,
+            seen_at: seen,
+        };
+        let runtime = self.get_runtime()?;
+        let sender = self.get_sender_clone()?;
+        if is_startup {
+            Plerkle::send(sender, runtime, data)?;
+        } else {
+            let cache = self.account_event_cache.get_mut(&slot);
+            if let Some(mut cache) = cache {
+                cache.push(data);
+            } else {
+                self.account_event_cache.insert(slot, vec![data]);
+            }
+        }
+
         Ok(())
     }
 
@@ -345,30 +376,19 @@ impl GeyserPlugin for Plerkle<'static> {
         parent: Option<u64>,
         status: SlotStatus,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
-        let seen = Instant::now();
-        // Get runtime and sender channel.
+        debug!("Slot status update: {:?} {:?}", slot, status);
         let runtime = self.get_runtime()?;
-        let sender = self.get_sender_clone()?;
-
-        // Serialize data.
-        let builder = FlatBufferBuilder::new();
-        let status = match status {
-            SlotStatus::Rooted => plerkle_serialization::solana_geyser_plugin_interface_shims::SlotStatus::Rooted,
-            SlotStatus::Processed => plerkle_serialization::solana_geyser_plugin_interface_shims::SlotStatus::Processed,
-            SlotStatus::Confirmed => plerkle_serialization::solana_geyser_plugin_interface_shims::SlotStatus::Confirmed,
-        };
-        let builder = serialize_slot_status(builder, slot, parent, status);
-
-        // Send slot status over channel.
-        runtime.spawn(async move {
-            let data = SerializedData {
-                stream: SLOT_STREAM,
-                builder,
-                seen_at: seen.clone(),
-            };
-            let _ = sender.send(data).await;
-        });
-
+        if status == SlotStatus::Confirmed {
+            let events_in_slot = self.account_event_cache.remove(&slot);
+            if let Some((slot, events)) = events_in_slot {
+                debug!("Sending events for SLOT: {:?}", slot);
+                for event in events.into_iter() {
+                    debug!("Sending event for stream: {:?}", event.stream);
+                    let sender = self.get_sender_clone()?;
+                    Plerkle::send(sender, runtime, event)?;
+                }
+            }
+        }
         Ok(())
     }
 
@@ -454,7 +474,7 @@ impl GeyserPlugin for Plerkle<'static> {
                      block_height: block_info.block_height,
                      executed_transaction_count: 0,
                 };
-              
+
                 let builder = serialize_block(builder, &block_info);
 
                 // Send block info over channel.

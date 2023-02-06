@@ -201,6 +201,7 @@ impl Messenger for RedisMessenger {
             .get("message_wait_timeout")
             .and_then(|r| r.clone().to_u128().map(|n| n as usize))
             .unwrap_or(MESSAGE_WAIT_TIMEOUT);
+            
         let consumer_group_name = config
             .get("consumer_group_name")
             .and_then(|r| r.clone().into_string())
