@@ -61,7 +61,7 @@ pub struct PluginConfig {
     pub config_reload_ttl: Option<i64>,
 }
 
-const MSG_BUFFER_SIZE: usize = 1000000;
+const MSG_BUFFER_SIZE: usize = 10_000_000;
 
 impl<'a> Plerkle<'a> {
     pub fn new() -> Self {
@@ -267,7 +267,7 @@ impl GeyserPlugin for Plerkle<'static> {
                     error!("Error adding BLOCK stream");
                 }
 
-                messenger.set_buffer_size(ACCOUNT_STREAM, 10_000_000).await;
+                messenger.set_buffer_size(ACCOUNT_STREAM, 50_000_000).await;
                 messenger.set_buffer_size(SLOT_STREAM, 100_000).await;
                 messenger
                     .set_buffer_size(TRANSACTION_STREAM, 10_000_000)
@@ -276,7 +276,7 @@ impl GeyserPlugin for Plerkle<'static> {
                 // Receive messages in a loop as long as at least one Sender is in scope.
                 while let Some(data) = receiver.recv().await {
                     let start = Instant::now();
-                    let bytes = data.builder.finished_data();
+                    let bytes = data.builder.finished_data();       
                     let _ = messenger.send(data.stream, bytes).await;
                     safe_metric(|| {
                         statsd_time!("message_send_queue_time", data.seen_at.elapsed().as_millis() as u64);
@@ -382,7 +382,7 @@ impl GeyserPlugin for Plerkle<'static> {
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
         info!("Slot status update: {:?} {:?}", slot, status);
         let runtime = self.get_runtime()?;
-        if status == SlotStatus::Processed {
+        if status == SlotStatus::Confirmed {
             let slot_map = self.account_event_cache.remove(&slot);
             if let Some((_,events)) = slot_map {
                 info!("Sending Account events for SLOT: {:?}", slot);
