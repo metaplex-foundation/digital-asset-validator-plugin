@@ -14,6 +14,5 @@ chrono = "0.4.22"
 serde = { version = "1.0.149"}
 solana-sdk = { version = "=1.13.6" }
 solana-transaction-status = { version = "=1.13.6" }
-#solana-account-decoder = "1.13.6"
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
