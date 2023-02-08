@@ -1,4 +1,6 @@
-use crate::{error::MessengerError, Messenger, MessengerConfig, MessengerType, RecvData};
+use crate::{
+    error::MessengerError, ConsumptionType, Messenger, MessengerConfig, MessengerType, RecvData,
+};
 use async_trait::async_trait;
 
 use log::*;
@@ -28,7 +30,7 @@ pub const MESSAGE_WAIT_TIMEOUT: usize = 10;
 pub const IDLE_TIMEOUT: usize = 5000;
 pub const REDIS_MAX_BYTES_COMMAND: usize = 536870912;
 pub const PIPELINE_SIZE_BYTES: usize = REDIS_MAX_BYTES_COMMAND / 100;
-pub const PIPELINE_MAX_TIME: u64 = 100;
+pub const PIPELINE_MAX_TIME: u64 = 10;
 
 pub struct RedisMessenger {
     connection: ConnectionManager,
@@ -55,36 +57,27 @@ const REDIS_CON_STR: &str = "redis_connection_str";
 impl RedisMessenger {
     async fn xautoclaim(
         &mut self,
-            stream_key: &'static str,
-        ) -> Result<Vec<RecvData>, MessengerError> {
-            let mut id = "0-0".to_owned();
-            // We need to call `XAUTOCLAIM` repeatedly because it will (according to the docs)
-            // only look at up to 10 * `count` PEL entries each time, and `id` is used to
-            // know where we left off to continue from next call.
+        stream_key: &'static str,
+    ) -> Result<Vec<RecvData>, MessengerError> {
+        let mut id = "0-0".to_owned();
+        let mut xauto = cmd("XAUTOCLAIM");
+        xauto
+            .arg(stream_key)
+            .arg(self.consumer_group_name.clone())
+            .arg(self.consumer_id.as_str())
+            // We only reclaim items that have been idle for at least 2 sec.
+            .arg(self.idle_timeout)
+            .arg(id.as_str())
+            .arg("COUNT")
+            .arg(self.batch_size);
 
-            // The `redis` crate doesn't appear to support this command so we have
-            // to call it via the lower level primitives it provides.
-            let mut xauto = cmd("XAUTOCLAIM");
-            xauto
-                .arg(stream_key)
-                .arg(self.consumer_group_name.clone())
-                .arg(self.consumer_id.as_str())
-                // We only reclaim items that have been idle for at least 2 sec.
-                .arg(self.idle_timeout)
-                .arg(id.as_str())
-                .arg("COUNT")
-                .arg(self.batch_size);
+        let result: (String, StreamRangeReply, Vec<String>) = xauto
+            .query_async(&mut self.connection)
+            .await
+            .map_err(|e| MessengerError::AutoclaimError { msg: e.to_string() })?;
 
-            // Before Redis 7 (we're using 6.2.x presently), `XAUTOCLAIM` returns an array of
-            // two items: an id to be used for the next call to continue scanning the PEL,
-            // and a list of successfully claimed messages in the same format as `XRANGE`.
-            let result: (String, StreamRangeReply, Vec<String>) = xauto
-                .query_async(&mut self.connection)
-                .await
-                .map_err(|e| MessengerError::AutoclaimError { msg: e.to_string() })?;
-
-            id = result.0;
-            let range_reply = result.1;
+        id = result.0;
+        let range_reply = result.1;
 
         if id == "0-0" || range_reply.ids.is_empty() {
             // We've reached the end of the PEL.
@@ -333,7 +326,11 @@ impl Messenger for RedisMessenger {
         Ok(())
     }
 
-    async fn recv(&mut self, stream_key: &'static str) -> Result<Vec<RecvData>, MessengerError> {
+    async fn recv(
+        &mut self,
+        stream_key: &'static str,
+        consumption_type: ConsumptionType,
+    ) -> Result<Vec<RecvData>, MessengerError> {
         let opts = StreamReadOptions::default()
             //.block(self.message_wait_timeout)
             .count(self.batch_size)
@@ -348,19 +345,19 @@ impl Messenger for RedisMessenger {
                 error!("Redis receive error: {e}");
                 MessengerError::ReceiveError { msg: e.to_string() }
             })?;
-        
-        let mut data_vec = Vec::new();
-        let xauto_reply = self.xautoclaim(stream_key).await;
-        match xauto_reply {
-            Ok(reply) => {
-                let mut pending_messages = reply;
-                data_vec.append(&mut pending_messages);
-            },
-            Err(e) => {
-                error!("XPENDING ERROR {e}");
+            let mut data_vec = Vec::new();    
+        if consumption_type == ConsumptionType::All || consumption_type == ConsumptionType::Redeliver {
+            let xauto_reply = self.xautoclaim(stream_key).await;
+            match xauto_reply {
+                Ok(reply) => {
+                    let mut pending_messages = reply;
+                    data_vec.append(&mut pending_messages);
+                }
+                Err(e) => {
+                    error!("XPENDING ERROR {e}");
+                }
             }
         }
-        
         // Parse data in stream read reply and store in Vec to return to caller.
         for StreamKey { key: _, ids } in reply.keys.into_iter() {
             for StreamId { id, map } in ids {
@@ -379,7 +376,7 @@ impl Messenger for RedisMessenger {
                     }
                 };
 
-                data_vec.push(RecvData::new(id.clone(), bytes.to_vec()));
+                data_vec.push(RecvData::new(id, bytes.to_vec()));
             }
         }
         Ok(data_vec)

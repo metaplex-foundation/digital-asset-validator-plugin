@@ -1,4 +1,3 @@
-
 use solana_sdk::{clock::UnixTimestamp, signature::Signature, transaction::SanitizedTransaction};
 use solana_transaction_status::TransactionStatusMeta;
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,7 +32,6 @@ pub struct ReplicaAccountInfoV2<'a> {
     /// First signature of the transaction caused this account modification
     pub txn_signature: Option<&'a Signature>,
 }
-
 
 #[derive(Clone, Debug)]
 pub struct ReplicaTransactionInfoV2<'a> {
