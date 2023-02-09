@@ -97,18 +97,37 @@ pub(crate) struct Plerkle<'a> {
     started_at: Option<Instant>,
     handle_startup: bool,
     slots_seen: SlotStore,
-    account_event_cache: Arc<DashMap<u64, DashMap<Pubkey, (u64, SerializedData<'a>)>>>,
+    account_event_cache: Arc<DashMap<u64, DashMap<Pubkey, (u64, SerializedData<'a>)>>>, 
+    conf_level: Option<SlotStatus>,
 }
+
+#[derive(Deserialize, PartialEq, Debug)]
+pub enum ConfirmationLevel {
+    Processed,
+    Rooted,
+    Confirmed,
+}
+
+impl Into<SlotStatus> for ConfirmationLevel {
+    fn into(self) -> SlotStatus {
+        match self {
+            ConfirmationLevel::Processed => SlotStatus::Processed,
+            ConfirmationLevel::Rooted => SlotStatus::Rooted,
+            ConfirmationLevel::Confirmed => SlotStatus::Confirmed,
+        }
+    }
+}
+
 
 #[derive(Deserialize, PartialEq, Debug)]
 pub struct PluginConfig {
     pub messenger_config: MessengerConfig,
     pub num_workers: Option<usize>,
     pub config_reload_ttl: Option<i64>,
+    pub confirmation_level: Option<ConfirmationLevel>
 }
 
-const MSG_BUFFER_SIZE: usize = 10_000_000;
-const NUM_WORKERS: usize = 3;
+const NUM_WORKERS: usize = 5;
 
 impl<'a> Plerkle<'a> {
     pub fn new() -> Self {
@@ -121,6 +140,7 @@ impl<'a> Plerkle<'a> {
             handle_startup: false,
             slots_seen: SlotStore::new(),
             account_event_cache: Arc::new(DashMap::new()),
+            conf_level: None,
         }
     }
 
@@ -214,6 +234,10 @@ impl<'a> Plerkle<'a> {
         }
     }
 
+    fn get_confirmation_level(&self) ->SlotStatus {
+        self.conf_level.unwrap_or(SlotStatus::Processed)
+    }
+
     // Currently not used but may want later.
     pub fn _txn_contains_program<'b>(keys: AccountKeys, program: &Pubkey) -> bool {
         keys.iter()
@@ -296,7 +320,7 @@ impl GeyserPlugin for Plerkle<'static> {
             .map_err(|config_error| GeyserPluginError::ConfigFileReadError {
                 msg: format!("Could not read messenger config: {:?}", config_error),
             })?;
-
+        self.conf_level = config.confirmation_level.map(|c| c.into());
         let workers_num = config.num_workers.unwrap_or(NUM_WORKERS);
         runtime.spawn(async move {
             let mut messenger_workers = Vec::new();
@@ -308,7 +332,7 @@ impl GeyserPlugin for Plerkle<'static> {
                 msg.add_stream(SLOT_STREAM).await;
                 msg.add_stream(TRANSACTION_STREAM).await;
                 msg.add_stream(BLOCK_STREAM).await;
-                msg.set_buffer_size(ACCOUNT_STREAM, 50_000_000).await;
+                msg.set_buffer_size(ACCOUNT_STREAM,100_000_000).await;
                 msg.set_buffer_size(SLOT_STREAM, 100_000).await;
                 msg.set_buffer_size(TRANSACTION_STREAM, 10_000_000).await;
                 msg.set_buffer_size(BLOCK_STREAM, 100_000).await;
@@ -463,7 +487,7 @@ impl GeyserPlugin for Plerkle<'static> {
         if status == SlotStatus::Processed && parent.is_some() {
             self.slots_seen.insert(parent.unwrap());
         }
-        if status == SlotStatus::Processed { // playing with this value here
+        if status == self.get_confirmation_level() { // playing with this value here
             let slot_map = self.account_event_cache.remove(&slot);
             if let Some((_, events)) = slot_map {
                 info!("Sending Account events for SLOT: {:?}", slot);
