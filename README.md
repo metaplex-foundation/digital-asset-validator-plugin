@@ -130,12 +130,12 @@ NOTE: in 1.4.0 we are not sending to slot status.
 
 ### Metrics
 The plugin exposes the following statsd metrics
-count plugin.startup -> times the plugin started
-time message_send_queue_time ->  time spent on messenger internal buffer
-time message_send_latency -> rtt time to messenger bus
-count account_seen_event , tags: owner , is_startup -> number of account events filtered and seen
-time startup.timer -> startup flush timer
-count transaction_seen_event tags slot-idx -> number of filtered txns seen
+- count plugin.startup -> times the plugin started
+- time message_send_queue_time ->  time spent on messenger internal buffer
+- time message_send_latency -> rtt time to messenger bus
+- count account_seen_event , tags: owner , is_startup -> number of account events filtered and seen
+- time startup.timer -> startup flush timer
+- count transaction_seen_event tags slot-idx -> number of filtered txns seen
 
 ### Building With Docker
 
