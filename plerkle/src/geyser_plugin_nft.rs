@@ -17,9 +17,8 @@ use plerkle_serialization::serializer::{
 use serde::Deserialize;
 
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
-    GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions,
-    ReplicaBlockInfoVersions, ReplicaTransactionInfoVersions, Result,
-    SlotStatus,
+    GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions, ReplicaBlockInfoVersions,
+    ReplicaTransactionInfoVersions, Result, SlotStatus,
 };
 use solana_sdk::{message::AccountKeys, pubkey::Pubkey};
 use std::{
@@ -353,9 +352,15 @@ impl GeyserPlugin for Plerkle<'static> {
         // Serialize data.
         let builder = FlatBufferBuilder::new();
         let status = match status {
-            SlotStatus::Rooted => plerkle_serialization::solana_geyser_plugin_interface_shims::SlotStatus::Rooted,
-            SlotStatus::Processed => plerkle_serialization::solana_geyser_plugin_interface_shims::SlotStatus::Processed,
-            SlotStatus::Confirmed => plerkle_serialization::solana_geyser_plugin_interface_shims::SlotStatus::Confirmed,
+            SlotStatus::Rooted => {
+                plerkle_serialization::solana_geyser_plugin_interface_shims::SlotStatus::Rooted
+            }
+            SlotStatus::Processed => {
+                plerkle_serialization::solana_geyser_plugin_interface_shims::SlotStatus::Processed
+            }
+            SlotStatus::Confirmed => {
+                plerkle_serialization::solana_geyser_plugin_interface_shims::SlotStatus::Confirmed
+            }
         };
         let builder = serialize_slot_status(builder, slot, parent, status);
 
@@ -454,7 +459,7 @@ impl GeyserPlugin for Plerkle<'static> {
                      block_height: block_info.block_height,
                      executed_transaction_count: 0,
                 };
-              
+
                 let builder = serialize_block(builder, &block_info);
 
                 // Send block info over channel.

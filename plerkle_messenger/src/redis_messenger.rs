@@ -208,11 +208,7 @@ impl Messenger for RedisMessenger {
 
         let pipeline_size = config
             .get("pipeline_size_bytes")
-            .and_then(|r| {
-                r.clone()
-                    .to_u128()
-                    .map(|n| n as usize)
-            })
+            .and_then(|r| r.clone().to_u128().map(|n| n as usize))
             .unwrap_or(PIPELINE_SIZE_BYTES);
 
         let pipeline_max_time = config
