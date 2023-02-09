@@ -42,9 +42,10 @@ You will now have a libplerkle.so file in the target folder. This is the binary 
 --geyser-plugin-config plugin-config.json
 ```
 
-The plugin config for plerkle must have this format
+The plugin config for plerkle must have this format, but you can put whatever keys you want
 
 ```json
+EXAMPLE PLEASE DONT CONSIDER THIS THE PERFECT CONFIG
 {
   "libpath": "/.../libplerkle.so",
   "enable_metrics": false,
@@ -52,19 +53,11 @@ The plugin config for plerkle must have this format
   "handle_startup": true, // set to false if you dont want initial account flush
   "accounts_selector": {
     "owners": [
-      "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
-      "GRoLLMza82AiYN7W9S9KCCtCyyPRAQP2ifBy4v4D5RMD",
-      "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-      "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
-      "BGUMAp9Gq7iTEuizy4pqaxsTyUCBK68MDfK752saRPUY"
+      "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
     ]
   },
   "transaction_selector": {
     "mentions": [
-      "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
-      "GRoLLMza82AiYN7W9S9KCCtCyyPRAQP2ifBy4v4D5RMD",
-      "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-      "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
       "BGUMAp9Gq7iTEuizy4pqaxsTyUCBK68MDfK752saRPUY"
     ]
   }
