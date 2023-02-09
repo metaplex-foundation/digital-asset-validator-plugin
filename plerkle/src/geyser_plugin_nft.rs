@@ -304,18 +304,18 @@ impl GeyserPlugin for Plerkle<'static> {
                 let mut msg = select_messenger(config.messenger_config.clone())
                     .await
                     .unwrap(); // We want to fail if the messenger is not configured correctly.
+                msg.add_stream(ACCOUNT_STREAM).await;
+                msg.add_stream(SLOT_STREAM).await;
+                msg.add_stream(TRANSACTION_STREAM).await;
+                msg.add_stream(BLOCK_STREAM).await;
                 msg.set_buffer_size(ACCOUNT_STREAM, 50_000_000).await;
                 msg.set_buffer_size(SLOT_STREAM, 100_000).await;
                 msg.set_buffer_size(TRANSACTION_STREAM, 10_000_000).await;
                 msg.set_buffer_size(BLOCK_STREAM, 100_000).await;
                 // Idempotent call to add streams.
-                msg.add_stream(ACCOUNT_STREAM).await;
-                msg.add_stream(SLOT_STREAM).await;
-                msg.add_stream(TRANSACTION_STREAM).await;
-                msg.add_stream(BLOCK_STREAM).await;
+
                 messenger_workers.push(msg);
             }
-
 
             for mut worker in messenger_workers.into_iter() {
                 let receiver = receiver.clone();
