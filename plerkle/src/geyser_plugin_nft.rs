@@ -4,7 +4,7 @@ use crate::{
 };
 use cadence::{BufferedUdpMetricSink, QueuingMetricSink, StatsdClient};
 use cadence_macros::*;
-use crossbeam::channel::unbounded;
+use crossbeam::channel::{unbounded, Sender};
 use dashmap::DashMap;
 use figment::{providers::Env, Figment};
 use flatbuffers::FlatBufferBuilder;
@@ -36,7 +36,6 @@ use std::{
 use tokio::{
     self as tokio,
     runtime::{Builder, Runtime},
-    sync::mpsc::{self as mpsc, Sender},
     time::Instant,
 };
 
@@ -132,7 +131,7 @@ impl<'a> Plerkle<'a> {
     ) -> Result<()> {
         // Send account info over channel.
         runtime.spawn(async move {
-            let _ = sender.send(data).await;
+            let _ = sender.send(data);
         });
         Ok(())
     }
@@ -290,6 +289,7 @@ impl GeyserPlugin for Plerkle<'static> {
             })?;
 
         let (sender, mut receiver) = unbounded::<SerializedData>();
+
         let config: PluginConfig = Figment::new()
             .join(Env::prefixed("PLUGIN_"))
             .extract()
@@ -301,8 +301,9 @@ impl GeyserPlugin for Plerkle<'static> {
         runtime.spawn(async move {
             let mut messenger_workers = Vec::new();
             for _ in 0..workers_num {
-                let mut msg = select_messenger(config.messenger_config.clone()).await.unwrap(); // We want to fail if the messenger is not configured correctly.
-
+                let mut msg = select_messenger(config.messenger_config.clone())
+                    .await
+                    .unwrap(); // We want to fail if the messenger is not configured correctly.
                 msg.set_buffer_size(ACCOUNT_STREAM, 50_000_000).await;
                 msg.set_buffer_size(SLOT_STREAM, 100_000).await;
                 msg.set_buffer_size(TRANSACTION_STREAM, 10_000_000).await;
@@ -316,7 +317,6 @@ impl GeyserPlugin for Plerkle<'static> {
                 mw.add_stream(TRANSACTION_STREAM).await;
                 mw.add_stream(BLOCK_STREAM).await;
             }
-
 
             for mut worker in messenger_workers.into_iter() {
                 let receiver = receiver.clone();
@@ -332,12 +332,16 @@ impl GeyserPlugin for Plerkle<'static> {
                         });
                         let _ = worker.send(data.stream, bytes).await;
                         safe_metric(|| {
-                            statsd_time!("message_send_latency", start.elapsed().as_millis() as u64);
+                            statsd_time!(
+                                "message_send_latency",
+                                start.elapsed().as_millis() as u64
+                            );
                         })
                     }
                 });
             }
         });
+        self.sender = Some(sender);
         self.runtime = Some(runtime);
         Ok(())
     }
@@ -547,7 +551,7 @@ impl GeyserPlugin for Plerkle<'static> {
                 builder,
                 seen_at: seen.clone(),
             };
-            let _ = sender.send(data).await;
+            let _ = sender.send(data);
         });
         safe_metric(|| {
             statsd_count!("transaction_seen_event", 1, "slot-idx" => &slt_idx);
@@ -588,7 +592,7 @@ impl GeyserPlugin for Plerkle<'static> {
                         builder,
                         seen_at: seen.clone(),
                     };
-                    let _ = sender.send(data).await;
+                    let _ = sender.send(data);
                 });
             }
         }
