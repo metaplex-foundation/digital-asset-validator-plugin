@@ -2,9 +2,6 @@ on:
   push:
     tags:
       - "v*"
-  pull_request:
-    paths:
-      - ".github/workflows/release.yml"
 
 env:
   CARGO_TERM_COLOR: always
@@ -67,39 +64,39 @@ jobs:
             rust ${{ env.RUST_VERSION }}
           files: |
             ${{ env.GEYSER_PLUGIN_NAME }}-release-*
-  release-regret:
-    runs-on: buildjet-8vcpu-ubuntu-2004
-    steps:
-      - uses: actions/checkout@v2
-      - name: Set env vars
-        run: |
-          source ci/env.sh
-          echo "GEYSER_PLUGIN_NAME=$plugin_name" | tee -a $GITHUB_ENV
-          echo "GEYSER_PLUGIN_LIB=lib${plugin_lib_name}" | tee -a $GITHUB_ENV
-      - if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get upgrade
-          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          sudo apt-add-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main"
-          sudo apt-get update
-          sudo apt-get install -y libudev-dev libssl-dev libsasl2-dev libzstd-dev
-          sudo apt-get install -y openssl --allow-unauthenticated
-          sudo apt-get install -y libssl1.1 --allow-unauthenticated
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ env.RUST_VERSION_REGRET }}
-          override: true
-          profile: minimal
-          components: rustfmt
-      - name: Build Plugin
-        run: |
-          rm plerkle-release-x86_64-unknown-linux-gnu.tar.bz2 
-          echo "CI_TAG=${GITHUB_REF#refs/*/}" >> "$GITHUB_ENV"
-          echo "CI_OS_NAME=linux" >> "$GITHUB_ENV"
-          cargo build --release
-      - name: Build release tarball
-        run: ./ci/create-tarball.sh
+  # release-regret:
+  #   runs-on: buildjet-8vcpu-ubuntu-2004
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     - name: Set env vars
+  #       run: |
+  #         source ci/env.sh
+  #         echo "GEYSER_PLUGIN_NAME=$plugin_name" | tee -a $GITHUB_ENV
+  #         echo "GEYSER_PLUGIN_LIB=lib${plugin_lib_name}" | tee -a $GITHUB_ENV
+  #     - if: runner.os == 'Linux'
+  #       run: |
+  #         sudo apt-get update
+  #         sudo apt-get upgrade
+  #         wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+  #         sudo apt-add-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main"
+  #         sudo apt-get update
+  #         sudo apt-get install -y libudev-dev libssl-dev libsasl2-dev libzstd-dev
+  #         sudo apt-get install -y openssl --allow-unauthenticated
+  #         sudo apt-get install -y libssl1.1 --allow-unauthenticated
+  #     - uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: ${{ env.RUST_VERSION_REGRET }}
+  #         override: true
+  #         profile: minimal
+  #         components: rustfmt
+  #     - name: Build Plugin
+  #       run: |
+  #         rm plerkle-release-x86_64-unknown-linux-gnu.tar.bz2 
+  #         echo "CI_TAG=${GITHUB_REF#refs/*/}" >> "$GITHUB_ENV"
+  #         echo "CI_OS_NAME=linux" >> "$GITHUB_ENV"
+  #         cargo build --release
+  #     - name: Build release tarball
+  #       run: ./ci/create-tarball.sh
       # - uses: actions-rs/toolchain@v1
       #   with:
       #     toolchain: ${{ env.RUST_VERSION_REGRET }}
