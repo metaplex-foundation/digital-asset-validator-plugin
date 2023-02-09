@@ -82,8 +82,8 @@ The PLUGIN_MESSENGER_CONFIG determins which compiled messenger to select and a s
 
 ***Producer Configuration***
 
-- "pipeline_size_bytes" - Maximum command size, roughly equates to the payload size. This setting locally buffers bytes in a queue to be flushed when the buffere grows past the desired amount. Default is 512mb(max redis command size) / 100, maximum is 512mb(max redis command size) / 100. You should test your optimal size to avoid high send latency and avoid RTT.
-- "local_buffer_max_window" - Maximum time to wait for the buffer to fill be for flushing. For lower traffic you dont want to be waiting around so set a max window and it will send at a minumum of every X milliseconds . Default 1000
+- "pipeline_size_bytes" - Maximum command size, roughly equates to the payload size. This setting locally buffers bytes in a queue to be flushed when the buffere grows past the desired amount. Default is 512mb(max redis command size) / 1000, maximum is 512mb(max redis command size) / 1000. You should test your optimal size to avoid high send latency and avoid RTT.
+- "local_buffer_max_window" - Maximum time to wait for the buffer to fill be for flushing. For lower traffic you dont want to be waiting around so set a max window and it will send at a minumum of every X milliseconds . Default 10
 - "confirmation_level" - Can be one of "Processed", "Confirmed", "Rooted". Defaults to Processed this is the level we wait for before sending. "Processed" is essentially when we first see it which can on rare cases be reverted. "Confirmed" has extremley low likley hood of being reverted but takes longer (~1k ms in our testing) to show up. "Rooted" is impossible to revert but takes the longest.
 - "num_workers" - This is the number of workers who will pickup notifications from the plugin and send them to the messenger. Default is 5
 
