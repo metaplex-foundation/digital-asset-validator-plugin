@@ -463,7 +463,7 @@ impl GeyserPlugin for Plerkle<'static> {
         if status == SlotStatus::Processed && parent.is_some() {
             self.slots_seen.insert(parent.unwrap());
         }
-        if status == SlotStatus::Confirmed {
+        if status == SlotStatus::Processed { // playing with this value here
             let slot_map = self.account_event_cache.remove(&slot);
             if let Some((_, events)) = slot_map {
                 info!("Sending Account events for SLOT: {:?}", slot);
