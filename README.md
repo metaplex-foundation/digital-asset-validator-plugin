@@ -79,11 +79,9 @@ The process running the validator must have access to environment variables. Tho
 
 ```bash
 RUST_LOG=warn
-PLUGIN_CONFIG_RELOAD_TTL=300
 PLUGIN_MESSENGER_CONFIG='{ messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
 ```
 
-The PLUGIN_CONFIG_TTL_RELOAD tells the plugin how long to keep the geyser plugin file cached in seconds. This allows hot reloading of what programs you are listening to without restarting the validator.
 The PLUGIN_MESSENGER_CONFIG determins which compiled messenger to select and a specific configuration for the messenger.
 
 
@@ -93,6 +91,9 @@ The PLUGIN_MESSENGER_CONFIG determins which compiled messenger to select and a s
 
 - "pipeline_size_bytes" - Maximum command size, roughly equates to the payload size. This setting locally buffers bytes in a queue to be flushed when the buffere grows past the desired amount. Default is 512mb(max redis command size) / 100, maximum is 512mb(max redis command size) / 100. You should test your optimal size to avoid high send latency and avoid RTT.
 - "local_buffer_max_window" - Maximum time to wait for the buffer to fill be for flushing. For lower traffic you dont want to be waiting around so set a max window and it will send at a minumum of every X milliseconds . Default 1000
+- "confirmation_level" - Can be one of "Processed", "Confirmed", "Rooted". Defaults to Processed this is the level we wait for before sending. "Processed" is essentially when we first see it which can on rare cases be reverted. "Confirmed" has extremley low likley hood of being reverted but takes longer (~1k ms in our testing) to show up. "Rooted" is impossible to revert but takes the longest.
+- "num_workers" - This is the number of workers who will pickup notifications from the plugin and send them to the messenger. Default is 5
+
 
 ```
 Lower Scale Low network latency 
@@ -116,9 +117,32 @@ PLUGIN_MESSENGER_CONFIG='{pipeline_size_bytes=50000000,local_buffer_max_window=5
 
 ```
 
-PLUGIN_MESSENGER_CONFIG='{batch_size=100,message_wait_timeout=5,retries=5, consumer_id="random_string",messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
+PLUGIN_MESSENGER_CONFIG='{batch_size=1000,message_wait_timeout=5,retries=5, consumer_id="random_string",messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
 
 ```
+
+
+*** Hardcoded Configuration ***
+We are still tuning some fo the default values for max stream size but this is what we have currently
+```
+msg.set_buffer_size(ACCOUNT_STREAM,100_000_000).await;
+msg.set_buffer_size(SLOT_STREAM, 100_000).await;
+msg.set_buffer_size(TRANSACTION_STREAM, 10_000_000).await;
+msg.set_buffer_size(BLOCK_STREAM, 100_000).await;
+
+```
+
+NOTE: in 1.4.0 we are not sending to slot status.
+
+
+### Metrics
+The plugin exposes the following statsd metrics
+count plugin.startup -> times the plugin started
+time message_send_queue_time ->  time spent on messenger internal buffer
+time message_send_latency -> rtt time to messenger bus
+count account_seen_event , tags: owner , is_startup -> number of account events filtered and seen
+time startup.timer -> startup flush timer
+count transaction_seen_event tags slot-idx -> number of filtered txns seen
 
 ### Building With Docker
 

@@ -19,8 +19,6 @@ pub use compiled_instruction_generated::*;
 pub use slot_status_info_generated::*;
 pub use transaction_info_generated::*;
 
-
-
 // ---- SHIMS
 #[allow(unused_imports)]
 pub mod solana_geyser_plugin_interface_shims;
