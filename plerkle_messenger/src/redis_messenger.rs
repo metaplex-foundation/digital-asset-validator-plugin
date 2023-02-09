@@ -331,22 +331,45 @@ impl Messenger for RedisMessenger {
         stream_key: &'static str,
         consumption_type: ConsumptionType,
     ) -> Result<Vec<RecvData>, MessengerError> {
-        let opts = StreamReadOptions::default()
-            //.block(self.message_wait_timeout)
-            .count(self.batch_size)
-            .group(self.consumer_group_name.as_str(), self.consumer_id.as_str());
+        let mut data_vec = Vec::with_capacity(self.batch_size * 2);
+        if consumption_type == ConsumptionType::New || consumption_type == ConsumptionType::All {
+            let opts = StreamReadOptions::default()
+                //.block(self.message_wait_timeout)
+                .count(self.batch_size)
+                .group(self.consumer_group_name.as_str(), self.consumer_id.as_str());
 
-        // Read on stream key and save the reply. Log but do not return errors.
-        let reply: StreamReadReply = self
-            .connection
-            .xread_options(&[stream_key], &[">"], &opts)
-            .await
-            .map_err(|e| {
-                error!("Redis receive error: {e}");
-                MessengerError::ReceiveError { msg: e.to_string() }
-            })?;
-            let mut data_vec = Vec::new();    
-        if consumption_type == ConsumptionType::All || consumption_type == ConsumptionType::Redeliver {
+            // Read on stream key and save the reply. Log but do not return errors.
+            let reply: StreamReadReply = self
+                .connection
+                .xread_options(&[stream_key], &[">"], &opts)
+                .await
+                .map_err(|e| {
+                    error!("Redis receive error: {e}");
+                    MessengerError::ReceiveError { msg: e.to_string() }
+                })?;
+            // Parse data in stream read reply and store in Vec to return to caller.
+            for StreamKey { key: _, ids } in reply.keys.into_iter() {
+                for StreamId { id, map } in ids {
+                    // Get data from map.
+                    let data = if let Some(data) = map.get(DATA_KEY) {
+                        data
+                    } else {
+                        println!("No Data was stored in Redis for ID {id}");
+                        continue;
+                    };
+                    let bytes = match data {
+                        Value::Data(bytes) => bytes,
+                        _ => {
+                            println!("Redis data for ID {id} in wrong format");
+                            continue;
+                        }
+                    };
+
+                    data_vec.push(RecvData::new(id, bytes.to_vec()));
+                }
+            }
+        }
+        if consumption_type == ConsumptionType::Redeliver || consumption_type == ConsumptionType::All{
             let xauto_reply = self.xautoclaim(stream_key).await;
             match xauto_reply {
                 Ok(reply) => {
@@ -358,27 +381,7 @@ impl Messenger for RedisMessenger {
                 }
             }
         }
-        // Parse data in stream read reply and store in Vec to return to caller.
-        for StreamKey { key: _, ids } in reply.keys.into_iter() {
-            for StreamId { id, map } in ids {
-                // Get data from map.
-                let data = if let Some(data) = map.get(DATA_KEY) {
-                    data
-                } else {
-                    println!("No Data was stored in Redis for ID {id}");
-                    continue;
-                };
-                let bytes = match data {
-                    Value::Data(bytes) => bytes,
-                    _ => {
-                        println!("Redis data for ID {id} in wrong format");
-                        continue;
-                    }
-                };
 
-                data_vec.push(RecvData::new(id, bytes.to_vec()));
-            }
-        }
         Ok(data_vec)
     }
 
