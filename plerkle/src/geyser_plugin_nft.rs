@@ -308,15 +308,14 @@ impl GeyserPlugin for Plerkle<'static> {
                 msg.set_buffer_size(SLOT_STREAM, 100_000).await;
                 msg.set_buffer_size(TRANSACTION_STREAM, 10_000_000).await;
                 msg.set_buffer_size(BLOCK_STREAM, 100_000).await;
+                // Idempotent call to add streams.
+                msg.add_stream(ACCOUNT_STREAM).await;
+                msg.add_stream(SLOT_STREAM).await;
+                msg.add_stream(TRANSACTION_STREAM).await;
+                msg.add_stream(BLOCK_STREAM).await;
                 messenger_workers.push(msg);
             }
-            if let Some(mw) = messenger_workers.get_mut(0) {
-                // Idempotent call to add streams.
-                mw.add_stream(ACCOUNT_STREAM).await;
-                mw.add_stream(SLOT_STREAM).await;
-                mw.add_stream(TRANSACTION_STREAM).await;
-                mw.add_stream(BLOCK_STREAM).await;
-            }
+
 
             for mut worker in messenger_workers.into_iter() {
                 let receiver = receiver.clone();
@@ -327,14 +326,16 @@ impl GeyserPlugin for Plerkle<'static> {
                         safe_metric(|| {
                             statsd_time!(
                                 "message_send_queue_time",
-                                data.seen_at.elapsed().as_millis() as u64
+                                data.seen_at.elapsed().as_millis() as u64,
+                                "stream" => data.stream
                             );
                         });
                         let _ = worker.send(data.stream, bytes).await;
                         safe_metric(|| {
                             statsd_time!(
                                 "message_send_latency",
-                                start.elapsed().as_millis() as u64
+                                start.elapsed().as_millis() as u64,
+                                "stream" => data.stream
                             );
                         })
                     }
