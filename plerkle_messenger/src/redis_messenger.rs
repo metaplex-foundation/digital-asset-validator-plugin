@@ -298,7 +298,7 @@ impl Messenger for RedisMessenger {
             && stream.local_buffer_last_flush.elapsed()
                 <= Duration::from_millis(self.pipeline_max_time as u64)
         {
-            info!(
+            debug!(
                 "Redis local buffer bytes {} and message pipeline size {} elapsed time {}ms",
                 stream.local_buffer_total,
                 stream.local_buffer.len(),
@@ -317,7 +317,7 @@ impl Messenger for RedisMessenger {
                 error!("Redis send error: {e}");
                 return Err(MessengerError::SendError { msg: e.to_string() });
             } else {
-                info!("Data Sent to {}", stream_key);
+                debug!("Data Sent to {}", stream_key);
                 stream.local_buffer.clear();
                 stream.local_buffer_total = 0;
                 stream.local_buffer_last_flush = Instant::now();
@@ -354,13 +354,13 @@ impl Messenger for RedisMessenger {
                     let data = if let Some(data) = map.get(DATA_KEY) {
                         data
                     } else {
-                        println!("No Data was stored in Redis for ID {id}");
+                        error!("No Data was stored in Redis for ID {id}");
                         continue;
                     };
                     let bytes = match data {
                         Value::Data(bytes) => bytes,
                         _ => {
-                            println!("Redis data for ID {id} in wrong format");
+                            error!("Redis data for ID {id} in wrong format");
                             continue;
                         }
                     };
