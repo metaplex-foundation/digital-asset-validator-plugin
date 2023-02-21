@@ -9,5 +9,9 @@ table CompiledInstruction {
     data:[uint8];
 }
 
+table CompiledInnerInstruction {
+    compiled_instruction: CompiledInstruction;
+    stack_height:uint8;
+}
 
 root_type CompiledInstruction;
