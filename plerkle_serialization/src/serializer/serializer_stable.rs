@@ -1,14 +1,14 @@
-use crate::{
-    AccountInfo, AccountInfoArgs, BlockInfo, BlockInfoArgs, CompiledInstruction,
-    CompiledInstructionArgs, InnerInstructions, InnerInstructionsArgs, Pubkey as FBPubkey, Pubkey,
-     SlotStatusInfo, SlotStatusInfoArgs,
-    Status as FBSlotStatus, TransactionInfo, TransactionInfoArgs,
-};
-use chrono::Utc;
-use flatbuffers::FlatBufferBuilder;
 use crate::solana_geyser_plugin_interface_shims::{
     ReplicaAccountInfoV2, ReplicaBlockInfoV2, ReplicaTransactionInfoV2, SlotStatus,
 };
+use crate::{
+    AccountInfo, AccountInfoArgs, BlockInfo, BlockInfoArgs, CompiledInstruction,
+    CompiledInstructionArgs, InnerInstructions, InnerInstructionsArgs, Pubkey as FBPubkey, Pubkey,
+    SlotStatusInfo, SlotStatusInfoArgs, Status as FBSlotStatus, TransactionInfo,
+    TransactionInfoArgs,
+};
+use chrono::Utc;
+use flatbuffers::FlatBufferBuilder;
 pub fn serialize_account<'a>(
     mut builder: FlatBufferBuilder<'a>,
     account: &ReplicaAccountInfoV2,
@@ -199,7 +199,7 @@ pub fn serialize_block<'a>(
     let blockhash = Some(builder.create_string(block_info.blockhash));
 
     // Serialize rewards.
-    let rewards =None;
+    let rewards = None;
 
     // Serialize everything into Block Info table.
     let seen_at = Utc::now();

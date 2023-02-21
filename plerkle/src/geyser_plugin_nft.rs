@@ -1,9 +1,10 @@
 use crate::{
-    accounts_selector::AccountsSelector, error::PlerkleError, metrics::safe_metric,
-    transaction_selector::TransactionSelector,
+    accounts_selector::AccountsSelector, error::PlerkleError,
+    transaction_selector::TransactionSelector, metric,
 };
 use cadence::{BufferedUdpMetricSink, QueuingMetricSink, StatsdClient};
 use cadence_macros::*;
+use dashmap::DashMap;
 use figment::{providers::Env, Figment};
 use flatbuffers::FlatBufferBuilder;
 use log::*;
@@ -12,26 +13,31 @@ use plerkle_messenger::{
     TRANSACTION_STREAM,
 };
 use plerkle_serialization::serializer::{
-    serialize_account, serialize_block, serialize_slot_status, serialize_transaction,
+    serialize_account, serialize_block, serialize_transaction,
 };
 use serde::Deserialize;
+use tokio::sync::{
+    mpsc::{unbounded_channel, UnboundedSender},
+};
 
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
-    GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions,
-    ReplicaBlockInfoVersions, ReplicaTransactionInfoVersions, Result,
-    SlotStatus,
+    GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions, ReplicaBlockInfoVersions,
+    ReplicaTransactionInfoVersions, Result, SlotStatus,
 };
 use solana_sdk::{message::AccountKeys, pubkey::Pubkey};
 use std::{
+    collections::BTreeSet,
     fmt::{Debug, Formatter},
     fs::File,
     io::Read,
     net::UdpSocket,
+    ops::Bound::Included,
+    ops::RangeBounds,
+    sync::Arc,
 };
 use tokio::{
     self as tokio,
     runtime::{Builder, Runtime},
-    sync::mpsc::{self as mpsc, Sender},
     time::Instant,
 };
 
@@ -42,26 +48,122 @@ struct SerializedData<'a> {
 }
 
 #[derive(Default)]
+pub struct SlotStore {
+    parents: BTreeSet<u64>,
+}
+const SLOT_EXPIRY: u64 = 600 * 2;
+impl SlotStore {
+    pub fn new() -> Self {
+        SlotStore {
+            parents: BTreeSet::new(),
+        }
+    }
+
+    pub fn has_children(&self, slot: u64) -> bool {
+        self.parents.contains(&slot)
+    }
+
+    pub fn needs_purge(&self, current_slot: u64) -> Option<Vec<u64>> {
+        if current_slot <= SLOT_EXPIRY {
+            //just in case we do some testing
+            return None;
+        }
+
+        let rng = self
+            .parents
+            .range((Included(0), Included(current_slot - SLOT_EXPIRY)))
+            .cloned()
+            .collect();
+        Some(rng)
+    }
+
+    pub fn insert(&mut self, parent: u64) {
+        self.parents.insert(parent);
+    }
+
+    pub fn remove(&mut self, slot: u64) {
+        self.parents.remove(&slot);
+    }
+
+    pub fn remove_range(&mut self, range: impl RangeBounds<u64>) {
+        self.parents.retain(|slot| range.contains(slot));
+    }
+}
+
+#[derive(Default)]
 pub(crate) struct Plerkle<'a> {
     runtime: Option<Runtime>,
     accounts_selector: Option<AccountsSelector>,
     transaction_selector: Option<TransactionSelector>,
-    sender: Option<Sender<SerializedData<'a>>>,
+    sender: Option<UnboundedSender<SerializedData<'a>>>,
     started_at: Option<Instant>,
     handle_startup: bool,
+    slots_seen: SlotStore,
+    account_event_cache: Arc<DashMap<u64, DashMap<Pubkey, (u64, SerializedData<'a>)>>>,
+    conf_level: Option<SlotStatus>,
+}
+
+#[derive(Deserialize, PartialEq, Debug)]
+pub enum ConfirmationLevel {
+    Processed,
+    Rooted,
+    Confirmed,
+}
+
+impl Into<SlotStatus> for ConfirmationLevel {
+    fn into(self) -> SlotStatus {
+        match self {
+            ConfirmationLevel::Processed => SlotStatus::Processed,
+            ConfirmationLevel::Rooted => SlotStatus::Rooted,
+            ConfirmationLevel::Confirmed => SlotStatus::Confirmed,
+        }
+    }
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
 pub struct PluginConfig {
     pub messenger_config: MessengerConfig,
+    pub num_workers: Option<usize>,
     pub config_reload_ttl: Option<i64>,
+    pub confirmation_level: Option<ConfirmationLevel>,
 }
 
-const MSG_BUFFER_SIZE: usize = 1000000;
+const NUM_WORKERS: usize = 5;
 
 impl<'a> Plerkle<'a> {
     pub fn new() -> Self {
-        Self::default()
+        Plerkle {
+            runtime: None,
+            accounts_selector: None,
+            transaction_selector: None,
+            sender: None,
+            started_at: None,
+            handle_startup: false,
+            slots_seen: SlotStore::new(),
+            account_event_cache: Arc::new(DashMap::new()),
+            conf_level: None,
+        }
+    }
+
+    fn send(
+        sender: UnboundedSender<SerializedData<'static>>,
+        runtime: &tokio::runtime::Runtime,
+        data: SerializedData<'static>,
+    ) -> Result<()> {
+        // Send account info over channel.
+        runtime.spawn(async move {
+            let s =sender.send(data);
+            match s {
+                Ok(_) => {}
+                Err(e) => {
+                    metric! {
+                        statsd_count!("plerkle.send_error", 1, "error" => "main_send_error");
+                    }
+                    error!("Error sending data: {}", e);
+                }
+            }
+        });
+        Ok(())
     }
 
     fn create_accounts_selector_from_config(config: &serde_json::Value) -> AccountsSelector {
@@ -130,7 +232,7 @@ impl<'a> Plerkle<'a> {
         }
     }
 
-    fn get_sender_clone(&self) -> Result<Sender<SerializedData<'a>>> {
+    fn get_sender_clone(&self) -> Result<UnboundedSender<SerializedData<'a>>> {
         if let Some(sender) = &self.sender {
             Ok(sender.clone())
         } else {
@@ -140,6 +242,10 @@ impl<'a> Plerkle<'a> {
                 },
             )))
         }
+    }
+
+    fn get_confirmation_level(&self) -> SlotStatus {
+        self.conf_level.unwrap_or(SlotStatus::Processed)
     }
 
     // Currently not used but may want later.
@@ -216,51 +322,94 @@ impl GeyserPlugin for Plerkle<'static> {
                 msg: format!("Could not create tokio runtime: {:?}", err),
             })?;
 
-        let (sender, mut receiver) = mpsc::channel::<SerializedData>(MSG_BUFFER_SIZE);
-        self.sender = Some(sender);
+        let (sender, mut main_receiver) = unbounded_channel::<SerializedData>();
         let config: PluginConfig = Figment::new()
             .join(Env::prefixed("PLUGIN_"))
             .extract()
             .map_err(|config_error| GeyserPluginError::ConfigFileReadError {
                 msg: format!("Could not read messenger config: {:?}", config_error),
             })?;
+        self.conf_level = config.confirmation_level.map(|c| c.into());
+        let workers_num = config.num_workers.unwrap_or(NUM_WORKERS);
+        
         runtime.spawn(async move {
-            // Create new Messenger connection.
-            if let Ok(mut messenger) = select_messenger(config.messenger_config).await {
-                if messenger.add_stream(ACCOUNT_STREAM).await.is_err() {
-                    error!("Error adding ACCOUNT stream");
-                }
-
-                if messenger.add_stream(SLOT_STREAM).await.is_err() {
-                    error!("Error adding SLOT stream");
-                }
-
-                if messenger.add_stream(TRANSACTION_STREAM).await.is_err() {
-                    error!("Error adding TRANSACTION stream");
-                }
-
-                if messenger.add_stream(BLOCK_STREAM).await.is_err() {
-                    error!("Error adding BLOCK stream");
-                }
-
-                messenger.set_buffer_size(ACCOUNT_STREAM, 10_000_000).await;
-                messenger.set_buffer_size(SLOT_STREAM, 100_000).await;
-                messenger
-                    .set_buffer_size(TRANSACTION_STREAM, 10_000_000)
-                    .await;
-                messenger.set_buffer_size(BLOCK_STREAM, 100_000).await;
-                // Receive messages in a loop as long as at least one Sender is in scope.
-                while let Some(data) = receiver.recv().await {
-                    let start = Instant::now();
-                    let bytes = data.builder.finished_data();
-                    let _ = messenger.send(data.stream, bytes).await;
-                    safe_metric(|| {
-                        statsd_time!("message_send_queue_time", data.seen_at.elapsed());
-                        statsd_time!("message_send_latency", start.elapsed());
-                    })
-                }
+            let mut messenger_workers = Vec::with_capacity(workers_num);
+            let mut worker_senders = Vec::with_capacity(workers_num);
+            for _ in 0..workers_num {
+                let (send, recv) = unbounded_channel::<SerializedData>();
+                let mut msg = select_messenger(config.messenger_config.clone())
+                    .await
+                    .unwrap(); // We want to fail if the messenger is not configured correctly.\
+            
+                msg.add_stream(ACCOUNT_STREAM).await;
+                msg.add_stream(SLOT_STREAM).await;
+                msg.add_stream(TRANSACTION_STREAM).await;
+                msg.add_stream(BLOCK_STREAM).await;
+                msg.set_buffer_size(ACCOUNT_STREAM, 100_000_000).await;
+                msg.set_buffer_size(SLOT_STREAM, 100_000).await;
+                msg.set_buffer_size(TRANSACTION_STREAM, 10_000_000).await;
+                msg.set_buffer_size(BLOCK_STREAM, 100_000).await;
+                let chan_msg = (recv, msg);
+                // Idempotent call to add streams.
+                messenger_workers.push(chan_msg);
+                worker_senders.push(send);
             }
+            let mut tasks = Vec::new();
+            for worker in messenger_workers.into_iter() {
+                tasks.push(tokio::spawn(async move {
+                    let (mut reciever, mut messenger) = worker;
+                    while let Some(data) = reciever.recv().await {
+                        let start = Instant::now();
+                        let bytes = data.builder.finished_data();
+                        metric! {
+                            statsd_time!(
+                                "message_send_queue_time",
+                                data.seen_at.elapsed().as_millis() as u64,
+                                "stream" => data.stream
+                            );
+                        };
+                        let _ = messenger.send(data.stream, bytes).await;
+                        metric! {
+                            statsd_time!(
+                                "message_send_latency",
+                                start.elapsed().as_millis() as u64,
+                                "stream" => data.stream
+                            );
+                        };
+                    }
+                }));
+            }
+
+            tasks.push(tokio::spawn(async move { 
+                let mut last_idx = 0;
+                while let Some(data) = main_receiver.recv().await {
+                    let seen = data.seen_at.elapsed().as_millis() as u64;
+                    let str = data.stream;
+                    let s = worker_senders[last_idx].send(data);
+                    match s {
+                        Ok(_) => {
+                            metric! {
+                                statsd_time!(
+                                    "message_worker_hop_time",
+                                    seen,
+                                    "stream" => str
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            metric! {
+                                statsd_count!("plerkle.send_error", 1, "error" => "broadcast_send_error");
+                            }
+                            error!("Error sending data: {}", e);
+                        }
+                    }
+                    last_idx = (last_idx + 1) % worker_senders.len();
+
+                } 
+            }));
+
         });
+        self.sender = Some(sender);
         self.runtime = Some(runtime);
         Ok(())
     }
@@ -275,13 +424,24 @@ impl GeyserPlugin for Plerkle<'static> {
         slot: u64,
         is_startup: bool,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
-        let seen = Instant::now();
         if !self.handle_startup && is_startup {
             return Ok(());
         }
         let rep: plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaAccountInfoV2;
         let account = match account {
-            //ReplicaAccountInfoVersions::V0_0_2(ai) => ai,
+            ReplicaAccountInfoVersions::V0_0_2(ai) => {
+                rep = plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaAccountInfoV2 {
+                    pubkey: ai.pubkey,
+                    lamports: ai.lamports,
+                    owner: ai.owner,
+                    executable: ai.executable,
+                    rent_epoch: ai.rent_epoch,
+                    data: ai.data,
+                    write_version: ai.write_version,
+                    txn_signature: ai.txn_signature,
+                };
+                &rep
+            }
             ReplicaAccountInfoVersions::V0_0_1(ai) => {
                 rep = plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaAccountInfoV2 {
                     pubkey: ai.pubkey,
@@ -305,36 +465,57 @@ impl GeyserPlugin for Plerkle<'static> {
                 msg: "Accounts selector not initialized".to_string(),
             });
         }
+        let seen = Instant::now();
         // Get runtime and sender channel.
-        let runtime = self.get_runtime()?;
-        let sender = self.get_sender_clone()?;
-
         // Serialize data.
         let builder = FlatBufferBuilder::new();
         let builder = serialize_account(builder, account, slot, is_startup);
         let owner = bs58::encode(account.owner).into_string();
-        // Send account info over channel.
-        runtime.spawn(async move {
-            let data = SerializedData {
-                stream: ACCOUNT_STREAM,
-                builder,
-                seen_at: seen.clone(),
-            };
-            let _ = sender.send(data).await;
-            safe_metric(|| {
-                let s = is_startup.to_string();
-                statsd_count!("account_seen_event", 1, "owner" => &owner, "is_startup" => &s);
-            });
-        });
+        metric! {
+            let s = is_startup.to_string();
+            statsd_count!("account_seen_event", 1, "owner" => &owner, "is_startup" => &s);
+        };
+        let data = SerializedData {
+            stream: ACCOUNT_STREAM,
+            builder,
+            seen_at: seen,
+        };
+        let runtime = self.get_runtime()?;
+        let sender = self.get_sender_clone()?;
+
+        if is_startup {
+            Plerkle::send(sender, runtime, data)?;
+        } else {
+            let account_key = Pubkey::new(account.pubkey);
+            let cache = self.account_event_cache.get_mut(&slot);
+            if let Some(cache) = cache {
+                if cache.contains_key(&account_key) {
+                    cache.alter(&account_key, |_, v| {
+                        if account.write_version > v.0 {
+                            return (account.write_version, data);
+                        } else {
+                            v
+                        }
+                    });
+                } else {
+                    cache.insert(account_key, (account.write_version, data));
+                }
+            } else {
+                let pubkey_cache = DashMap::new();
+                pubkey_cache.insert(account_key, (account.write_version, data));
+                self.account_event_cache.insert(slot, pubkey_cache);
+            }
+        }
+
         Ok(())
     }
 
     fn notify_end_of_startup(
         &mut self,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
-        safe_metric(|| {
+        metric! {
             statsd_time!("startup.timer", self.started_at.unwrap().elapsed());
-        });
+        }
         info!("END OF STARTUP");
         Ok(())
     }
@@ -345,30 +526,37 @@ impl GeyserPlugin for Plerkle<'static> {
         parent: Option<u64>,
         status: SlotStatus,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
-        let seen = Instant::now();
-        // Get runtime and sender channel.
-        let runtime = self.get_runtime()?;
-        let sender = self.get_sender_clone()?;
-
-        // Serialize data.
-        let builder = FlatBufferBuilder::new();
-        let status = match status {
-            SlotStatus::Rooted => plerkle_serialization::solana_geyser_plugin_interface_shims::SlotStatus::Rooted,
-            SlotStatus::Processed => plerkle_serialization::solana_geyser_plugin_interface_shims::SlotStatus::Processed,
-            SlotStatus::Confirmed => plerkle_serialization::solana_geyser_plugin_interface_shims::SlotStatus::Confirmed,
-        };
-        let builder = serialize_slot_status(builder, slot, parent, status);
-
-        // Send slot status over channel.
-        runtime.spawn(async move {
-            let data = SerializedData {
-                stream: SLOT_STREAM,
-                builder,
-                seen_at: seen.clone(),
-            };
-            let _ = sender.send(data).await;
-        });
-
+        info!("Slot status update: {:?} {:?}", slot, status);
+        if status == SlotStatus::Processed && parent.is_some() {
+            self.slots_seen.insert(parent.unwrap());
+        }
+        if status == self.get_confirmation_level() {
+            // playing with this value here
+            let slot_map = self.account_event_cache.remove(&slot);
+            if let Some((_, events)) = slot_map {
+                info!("Sending Account events for SLOT: {:?}", slot);
+                for (_, event) in events.into_iter() {
+                    info!("Sending Account event for stream: {:?}", event.1.stream);
+                    let sender = self.get_sender_clone()?;
+                    let runtime = self.get_runtime()?;
+                    Plerkle::send(sender, runtime, event.1)?;
+                }
+            }
+            let seen = &mut self.slots_seen;
+            let slots_to_purge = seen.needs_purge(slot);
+            if let Some(purgable) = slots_to_purge {
+                debug!("Purging slots: {:?}", purgable);
+                for slot in &purgable {
+                    seen.remove(*slot);
+                }
+                let cl = self.account_event_cache.clone();
+                self.get_runtime()?.spawn(async move {
+                    for s in purgable {
+                        cl.remove(&s);
+                    }
+                });
+            }
+        }
         Ok(())
     }
 
@@ -380,7 +568,16 @@ impl GeyserPlugin for Plerkle<'static> {
         let seen = Instant::now();
         let rep: plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaTransactionInfoV2;
         let transaction_info = match transaction_info {
-            //ReplicaTransactionInfoVersions::V0_0_2(ti) => ti,
+            ReplicaTransactionInfoVersions::V0_0_2(ti) => {
+                rep = plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaTransactionInfoV2 {
+                    signature: ti.signature,
+                    is_vote: ti.is_vote,
+                    transaction: ti.transaction,
+                    transaction_status_meta: ti.transaction_status_meta,
+                    index: ti.index,
+                };
+                &rep
+            }
             ReplicaTransactionInfoVersions::V0_0_1(ti) => {
                 rep = plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaTransactionInfoV2 {
                     signature: ti.signature,
@@ -415,19 +612,19 @@ impl GeyserPlugin for Plerkle<'static> {
         // Serialize data.
         let builder = FlatBufferBuilder::new();
         let builder = serialize_transaction(builder, transaction_info, slot);
-        let slt_idx = format!("{}-{}", slot, transaction_info.index);
-        // Send transaction info over channel.
+                // Send transaction info over channel.
         runtime.spawn(async move {
             let data = SerializedData {
                 stream: TRANSACTION_STREAM,
                 builder,
                 seen_at: seen.clone(),
             };
-            let _ = sender.send(data).await;
+            let _ = sender.send(data);
         });
-        safe_metric(|| {
+        metric! {
+            let slt_idx = format!("{}-{}", slot, transaction_info.index);
             statsd_count!("transaction_seen_event", 1, "slot-idx" => &slt_idx);
-        });
+        }
         Ok(())
     }
 
@@ -454,7 +651,7 @@ impl GeyserPlugin for Plerkle<'static> {
                      block_height: block_info.block_height,
                      executed_transaction_count: 0,
                 };
-              
+
                 let builder = serialize_block(builder, &block_info);
 
                 // Send block info over channel.
@@ -464,7 +661,7 @@ impl GeyserPlugin for Plerkle<'static> {
                         builder,
                         seen_at: seen.clone(),
                     };
-                    let _ = sender.send(data).await;
+                    let _ = sender.send(data);
                 });
             }
         }

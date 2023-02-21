@@ -1,7 +1,7 @@
 [package]
 name = "plerkle_serialization"
 description = "Metaplex Flatbuffers Plerkle Serialization for Geyser plugin producer/consumer patterns."
-version = "1.3.11"
+version = "1.4.1"
 authors = ["Metaplex Developers <dev@metaplex.com>"]
 repository = "https://github.com/metaplex-foundation/digital-asset-validator-plugin"
 license = "AGPL-3.0"
@@ -11,8 +11,8 @@ readme = "Readme.md"
 [dependencies]
 flatbuffers = "22.10.26"
 chrono = "0.4.22"
-serde = { version = "1.0.149"}
-solana-sdk = { version = ">=1.13.6" }
-solana-transaction-status = { version = ">=1.13.6" }
+serde = { version = "1.0.152"}
+solana-sdk = { version = "~1.14"}
+solana-transaction-status = { version = "~1.14" }
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
