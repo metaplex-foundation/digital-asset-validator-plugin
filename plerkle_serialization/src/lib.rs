@@ -12,6 +12,7 @@ mod slot_status_info_generated;
 mod transaction_info_generated;
 
 pub mod serializer;
+pub mod error;
 pub use account_info_generated::*;
 pub use block_info_generated::*;
 pub use common_generated::*;

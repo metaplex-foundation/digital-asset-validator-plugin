@@ -2,17 +2,25 @@
 include "./compiled_instruction.fbs";
 include "./common.fbs";
 
+//Legacy is default for unknown
+enum TransactionVersion:byte {
+  Legacy,
+  V0
+}
 
 table TransactionInfo {
   is_vote: bool;
   account_keys:[Pubkey];
   log_messages:[string];
-  inner_instructions:[InnerInstructions];
+  // To be deprecated
+  inner_instructions: [InnerInstructions];
   outer_instructions: [CompiledInstruction];
   slot: uint64;
   slot_index: string;
   seen_at: int64;
   signature: string;
+  compiled_inner_instructions: [CompiledInnerInstructions];
+  version: TransactionVersion;
 }
 
 table InnerInstructions {
@@ -20,6 +28,13 @@ table InnerInstructions {
     index:uint8;
     // List of inner instructions.
     instructions: [CompiledInstruction];
+}
+
+table CompiledInnerInstructions {
+    // Transaction instruction index.
+    index:uint8;
+    // List of inner instructions.
+    instructions: [CompiledInnerInstruction];
 }
 
 root_type TransactionInfo;
