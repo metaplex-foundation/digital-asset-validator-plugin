@@ -86,20 +86,20 @@ The PLUGIN_MESSENGER_CONFIG determins which compiled messenger to select and a s
 - "local_buffer_max_window" - Maximum time to wait for the buffer to fill be for flushing. For lower traffic you dont want to be waiting around so set a max window and it will send at a minumum of every X milliseconds . Default 10
 - "confirmation_level" - Can be one of "Processed", "Confirmed", "Rooted". Defaults to Processed this is the level we wait for before sending. "Processed" is essentially when we first see it which can on rare cases be reverted. "Confirmed" has extremley low likley hood of being reverted but takes longer (~1k ms in our testing) to show up. "Rooted" is impossible to revert but takes the longest.
 - "num_workers" - This is the number of workers who will pickup notifications from the plugin and send them to the messenger. Default is 5
-- "account_stream_size" - default value 100_000_000
-- "slot_stream_size" - default value 100_000
-- "transaction_stream_size" - default value 10_000_000
-- "block_stream_size" - default value 100_000
+- "account_stream_size" - this needs to be at least as large as the total number of accounts delivered in the initial sansphot (based on accounts selector) - default value 250_000_000
+- "slot_stream_size" - default value 200_000
+- "transaction_stream_size" - default value 20_000_000
+- "block_stream_size" - default value 200_000
 
 
 ```
 Lower Scale Low network latency 
 
-PLUGIN_MESSENGER_CONFIG='{pipeline_size_bytes=1000000,local_buffer_max_window=10, messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
+PLUGIN_MESSENGER_CONFIG='{pipeline_size_bytes=1000000,local_buffer_max_window=10, account_stream_size=250000000, messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
 
 High Scale Higher latency
 
-PLUGIN_MESSENGER_CONFIG='{pipeline_size_bytes=50000000,local_buffer_max_window=500, messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
+PLUGIN_MESSENGER_CONFIG='{pipeline_size_bytes=50000000,local_buffer_max_window=500, account_stream_size=250000000, messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
 
 
 ```
