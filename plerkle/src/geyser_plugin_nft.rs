@@ -1,6 +1,6 @@
 use crate::{
-    accounts_selector::AccountsSelector, error::PlerkleError,
-    transaction_selector::TransactionSelector, metric,
+    accounts_selector::AccountsSelector, error::PlerkleError, metric,
+    transaction_selector::TransactionSelector,
 };
 use cadence::{BufferedUdpMetricSink, QueuingMetricSink, StatsdClient};
 use cadence_macros::*;
@@ -16,9 +16,7 @@ use plerkle_serialization::serializer::{
     serialize_account, serialize_block, serialize_transaction,
 };
 use serde::Deserialize;
-use tokio::sync::{
-    mpsc::{unbounded_channel, UnboundedSender},
-};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
     GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions, ReplicaBlockInfoVersions,
@@ -152,7 +150,7 @@ impl<'a> Plerkle<'a> {
     ) -> Result<()> {
         // Send account info over channel.
         runtime.spawn(async move {
-            let s =sender.send(data);
+            let s = sender.send(data);
             match s {
                 Ok(_) => {}
                 Err(e) => {
@@ -331,7 +329,7 @@ impl GeyserPlugin for Plerkle<'static> {
             })?;
         self.conf_level = config.confirmation_level.map(|c| c.into());
         let workers_num = config.num_workers.unwrap_or(NUM_WORKERS);
-        
+
         runtime.spawn(async move {
             let mut messenger_workers = Vec::with_capacity(workers_num);
             let mut worker_senders = Vec::with_capacity(workers_num);
@@ -339,8 +337,8 @@ impl GeyserPlugin for Plerkle<'static> {
                 let (send, recv) = unbounded_channel::<SerializedData>();
                 let mut msg = select_messenger(config.messenger_config.clone())
                     .await
-                    .unwrap(); // We want to fail if the messenger is not configured correctly.\
-            
+                    .unwrap(); // We want to fail if the messenger is not configured correctly.
+
                 msg.add_stream(ACCOUNT_STREAM).await;
                 msg.add_stream(SLOT_STREAM).await;
                 msg.add_stream(TRANSACTION_STREAM).await;
@@ -380,7 +378,7 @@ impl GeyserPlugin for Plerkle<'static> {
                 }));
             }
 
-            tasks.push(tokio::spawn(async move { 
+            tasks.push(tokio::spawn(async move {
                 let mut last_idx = 0;
                 while let Some(data) = main_receiver.recv().await {
                     let seen = data.seen_at.elapsed().as_millis() as u64;
@@ -405,7 +403,7 @@ impl GeyserPlugin for Plerkle<'static> {
                     }
                     last_idx = (last_idx + 1) % worker_senders.len();
 
-                } 
+                }
             }));
 
         });
@@ -612,7 +610,7 @@ impl GeyserPlugin for Plerkle<'static> {
         // Serialize data.
         let builder = FlatBufferBuilder::new();
         let builder = serialize_transaction(builder, transaction_info, slot);
-                // Send transaction info over channel.
+        // Send transaction info over channel.
         runtime.spawn(async move {
             let data = SerializedData {
                 stream: TRANSACTION_STREAM,

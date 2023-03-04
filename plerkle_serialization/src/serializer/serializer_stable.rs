@@ -176,7 +176,7 @@ pub fn serialize_transaction<'a>(
         SanitizedMessage::Legacy(_) => TransactionVersion::Legacy,
         SanitizedMessage::V0(_) => TransactionVersion::V0,
     };
-        
+
     // Serialize outer instructions.
     let outer_instructions = message.instructions();
     let outer_instructions = if !outer_instructions.is_empty() {
@@ -217,7 +217,7 @@ pub fn serialize_transaction<'a>(
             seen_at: seen_at.timestamp_millis(),
             signature: Some(signature_offset),
             compiled_inner_instructions: inner_instructions,
-            version 
+            version,
         },
     );
 
@@ -261,9 +261,12 @@ pub fn seralize_encoded_transaction_with_status<'a>(
     mut builder: FlatBufferBuilder<'a>,
     tx: EncodedConfirmedTransactionWithStatusMeta,
 ) -> Result<FlatBufferBuilder<'a>, PlerkleSerializationError> {
-    let meta: UiTransactionStatusMeta = tx.transaction.meta.ok_or(
-        PlerkleSerializationError::SerializationError("Missing meta data for transaction".to_string()),
-    )?;
+    let meta: UiTransactionStatusMeta =
+        tx.transaction
+            .meta
+            .ok_or(PlerkleSerializationError::SerializationError(
+                "Missing meta data for transaction".to_string(),
+            ))?;
     // Get `UiTransaction` out of `EncodedTransactionWithStatusMeta`.
     let ui_transaction: VersionedTransaction = tx.transaction.transaction.decode().ok_or(
         PlerkleSerializationError::SerializationError("Transaction cannot be decoded".to_string()),
@@ -306,16 +309,15 @@ pub fn seralize_encoded_transaction_with_status<'a>(
     };
 
     // Serialize log messages.
-    let log_messages =
-        if let OptionSerializer::Some(log_messages) = &meta.log_messages {
-            let mut log_messages_fb_vec = Vec::with_capacity(log_messages.len());
-            for message in log_messages {
-                log_messages_fb_vec.push(builder.create_string(message));
-            }
-            Some(builder.create_vector(&log_messages_fb_vec))
-        } else {
-            None
-        };
+    let log_messages = if let OptionSerializer::Some(log_messages) = &meta.log_messages {
+        let mut log_messages_fb_vec = Vec::with_capacity(log_messages.len());
+        for message in log_messages {
+            log_messages_fb_vec.push(builder.create_string(message));
+        }
+        Some(builder.create_vector(&log_messages_fb_vec))
+    } else {
+        None
+    };
 
     // Serialize inner instructions.
     let inner_instructions = if let OptionSerializer::Some(inner_instructions_vec) =
@@ -343,15 +345,13 @@ pub fn seralize_encoded_transaction_with_status<'a>(
                             data,
                         },
                     );
-                    instructions_fb_vec.push(
-                        CompiledInnerInstruction::create(
-                            &mut builder,
-                            &CompiledInnerInstructionArgs {
-                                compiled_instruction: Some(compiled),
-                                stack_height: 0, // Desperatley need this when it comes in 1.15
-                            },
-                        )
-                    );
+                    instructions_fb_vec.push(CompiledInnerInstruction::create(
+                        &mut builder,
+                        &CompiledInnerInstructionArgs {
+                            compiled_instruction: Some(compiled),
+                            stack_height: 0, // Desperatley need this when it comes in 1.15
+                        },
+                    ));
                 }
             }
 
@@ -360,7 +360,7 @@ pub fn seralize_encoded_transaction_with_status<'a>(
                 &mut builder,
                 &CompiledInnerInstructionsArgs {
                     index,
-                    instructions
+                    instructions,
                 },
             ));
         }
@@ -414,7 +414,7 @@ pub fn seralize_encoded_transaction_with_status<'a>(
             slot_index: None,
             signature: Some(sig_db),
             compiled_inner_instructions: inner_instructions,
-            version
+            version,
         },
     );
 

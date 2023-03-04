@@ -16,5 +16,6 @@ solana-sdk = { version = "~1.14"}
 solana-transaction-status = { version = "~1.14" }
 bs58 = "0.4.0"
 thiserror = "1.0.38"
+
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
