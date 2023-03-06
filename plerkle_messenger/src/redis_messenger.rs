@@ -146,14 +146,15 @@ impl RedisMessenger {
                 info.times_delivered,
             ));
         }
-
+        if let Err(e) = self.ack_msg(stream_key, &ack_list).await {
+            error!("Error acking pending messages: {}", e);
+        }
         Ok(retained_ids)
     }
 }
 
 #[async_trait]
 impl Messenger for RedisMessenger {
-    //pub async fn new(stream_key: &'static str) -> Result<Self> {
     async fn new(config: MessengerConfig) -> Result<Self, MessengerError> {
         let uri = config
             .get(REDIS_CON_STR)
@@ -369,7 +370,9 @@ impl Messenger for RedisMessenger {
                 }
             }
         }
-        if consumption_type == ConsumptionType::Redeliver || consumption_type == ConsumptionType::All{
+        if consumption_type == ConsumptionType::Redeliver
+            || consumption_type == ConsumptionType::All
+        {
             let xauto_reply = self.xautoclaim(stream_key).await;
             match xauto_reply {
                 Ok(reply) => {
