@@ -86,6 +86,10 @@ The PLUGIN_MESSENGER_CONFIG determins which compiled messenger to select and a s
 - "local_buffer_max_window" - Maximum time to wait for the buffer to fill be for flushing. For lower traffic you dont want to be waiting around so set a max window and it will send at a minumum of every X milliseconds . Default 10
 - "confirmation_level" - Can be one of "Processed", "Confirmed", "Rooted". Defaults to Processed this is the level we wait for before sending. "Processed" is essentially when we first see it which can on rare cases be reverted. "Confirmed" has extremley low likley hood of being reverted but takes longer (~1k ms in our testing) to show up. "Rooted" is impossible to revert but takes the longest.
 - "num_workers" - This is the number of workers who will pickup notifications from the plugin and send them to the messenger. Default is 5
+- "account_stream_size" - default value 100_000_000
+- "slot_stream_size" - default value 100_000
+- "transaction_stream_size" - default value 10_000_000
+- "block_stream_size" - default value 100_000
 
 
 ```
@@ -110,18 +114,7 @@ PLUGIN_MESSENGER_CONFIG='{pipeline_size_bytes=50000000,local_buffer_max_window=5
 
 ```
 
-PLUGIN_MESSENGER_CONFIG='{batch_size=1000,message_wait_timeout=5,retries=5, consumer_id="random_string",messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
-
-```
-
-
-*** Hardcoded Configuration ***
-We are still tuning some fo the default values for max stream size but this is what we have currently
-```
-msg.set_buffer_size(ACCOUNT_STREAM,100_000_000).await;
-msg.set_buffer_size(SLOT_STREAM, 100_000).await;
-msg.set_buffer_size(TRANSACTION_STREAM, 10_000_000).await;
-msg.set_buffer_size(BLOCK_STREAM, 100_000).await;
+PLUGIN_MESSENGER_CONFIG='{batch_size=1000, message_wait_timeout=5, retries=5, account_stream_size=250000000, slot_stream_size=250000, transaction_stream_size=25000000, block_stream_size=250000, consumer_id="random_string",messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
 
 ```
 

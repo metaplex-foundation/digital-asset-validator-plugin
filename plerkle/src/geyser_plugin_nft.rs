@@ -126,6 +126,10 @@ pub struct PluginConfig {
     pub num_workers: Option<usize>,
     pub config_reload_ttl: Option<i64>,
     pub confirmation_level: Option<ConfirmationLevel>,
+    pub account_stream_size: Option<usize>,
+    pub slot_stream_size: Option<usize>,
+    pub transaction_stream_size: Option<usize>,
+    pub block_stream_size: Option<usize>,
 }
 
 const NUM_WORKERS: usize = 5;
@@ -345,10 +349,10 @@ impl GeyserPlugin for Plerkle<'static> {
                 msg.add_stream(SLOT_STREAM).await;
                 msg.add_stream(TRANSACTION_STREAM).await;
                 msg.add_stream(BLOCK_STREAM).await;
-                msg.set_buffer_size(ACCOUNT_STREAM, 100_000_000).await;
-                msg.set_buffer_size(SLOT_STREAM, 100_000).await;
-                msg.set_buffer_size(TRANSACTION_STREAM, 10_000_000).await;
-                msg.set_buffer_size(BLOCK_STREAM, 100_000).await;
+                msg.set_buffer_size(ACCOUNT_STREAM, config.account_stream_size.unwrap_or(100_000_000)).await;
+                msg.set_buffer_size(SLOT_STREAM, config.slot_stream_size.unwrap_or(100_000)).await;
+                msg.set_buffer_size(TRANSACTION_STREAM, config.transaction_stream_size.unwrap_or(10_000_000)).await;
+                msg.set_buffer_size(BLOCK_STREAM, config.block_stream_size.unwrap_or(100_000)).await;
                 let chan_msg = (recv, msg);
                 // Idempotent call to add streams.
                 messenger_workers.push(chan_msg);
