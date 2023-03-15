@@ -114,7 +114,11 @@ PLUGIN_MESSENGER_CONFIG='{pipeline_size_bytes=50000000,local_buffer_max_window=5
 
 ```
 
-PLUGIN_MESSENGER_CONFIG='{batch_size=1000, message_wait_timeout=5, retries=5, account_stream_size=250000000, slot_stream_size=250000, transaction_stream_size=25000000, block_stream_size=250000, consumer_id="random_string",messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
+PLUGIN_MESSENGER_CONFIG='{batch_size=1000, message_wait_timeout=5, retries=5, consumer_id="random_string",messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
+PLUGIN_ACCOUNT_STREAM_SIZE=250000000
+PLUGIN_SLOT_STREAM_SIZE=250000
+PLUGIN_TRANSACTION_STREAM_SIZE=25000000
+PLUGIN_BLOCK_STREAM_SIZE=250000
 
 ```
 
