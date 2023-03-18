@@ -1,5 +1,6 @@
 use crate::error::MessengerError;
 use async_trait::async_trait;
+use blake3::OUT_LEN;
 use figment::value::{Dict, Value};
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -15,6 +16,7 @@ pub const SLOT_STREAM: &str = "SLT";
 pub const TRANSACTION_STREAM: &str = "TXN";
 pub const BLOCK_STREAM: &str = "BLK";
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RecvData {
     pub id: String,
     pub tries: usize,
@@ -29,9 +31,16 @@ impl RecvData {
     pub fn new_retry(id: String, data: Vec<u8>, tries: usize) -> Self {
         RecvData { id, data, tries }
     }
+
+    pub fn hash(&mut self) -> [u8; OUT_LEN] {
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(&self.data);
+        let hash = hasher.finalize();
+        hash.as_bytes().to_owned()
+    }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConsumptionType {
     New,
     Redeliver,
