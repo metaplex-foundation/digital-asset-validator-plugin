@@ -1,13 +1,12 @@
 use crate::{
     accounts_selector::AccountsSelector, error::PlerkleError,
-    transaction_selector::TransactionSelector, metric,
+    transaction_selector::TransactionSelector, metric, config::init_logger,
 };
 use cadence::{BufferedUdpMetricSink, QueuingMetricSink, StatsdClient};
 use cadence_macros::*;
 use dashmap::DashMap;
 use figment::{providers::Env, Figment};
 use flatbuffers::FlatBufferBuilder;
-use log::*;
 use plerkle_messenger::{
     select_messenger, MessengerConfig, ACCOUNT_STREAM, BLOCK_STREAM, SLOT_STREAM,
     TRANSACTION_STREAM,
@@ -25,6 +24,7 @@ use solana_geyser_plugin_interface::geyser_plugin_interface::{
     ReplicaTransactionInfoVersions, Result, SlotStatus,
 };
 use solana_sdk::{message::AccountKeys, pubkey::Pubkey};
+use tracing::{error, info, debug, trace};
 use std::{
     collections::BTreeSet,
     fmt::{Debug, Formatter},
@@ -136,6 +136,7 @@ const NUM_WORKERS: usize = 5;
 
 impl<'a> Plerkle<'a> {
     pub fn new() -> Self {
+        init_logger();
         Plerkle {
             runtime: None,
             accounts_selector: None,
@@ -464,6 +465,7 @@ impl GeyserPlugin for Plerkle<'static> {
             if !accounts_selector.is_account_selected(account.pubkey, account.owner) {
                 return Ok(());
             }
+            trace!("account selected: pubkey: {:?}, owner: {:?}", account.pubkey, account.owner);
         } else {
             return Err(GeyserPluginError::ConfigFileReadError {
                 msg: "Accounts selector not initialized".to_string(),
@@ -593,7 +595,6 @@ impl GeyserPlugin for Plerkle<'static> {
                 &rep
             }
         };
-
         if transaction_info.is_vote || transaction_info.transaction_status_meta.status.is_err() {
             return Ok(());
         }
@@ -609,6 +610,7 @@ impl GeyserPlugin for Plerkle<'static> {
         } else {
             return Ok(());
         }
+        trace!(signature = transaction_info.signature.to_string(), "matched transaction");
         // Get runtime and sender channel.
         let runtime = self.get_runtime()?;
         let sender = self.get_sender_clone()?;
@@ -616,6 +618,7 @@ impl GeyserPlugin for Plerkle<'static> {
         // Serialize data.
         let builder = FlatBufferBuilder::new();
         let builder = serialize_transaction(builder, transaction_info, slot);
+        let signature = transaction_info.signature.to_string();
                 // Send transaction info over channel.
         runtime.spawn(async move {
             let data = SerializedData {
@@ -623,7 +626,17 @@ impl GeyserPlugin for Plerkle<'static> {
                 builder,
                 seen_at: seen.clone(),
             };
-            let _ = sender.send(data);
+            match sender.send(data) {
+                Ok(_) => {
+                    trace!(signature = signature, "transaction sent");
+                }
+                Err(e) => {
+                    metric! {
+                        statsd_count!("tansaction_channel_send_failure", 1);
+                    }
+                    error!("error sending to transaction to channel: {}", e);
+                }
+            }
         });
         metric! {
             let slt_idx = format!("{}-{}", slot, transaction_info.index);
