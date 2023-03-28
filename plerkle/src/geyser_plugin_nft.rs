@@ -320,8 +320,6 @@ impl GeyserPlugin for Plerkle<'static> {
             }
         }
 
-        //warn!("Loaded config settings {:?}", plugin_config);
-
         let runtime = Builder::new_multi_thread()
             .enable_all()
             .thread_name("plerkle-runtime-worker")
