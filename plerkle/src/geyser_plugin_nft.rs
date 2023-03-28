@@ -1,6 +1,6 @@
 use crate::{
-    accounts_selector::AccountsSelector, error::PlerkleError,
-    transaction_selector::TransactionSelector, metric, config::init_logger,
+    accounts_selector::AccountsSelector, config::init_logger, error::PlerkleError, metric,
+    transaction_selector::TransactionSelector,
 };
 use cadence::{BufferedUdpMetricSink, QueuingMetricSink, StatsdClient};
 use cadence_macros::*;
@@ -15,16 +15,13 @@ use plerkle_serialization::serializer::{
     serialize_account, serialize_block, serialize_transaction,
 };
 use serde::Deserialize;
-use tokio::sync::{
-    mpsc::{unbounded_channel, UnboundedSender},
-};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
     GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions, ReplicaBlockInfoVersions,
     ReplicaTransactionInfoVersions, Result, SlotStatus,
 };
-use solana_sdk::{message::AccountKeys, pubkey::Pubkey};
-use tracing::{error, info, debug, trace};
+use solana_sdk::{message::AccountKeys, pubkey::Pubkey, signature::Signature};
 use std::{
     collections::BTreeSet,
     fmt::{Debug, Formatter},
@@ -40,6 +37,7 @@ use tokio::{
     runtime::{Builder, Runtime},
     time::Instant,
 };
+use tracing::{debug, error, info, trace, warn};
 
 struct SerializedData<'a> {
     stream: &'static str,
@@ -100,6 +98,7 @@ pub(crate) struct Plerkle<'a> {
     handle_startup: bool,
     slots_seen: SlotStore,
     account_event_cache: Arc<DashMap<u64, DashMap<Pubkey, (u64, SerializedData<'a>)>>>,
+    transaction_event_cache: Arc<DashMap<u64, DashMap<Signature, (u64, SerializedData<'a>)>>>,
     conf_level: Option<SlotStatus>,
 }
 
@@ -146,6 +145,7 @@ impl<'a> Plerkle<'a> {
             handle_startup: false,
             slots_seen: SlotStore::new(),
             account_event_cache: Arc::new(DashMap::new()),
+            transaction_event_cache: Arc::new(DashMap::new()),
             conf_level: None,
         }
     }
@@ -157,7 +157,7 @@ impl<'a> Plerkle<'a> {
     ) -> Result<()> {
         // Send account info over channel.
         runtime.spawn(async move {
-            let s =sender.send(data);
+            let s = sender.send(data);
             match s {
                 Ok(_) => {}
                 Err(e) => {
@@ -277,6 +277,7 @@ impl GeyserPlugin for Plerkle<'static> {
 
     fn on_load(&mut self, config_file: &str) -> Result<()> {
         solana_logger::setup_with_default("info");
+        info!("IN ON LOAD");
 
         // Read in config file.
         info!(
@@ -319,6 +320,8 @@ impl GeyserPlugin for Plerkle<'static> {
             }
         }
 
+        //warn!("Loaded config settings {:?}", plugin_config);
+
         let runtime = Builder::new_multi_thread()
             .enable_all()
             .thread_name("plerkle-runtime-worker")
@@ -336,7 +339,7 @@ impl GeyserPlugin for Plerkle<'static> {
             })?;
         self.conf_level = config.confirmation_level.map(|c| c.into());
         let workers_num = config.num_workers.unwrap_or(NUM_WORKERS);
-        
+
         runtime.spawn(async move {
             let mut messenger_workers = Vec::with_capacity(workers_num);
             let mut worker_senders = Vec::with_capacity(workers_num);
@@ -344,8 +347,8 @@ impl GeyserPlugin for Plerkle<'static> {
                 let (send, recv) = unbounded_channel::<SerializedData>();
                 let mut msg = select_messenger(config.messenger_config.clone())
                     .await
-                    .unwrap(); // We want to fail if the messenger is not configured correctly.\
-            
+                    .unwrap(); // We want to fail if the messenger is not configured correctly.
+
                 msg.add_stream(ACCOUNT_STREAM).await;
                 msg.add_stream(SLOT_STREAM).await;
                 msg.add_stream(TRANSACTION_STREAM).await;
@@ -465,7 +468,11 @@ impl GeyserPlugin for Plerkle<'static> {
             if !accounts_selector.is_account_selected(account.pubkey, account.owner) {
                 return Ok(());
             }
-            trace!("account selected: pubkey: {:?}, owner: {:?}", account.pubkey, account.owner);
+            trace!(
+                "account selected: pubkey: {:?}, owner: {:?}",
+                account.pubkey,
+                account.owner
+            );
         } else {
             return Err(GeyserPluginError::ConfigFileReadError {
                 msg: "Accounts selector not initialized".to_string(),
@@ -548,6 +555,18 @@ impl GeyserPlugin for Plerkle<'static> {
                     Plerkle::send(sender, runtime, event.1)?;
                 }
             }
+
+            let tx_slot_map = self.transaction_event_cache.remove(&slot);
+            if let Some((_, events)) = tx_slot_map {
+                info!("Sending Transaction events for SLOT: {:?}", slot);
+                for (_, event) in events.into_iter() {
+                    info!("Sending Transction event for stream: {:?}", event.1.stream);
+                    let sender = self.get_sender_clone()?;
+                    let runtime = self.get_runtime()?;
+                    Plerkle::send(sender, runtime, event.1)?;
+                }
+            }
+
             let seen = &mut self.slots_seen;
             let slots_to_purge = seen.needs_purge(slot);
             if let Some(purgable) = slots_to_purge {
@@ -555,10 +574,13 @@ impl GeyserPlugin for Plerkle<'static> {
                 for slot in &purgable {
                     seen.remove(*slot);
                 }
+
                 let cl = self.account_event_cache.clone();
+                let tl = self.transaction_event_cache.clone();
                 self.get_runtime()?.spawn(async move {
                     for s in purgable {
                         cl.remove(&s);
+                        tl.remove(&s);
                     }
                 });
             }
@@ -610,7 +632,10 @@ impl GeyserPlugin for Plerkle<'static> {
         } else {
             return Ok(());
         }
-        trace!(signature = transaction_info.signature.to_string(), "matched transaction");
+        trace!(
+            signature = transaction_info.signature.to_string(),
+            "matched transaction"
+        );
         // Get runtime and sender channel.
         let runtime = self.get_runtime()?;
         let sender = self.get_sender_clone()?;
@@ -618,26 +643,30 @@ impl GeyserPlugin for Plerkle<'static> {
         // Serialize data.
         let builder = FlatBufferBuilder::new();
         let builder = serialize_transaction(builder, transaction_info, slot);
-        let signature = transaction_info.signature.to_string();
-                // Send transaction info over channel.
-        runtime.spawn(async move {
-            let data = SerializedData {
-                stream: TRANSACTION_STREAM,
-                builder,
-                seen_at: seen.clone(),
-            };
-            match sender.send(data) {
-                Ok(_) => {
-                    trace!(signature = signature, "transaction sent");
-                }
-                Err(e) => {
-                    metric! {
-                        statsd_count!("tansaction_channel_send_failure", 1);
-                    }
-                    error!("error sending to transaction to channel: {}", e);
-                }
+
+        // Push transaction events to queue
+        let signature = transaction_info.signature.clone();
+        let cache = self.transaction_event_cache.get_mut(&slot);
+
+        let index = transaction_info.index.try_into().unwrap_or(0);
+        let data = SerializedData {
+            stream: TRANSACTION_STREAM,
+            builder,
+            seen_at: seen.clone(),
+        };
+        if let Some(cache) = cache {
+            if cache.contains_key(&signature) {
+                // Don't really know if this makes sense, I don't actually think we can get a notification for the same transaction twice in the same slot
+                cache.alter(&signature, |_, _| (index, data));
+            } else {
+                cache.insert(signature, (index, data));
             }
-        });
+        } else {
+            let pubkey_cache = DashMap::new();
+            pubkey_cache.insert(signature, (index, data));
+            self.transaction_event_cache.insert(slot, pubkey_cache);
+        }
+
         metric! {
             let slt_idx = format!("{}-{}", slot, transaction_info.index);
             statsd_count!("transaction_seen_event", 1, "slot-idx" => &slt_idx);
