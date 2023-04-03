@@ -48,14 +48,19 @@ struct SerializedData<'a> {
 #[derive(Default)]
 pub struct SlotStore {
     parents: BTreeSet<u64>,
-    slot_expiry: u64
+    // slot_expiry specifies how many slots to keep cached before purging parents, account_event_cache and transaction_event_cache
+    slot_expiry: u64,
+    // purge_single_slot specifies if you want to purge the slot being passed into needs_purge, otherwise needs_purge will return
+    // all slots up to current_slot - slot_expiry
+    purge_single_slot: bool,
 }
 const SLOT_EXPIRY: u64 = 600 * 2;
 impl SlotStore {
     pub fn new() -> Self {
         SlotStore {
             parents: BTreeSet::new(),
-            slot_expiry: SLOT_EXPIRY
+            slot_expiry: SLOT_EXPIRY,
+            purge_single_slot: false
         }
     }
 
@@ -63,8 +68,8 @@ impl SlotStore {
         self.slot_expiry = slot_expiry
     }
 
-    pub fn get_slot_expiry(&self) -> u64 {
-        self.slot_expiry
+    pub fn set_purge_single_slot(&mut self, purge_single_slot: bool) {
+        self.purge_single_slot = purge_single_slot
     }
 
     pub fn has_children(&self, slot: u64) -> bool {
@@ -72,15 +77,17 @@ impl SlotStore {
     }
 
     pub fn needs_purge(&self, current_slot: u64) -> Option<Vec<u64>> {
-        let slot_expiry = self.get_slot_expiry();
-        if current_slot <= slot_expiry {
+        if current_slot <= self.slot_expiry {
             //just in case we do some testing
             return None;
+        }
+        if self.purge_single_slot {
+            return Some(vec![current_slot])
         }
 
         let rng = self
             .parents
-            .range((Included(0), Included(current_slot - slot_expiry)))
+            .range((Included(0), Included(current_slot - self.slot_expiry)))
             .cloned()
             .collect();
         Some(rng)
@@ -141,6 +148,7 @@ pub struct PluginConfig {
     pub transaction_stream_size: Option<usize>,
     pub block_stream_size: Option<usize>,
     pub slot_expiry: Option<u64>,
+    pub purge_single_slot: Option<bool>
 }
 
 const NUM_WORKERS: usize = 5;
@@ -349,7 +357,9 @@ impl GeyserPlugin for Plerkle<'static> {
         self.conf_level = config.confirmation_level.map(|c| c.into());
         let workers_num = config.num_workers.unwrap_or(NUM_WORKERS);
         let slot_expiry = config.slot_expiry.unwrap_or(SLOT_EXPIRY);
+        let purge_single_slot = config.purge_single_slot.unwrap_or(false);
         self.slots_seen.set_slot_expiry(slot_expiry);
+        self.slots_seen.set_purge_single_slot(purge_single_slot);
 
         runtime.spawn(async move {
             let mut messenger_workers = Vec::with_capacity(workers_num);
