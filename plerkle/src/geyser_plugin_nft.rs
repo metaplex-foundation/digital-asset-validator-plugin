@@ -100,7 +100,7 @@ pub(crate) struct Plerkle<'a> {
     account_event_cache: Arc<DashMap<u64, DashMap<Pubkey, (u64, SerializedData<'a>)>>>,
     transaction_event_cache: Arc<DashMap<u64, DashMap<Signature, (u64, SerializedData<'a>)>>>,
     conf_level: Option<SlotStatus>,
-    cache_by_slot: Option<bool>
+    cache_accounts_by_slot: Option<bool>
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
@@ -130,7 +130,7 @@ pub struct PluginConfig {
     pub slot_stream_size: Option<usize>,
     pub transaction_stream_size: Option<usize>,
     pub block_stream_size: Option<usize>,
-    pub cache_by_slot: Option<bool>
+    pub cache_accounts_by_slot: Option<bool>
 }
 
 const NUM_WORKERS: usize = 5;
@@ -149,7 +149,7 @@ impl<'a> Plerkle<'a> {
             account_event_cache: Arc::new(DashMap::new()),
             transaction_event_cache: Arc::new(DashMap::new()),
             conf_level: None,
-            cache_by_slot: None,
+            cache_accounts_by_slot: None,
         }
     }
 
@@ -496,7 +496,7 @@ impl GeyserPlugin for Plerkle<'static> {
         let runtime = self.get_runtime()?;
         let sender = self.get_sender_clone()?;
 
-        if is_startup || self.cache_by_slot.unwrap_or(false) {
+        if is_startup || self.cache_accounts_by_slot.unwrap_or(false) {
             Plerkle::send(sender, runtime, data)?;
         } else {
             let account_key = Pubkey::new(account.pubkey);
