@@ -100,7 +100,8 @@ pub(crate) struct Plerkle<'a> {
     account_event_cache: Arc<DashMap<u64, DashMap<Pubkey, (u64, SerializedData<'a>)>>>,
     transaction_event_cache: Arc<DashMap<u64, DashMap<Signature, (u64, SerializedData<'a>)>>>,
     conf_level: Option<SlotStatus>,
-    cache_accounts_by_slot: bool
+    cache_accounts_by_slot: bool,
+    emit_account_seen_event: bool,
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
@@ -130,7 +131,8 @@ pub struct PluginConfig {
     pub slot_stream_size: Option<usize>,
     pub transaction_stream_size: Option<usize>,
     pub block_stream_size: Option<usize>,
-    pub cache_accounts_by_slot: Option<bool>
+    pub cache_accounts_by_slot: Option<bool>,
+    pub emit_account_seen_event: Option<bool>,
 }
 
 const NUM_WORKERS: usize = 5;
@@ -150,6 +152,7 @@ impl<'a> Plerkle<'a> {
             transaction_event_cache: Arc::new(DashMap::new()),
             conf_level: None,
             cache_accounts_by_slot: true,
+            emit_account_seen_event: true,
         }
     }
 
@@ -339,6 +342,7 @@ impl GeyserPlugin for Plerkle<'static> {
             })?;
         self.conf_level = config.confirmation_level.map(|c| c.into());
         self.cache_accounts_by_slot = config.cache_accounts_by_slot.unwrap_or(true);
+        self.emit_account_seen_event = config.emit_account_seen_event.unwrap_or(true);
         let workers_num = config.num_workers.unwrap_or(NUM_WORKERS);
 
         runtime.spawn(async move {
@@ -485,10 +489,12 @@ impl GeyserPlugin for Plerkle<'static> {
         let builder = FlatBufferBuilder::new();
         let builder = serialize_account(builder, account, slot, is_startup);
         let owner = bs58::encode(account.owner).into_string();
-        metric! {
-            let s = is_startup.to_string();
-            statsd_count!("account_seen_event", 1, "owner" => &owner, "is_startup" => &s);
-        };
+        if self.emit_account_seen_event {
+            metric! {
+                let s = is_startup.to_string();
+                statsd_count!("account_seen_event", 1, "owner" => &owner, "is_startup" => &s);
+            };
+        }
         let data = SerializedData {
             stream: ACCOUNT_STREAM,
             builder,
