@@ -100,7 +100,7 @@ pub(crate) struct Plerkle<'a> {
     account_event_cache: Arc<DashMap<u64, DashMap<Pubkey, (u64, SerializedData<'a>)>>>,
     transaction_event_cache: Arc<DashMap<u64, DashMap<Signature, (u64, SerializedData<'a>)>>>,
     conf_level: Option<SlotStatus>,
-    cache_accounts_by_slot: Option<bool>
+    cache_accounts_by_slot: bool
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
@@ -149,7 +149,7 @@ impl<'a> Plerkle<'a> {
             account_event_cache: Arc::new(DashMap::new()),
             transaction_event_cache: Arc::new(DashMap::new()),
             conf_level: None,
-            cache_accounts_by_slot: None,
+            cache_accounts_by_slot: true,
         }
     }
 
@@ -338,6 +338,7 @@ impl GeyserPlugin for Plerkle<'static> {
                 msg: format!("Could not read messenger config: {:?}", config_error),
             })?;
         self.conf_level = config.confirmation_level.map(|c| c.into());
+        self.cache_accounts_by_slot = config.cache_accounts_by_slot.unwrap_or(true);
         let workers_num = config.num_workers.unwrap_or(NUM_WORKERS);
 
         runtime.spawn(async move {
@@ -496,7 +497,7 @@ impl GeyserPlugin for Plerkle<'static> {
         let runtime = self.get_runtime()?;
         let sender = self.get_sender_clone()?;
 
-        if is_startup || !self.cache_accounts_by_slot.unwrap_or(true) {
+        if is_startup || !self.cache_accounts_by_slot {
             Plerkle::send(sender, runtime, data)?;
         } else {
             let account_key = Pubkey::new(account.pubkey);
