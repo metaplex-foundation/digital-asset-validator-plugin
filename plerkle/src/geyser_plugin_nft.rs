@@ -496,7 +496,7 @@ impl GeyserPlugin for Plerkle<'static> {
         let runtime = self.get_runtime()?;
         let sender = self.get_sender_clone()?;
 
-        if is_startup || self.cache_accounts_by_slot.unwrap_or(false) {
+        if is_startup || !self.cache_accounts_by_slot.unwrap_or(true) {
             Plerkle::send(sender, runtime, data)?;
         } else {
             let account_key = Pubkey::new(account.pubkey);
