@@ -116,13 +116,13 @@ impl RedisMessenger {
             let info = if let Some(info) = pending.get(&id) {
                 info
             } else {
-                println!("No pending info for ID {id}");
+                warn!("No pending info for ID {id}");
                 continue;
             };
             let data = if let Some(data) = map.get(DATA_KEY) {
                 data
             } else {
-                println!("No Data was stored in Redis for ID {id}");
+                info!("No Data was stored in Redis for ID {id}");
                 continue;
             };
             // Get data from map.
@@ -130,7 +130,7 @@ impl RedisMessenger {
             let bytes = match data {
                 Value::Data(bytes) => bytes,
                 _ => {
-                    println!("Redis data for ID {id} in wrong format");
+                    error!("Redis data for ID {id} in wrong format");
                     continue;
                 }
             };
