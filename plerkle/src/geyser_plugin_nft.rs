@@ -37,7 +37,7 @@ use tokio::{
     runtime::{Builder, Runtime},
     time::Instant,
 };
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, trace};
 
 struct SerializedData<'a> {
     stream: &'static str,
@@ -102,7 +102,7 @@ pub(crate) struct Plerkle<'a> {
     conf_level: Option<SlotStatus>,
 }
 
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Eq, Debug)]
 pub enum ConfirmationLevel {
     Processed,
     Rooted,
@@ -502,7 +502,7 @@ impl GeyserPlugin for Plerkle<'static> {
                 if cache.contains_key(&account_key) {
                     cache.alter(&account_key, |_, v| {
                         if account.write_version > v.0 {
-                            return (account.write_version, data);
+                            (account.write_version, data)
                         } else {
                             v
                         }
@@ -634,22 +634,22 @@ impl GeyserPlugin for Plerkle<'static> {
             "matched transaction"
         );
         // Get runtime and sender channel.
-        let runtime = self.get_runtime()?;
-        let sender = self.get_sender_clone()?;
+        let _runtime = self.get_runtime()?;
+        let _sender = self.get_sender_clone()?;
 
         // Serialize data.
         let builder = FlatBufferBuilder::new();
         let builder = serialize_transaction(builder, transaction_info, slot);
 
         // Push transaction events to queue
-        let signature = transaction_info.signature.clone();
+        let signature = *transaction_info.signature;
         let cache = self.transaction_event_cache.get_mut(&slot);
 
         let index = transaction_info.index.try_into().unwrap_or(0);
         let data = SerializedData {
             stream: TRANSACTION_STREAM,
             builder,
-            seen_at: seen.clone(),
+            seen_at: seen,
         };
         if let Some(cache) = cache {
             if cache.contains_key(&signature) {
@@ -702,7 +702,7 @@ impl GeyserPlugin for Plerkle<'static> {
                     let data = SerializedData {
                         stream: BLOCK_STREAM,
                         builder,
-                        seen_at: seen.clone(),
+                        seen_at: seen,
                     };
                     let _ = sender.send(data);
                 });

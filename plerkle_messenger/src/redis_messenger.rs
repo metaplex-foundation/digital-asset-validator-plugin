@@ -181,7 +181,7 @@ impl Messenger for RedisMessenger {
             .and_then(|id| id.clone().into_string())
             // Using the previous default name when the configuration does not
             // specify any particular consumer_id.
-            .unwrap_or(String::from("ingester"));
+            .unwrap_or_else(|| String::from("ingester"));
 
         let retries = config
             .get("retries")
@@ -205,7 +205,7 @@ impl Messenger for RedisMessenger {
         let consumer_group_name = config
             .get("consumer_group_name")
             .and_then(|r| r.clone().into_string())
-            .unwrap_or(GROUP_NAME.to_string());
+            .unwrap_or_else(|| GROUP_NAME.to_string());
 
         let pipeline_size = config
             .get("pipeline_size_bytes")

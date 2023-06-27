@@ -11,7 +11,7 @@ use self::flatbuffers::{EndianScalar, Follow};
 
 // struct Pubkey, aligned to 1
 #[repr(transparent)]
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Pubkey(pub [u8; 32]);
 impl Default for Pubkey { 
   fn default() -> Self { 
