@@ -11,7 +11,7 @@ extern crate flatbuffers;
 use self::flatbuffers::{EndianScalar, Follow};
 
 pub enum CompiledInstructionOffset {}
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 
 pub struct CompiledInstruction<'a> {
   pub _tab: flatbuffers::Table<'a>,
@@ -142,7 +142,7 @@ impl core::fmt::Debug for CompiledInstruction<'_> {
   }
 }
 pub enum CompiledInnerInstructionOffset {}
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 
 pub struct CompiledInnerInstruction<'a> {
   pub _tab: flatbuffers::Table<'a>,

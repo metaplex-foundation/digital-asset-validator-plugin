@@ -97,7 +97,7 @@ impl<'a> flatbuffers::Verifiable for TransactionVersion {
 
 impl flatbuffers::SimpleToVerifyInSlice for TransactionVersion {}
 pub enum TransactionInfoOffset {}
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 
 pub struct TransactionInfo<'a> {
   pub _tab: flatbuffers::Table<'a>,
@@ -364,7 +364,7 @@ impl core::fmt::Debug for TransactionInfo<'_> {
   }
 }
 pub enum InnerInstructionsOffset {}
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 
 pub struct InnerInstructions<'a> {
   pub _tab: flatbuffers::Table<'a>,
@@ -478,7 +478,7 @@ impl core::fmt::Debug for InnerInstructions<'_> {
   }
 }
 pub enum CompiledInnerInstructionsOffset {}
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 
 pub struct CompiledInnerInstructions<'a> {
   pub _tab: flatbuffers::Table<'a>,

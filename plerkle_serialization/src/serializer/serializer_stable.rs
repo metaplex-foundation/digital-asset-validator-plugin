@@ -5,7 +5,7 @@ use crate::solana_geyser_plugin_interface_shims::{
 use crate::{
     AccountInfo, AccountInfoArgs, BlockInfo, BlockInfoArgs, CompiledInnerInstruction,
     CompiledInnerInstructionArgs, CompiledInnerInstructions, CompiledInnerInstructionsArgs,
-    CompiledInstruction, CompiledInstructionArgs, InnerInstructions, InnerInstructionsArgs,
+    CompiledInstruction, CompiledInstructionArgs,
     Pubkey as FBPubkey, Pubkey, SlotStatusInfo, SlotStatusInfoArgs, Status as FBSlotStatus,
     TransactionInfo, TransactionInfoArgs, TransactionVersion,
 };
@@ -107,7 +107,7 @@ pub fn serialize_transaction<'a>(
             account_keys_fb_vec.push(pubkey);
         }
 
-        if account_keys_fb_vec.len() > 0 {
+        if !account_keys_fb_vec.is_empty() {
             Some(builder.create_vector(&account_keys_fb_vec))
         } else {
             None
@@ -298,7 +298,7 @@ pub fn seralize_encoded_transaction_with_status<'a>(
                 }
             }
         }
-        if account_keys_fb_vec.len() > 0 {
+        if !account_keys_fb_vec.is_empty() {
             Some(builder.create_vector(&account_keys_fb_vec))
         } else {
             None
