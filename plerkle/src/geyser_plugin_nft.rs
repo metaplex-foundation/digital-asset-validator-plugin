@@ -665,8 +665,7 @@ impl GeyserPlugin for Plerkle<'static> {
         }
 
         metric! {
-            let slt_idx = format!("{}-{}", slot, transaction_info.index);
-            statsd_count!("transaction_seen_event", 1, "slot-idx" => &slt_idx);
+            statsd_count!("transaction_seen_event", 1);
         }
         Ok(())
     }
