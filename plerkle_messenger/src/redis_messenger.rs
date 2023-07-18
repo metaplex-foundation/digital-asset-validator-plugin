@@ -1,8 +1,10 @@
 use crate::{
-    error::MessengerError, ConsumptionType, Messenger, MessengerConfig, MessengerType, RecvData,
+    error::MessengerError, metric, ConsumptionType, Messenger, MessengerConfig, MessengerType,
+    RecvData,
 };
 use async_trait::async_trait;
 
+use cadence_macros::statsd_count;
 use log::*;
 use redis::{
     aio::ConnectionManager,
@@ -76,10 +78,8 @@ impl RedisMessenger {
             .await
             .map_err(|e| MessengerError::AutoclaimError { msg: e.to_string() })?;
 
-        id = result.0;
         let range_reply = result.1;
-
-        if id == "0-0" || range_reply.ids.is_empty() {
+        if range_reply.ids.is_empty() {
             // We've reached the end of the PEL.
             return Ok(Vec::new());
         }
@@ -116,13 +116,13 @@ impl RedisMessenger {
             let info = if let Some(info) = pending.get(&id) {
                 info
             } else {
-                println!("No pending info for ID {id}");
+                warn!("No pending info for ID {id}");
                 continue;
             };
             let data = if let Some(data) = map.get(DATA_KEY) {
                 data
             } else {
-                println!("No Data was stored in Redis for ID {id}");
+                info!("No Data was stored in Redis for ID {id}");
                 continue;
             };
             // Get data from map.
@@ -130,12 +130,15 @@ impl RedisMessenger {
             let bytes = match data {
                 Value::Data(bytes) => bytes,
                 _ => {
-                    println!("Redis data for ID {id} in wrong format");
+                    error!("Redis data for ID {id} in wrong format");
                     continue;
                 }
             };
 
             if info.times_delivered > self.retries {
+                metric! {
+                    statsd_count!("plerkle.messenger.retries.exceeded", 1);
+                }
                 error!("Message has reached maximum retries {} for id", id);
                 ack_list.push(id.clone());
                 continue;
