@@ -1786,6 +1786,8 @@ dependencies = [
  "async-mutex",
  "async-trait",
  "blake3",
+ "cadence",
+ "cadence-macros",
  "figment",
  "futures",
  "log",
