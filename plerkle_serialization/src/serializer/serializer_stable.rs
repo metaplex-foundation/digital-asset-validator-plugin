@@ -136,7 +136,8 @@ pub fn serialize_transaction<'a>(
         for inner_instructions in inner_instructions_vec.iter() {
             let index = inner_instructions.index;
             let mut instructions_fb_vec = Vec::with_capacity(inner_instructions.instructions.len());
-            for compiled_instruction in inner_instructions.instructions.iter() {
+            for instruction in inner_instructions.instructions.iter() {
+                let compiled_instruction = &instruction.instruction;
                 let program_id_index = compiled_instruction.program_id_index;
                 let accounts = Some(builder.create_vector(&compiled_instruction.accounts));
                 let data = Some(builder.create_vector(&compiled_instruction.data));

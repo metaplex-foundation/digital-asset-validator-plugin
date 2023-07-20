@@ -12,8 +12,8 @@ readme = "Readme.md"
 flatbuffers = "23.1.21"
 chrono = "0.4.22"
 serde = { version = "1.0.152"}
-solana-sdk = { version = "~1.14"}
-solana-transaction-status = { version = "~1.14" }
+solana-sdk = { version = "~1.16"}
+solana-transaction-status = { version = "~1.16" }
 bs58 = "0.4.0"
 thiserror = "1.0.38"
 [package.metadata.docs.rs]

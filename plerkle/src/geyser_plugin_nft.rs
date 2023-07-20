@@ -30,7 +30,7 @@ use std::{
     net::UdpSocket,
     ops::Bound::Included,
     ops::RangeBounds,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 use tokio::{
     self as tokio,
@@ -96,7 +96,7 @@ pub(crate) struct Plerkle<'a> {
     sender: Option<UnboundedSender<SerializedData<'a>>>,
     started_at: Option<Instant>,
     handle_startup: bool,
-    slots_seen: SlotStore,
+    slots_seen: Mutex<SlotStore>,
     account_event_cache: Arc<DashMap<u64, DashMap<Pubkey, (u64, SerializedData<'a>)>>>,
     transaction_event_cache: Arc<DashMap<u64, DashMap<Signature, (u64, SerializedData<'a>)>>>,
     conf_level: Option<SlotStatus>,
@@ -143,7 +143,7 @@ impl<'a> Plerkle<'a> {
             sender: None,
             started_at: None,
             handle_startup: false,
-            slots_seen: SlotStore::new(),
+            slots_seen: Mutex::new(SlotStore::new()),
             account_event_cache: Arc::new(DashMap::new()),
             transaction_event_cache: Arc::new(DashMap::new()),
             conf_level: None,
@@ -424,7 +424,7 @@ impl GeyserPlugin for Plerkle<'static> {
     }
 
     fn update_account(
-        &mut self,
+        &self,
         account: ReplicaAccountInfoVersions,
         slot: u64,
         is_startup: bool,
@@ -434,7 +434,9 @@ impl GeyserPlugin for Plerkle<'static> {
         }
         let rep: plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaAccountInfoV2;
         let account = match account {
-            ReplicaAccountInfoVersions::V0_0_2(ai) => {
+            ReplicaAccountInfoVersions::V0_0_1(_) => unreachable!("ReplicaAccountInfoVersions::V0_0_1 unexpected"),
+            ReplicaAccountInfoVersions::V0_0_2(_) => unreachable!("ReplicaAccountInfoVersions::V0_0_2 unexpected"),
+            ReplicaAccountInfoVersions::V0_0_3(ai) => {
                 rep = plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaAccountInfoV2 {
                     pubkey: ai.pubkey,
                     lamports: ai.lamports,
@@ -443,20 +445,7 @@ impl GeyserPlugin for Plerkle<'static> {
                     rent_epoch: ai.rent_epoch,
                     data: ai.data,
                     write_version: ai.write_version,
-                    txn_signature: ai.txn_signature,
-                };
-                &rep
-            }
-            ReplicaAccountInfoVersions::V0_0_1(ai) => {
-                rep = plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaAccountInfoV2 {
-                    pubkey: ai.pubkey,
-                    lamports: ai.lamports,
-                    owner: ai.owner,
-                    executable: ai.executable,
-                    rent_epoch: ai.rent_epoch,
-                    data: ai.data,
-                    write_version: ai.write_version,
-                    txn_signature: None,
+                    txn_signature: ai.txn.map(|tx| tx.signature()),
                 };
                 &rep
             }
@@ -496,7 +485,7 @@ impl GeyserPlugin for Plerkle<'static> {
         if is_startup {
             Plerkle::send(sender, runtime, data)?;
         } else {
-            let account_key = Pubkey::new(account.pubkey);
+            let account_key = Pubkey::try_from(account.pubkey).unwrap();
             let cache = self.account_event_cache.get_mut(&slot);
             if let Some(cache) = cache {
                 if cache.contains_key(&account_key) {
@@ -521,7 +510,7 @@ impl GeyserPlugin for Plerkle<'static> {
     }
 
     fn notify_end_of_startup(
-        &mut self,
+        &self,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
         metric! {
             statsd_time!("startup.timer", self.started_at.unwrap().elapsed());
@@ -531,14 +520,17 @@ impl GeyserPlugin for Plerkle<'static> {
     }
 
     fn update_slot_status(
-        &mut self,
+        &self,
         slot: u64,
         parent: Option<u64>,
         status: SlotStatus,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
         info!("Slot status update: {:?} {:?}", slot, status);
-        if status == SlotStatus::Processed && parent.is_some() {
-            self.slots_seen.insert(parent.unwrap());
+        let mut slots_seen = self.slots_seen.lock().unwrap();
+        if status == SlotStatus::Processed {
+            if let Some(parent) = parent {
+                slots_seen.insert(parent);
+            }
         }
         if status == self.get_confirmation_level() {
             // playing with this value here
@@ -564,12 +556,11 @@ impl GeyserPlugin for Plerkle<'static> {
                 }
             }
 
-            let seen = &mut self.slots_seen;
-            let slots_to_purge = seen.needs_purge(slot);
+            let slots_to_purge = slots_seen.needs_purge(slot);
             if let Some(purgable) = slots_to_purge {
                 debug!("Purging slots: {:?}", purgable);
                 for slot in &purgable {
-                    seen.remove(*slot);
+                    slots_seen.remove(*slot);
                 }
 
                 let cl = self.account_event_cache.clone();
@@ -586,7 +577,7 @@ impl GeyserPlugin for Plerkle<'static> {
     }
 
     fn notify_transaction(
-        &mut self,
+        &self,
         transaction_info: ReplicaTransactionInfoVersions,
         slot: u64,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
@@ -671,12 +662,13 @@ impl GeyserPlugin for Plerkle<'static> {
     }
 
     fn notify_block_metadata(
-        &mut self,
+        &self,
         blockinfo: ReplicaBlockInfoVersions,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
         let seen = Instant::now();
         match blockinfo {
-            ReplicaBlockInfoVersions::V0_0_1(block_info) => {
+            ReplicaBlockInfoVersions::V0_0_1(_) => unreachable!("ReplicaBlockInfoVersions::V0_0_1 unexpected"),
+            ReplicaBlockInfoVersions::V0_0_2(block_info) => {
                 // Get runtime and sender channel.
                 let runtime = self.get_runtime()?;
                 let sender = self.get_sender_clone()?;
