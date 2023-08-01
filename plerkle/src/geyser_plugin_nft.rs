@@ -11,9 +11,9 @@ use plerkle_messenger::{
     select_messenger, MessengerConfig, ACCOUNT_STREAM, BLOCK_STREAM, SLOT_STREAM,
     TRANSACTION_STREAM,
 };
-use plerkle_serialization::serializer::{
+use plerkle_serialization::{serializer::{
     serialize_account, serialize_block, serialize_transaction,
-};
+}};
 use serde::Deserialize;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
@@ -30,7 +30,7 @@ use std::{
     net::UdpSocket,
     ops::Bound::Included,
     ops::RangeBounds,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 use tokio::{
     self as tokio,
@@ -96,13 +96,42 @@ pub(crate) struct Plerkle<'a> {
     sender: Option<UnboundedSender<SerializedData<'a>>>,
     started_at: Option<Instant>,
     handle_startup: bool,
-    slots_seen: SlotStore,
+    slots_seen: Arc<Mutex<SlotStore>>,
     account_event_cache: Arc<DashMap<u64, DashMap<Pubkey, (u64, SerializedData<'a>)>>>,
     transaction_event_cache: Arc<DashMap<u64, DashMap<Signature, (u64, SerializedData<'a>)>>>,
     conf_level: Option<SlotStatus>,
 }
 
-#[derive(Deserialize, PartialEq, Eq, Debug)]
+trait PlerklePrivateMethods {
+    fn get_plerkle_block_info<'b>(&self, blockinfo: ReplicaBlockInfoVersions<'b>) -> plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaBlockInfoV2<'b>;
+}
+
+impl<'a> PlerklePrivateMethods for Plerkle<'a> {
+    fn get_plerkle_block_info<'b>(&self, blockinfo: ReplicaBlockInfoVersions<'b>) -> plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaBlockInfoV2<'b> {
+        match blockinfo {
+            ReplicaBlockInfoVersions::V0_0_1(block_info) => plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaBlockInfoV2 {
+                     parent_slot: 0,
+                     parent_blockhash: "",
+                     slot: block_info.slot,
+                     blockhash: block_info.blockhash,
+                     block_time: block_info.block_time,
+                     block_height: block_info.block_height,
+                     executed_transaction_count: 0,
+                },
+            ReplicaBlockInfoVersions::V0_0_2(block_info) => plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaBlockInfoV2 {
+                     parent_slot: 0,
+                     parent_blockhash: "",
+                     slot: block_info.slot,
+                     blockhash: block_info.blockhash,
+                     block_time: block_info.block_time,
+                     block_height: block_info.block_height,
+                     executed_transaction_count: 0,
+                }
+        }
+    }
+}
+
+#[derive(Deserialize, PartialEq, Debug)]
 pub enum ConfirmationLevel {
     Processed,
     Rooted,
@@ -143,7 +172,7 @@ impl<'a> Plerkle<'a> {
             sender: None,
             started_at: None,
             handle_startup: false,
-            slots_seen: SlotStore::new(),
+            slots_seen: Arc::new(Mutex::new(SlotStore::new())),
             account_event_cache: Arc::new(DashMap::new()),
             transaction_event_cache: Arc::new(DashMap::new()),
             conf_level: None,
@@ -424,7 +453,7 @@ impl GeyserPlugin for Plerkle<'static> {
     }
 
     fn update_account(
-        &mut self,
+        &self,
         account: ReplicaAccountInfoVersions,
         slot: u64,
         is_startup: bool,
@@ -434,6 +463,19 @@ impl GeyserPlugin for Plerkle<'static> {
         }
         let rep: plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaAccountInfoV2;
         let account = match account {
+            ReplicaAccountInfoVersions::V0_0_3(ai) => {
+                rep = plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaAccountInfoV2 {
+                    pubkey: ai.pubkey,
+                    lamports: ai.lamports,
+                    owner: ai.owner,
+                    executable: ai.executable,
+                    rent_epoch: ai.rent_epoch,
+                    data: ai.data,
+                    write_version: ai.write_version,
+                    txn_signature: ai.txn.map(|t| t.signature()),
+                };
+                &rep
+            }
             ReplicaAccountInfoVersions::V0_0_2(ai) => {
                 rep = plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaAccountInfoV2 {
                     pubkey: ai.pubkey,
@@ -521,7 +563,7 @@ impl GeyserPlugin for Plerkle<'static> {
     }
 
     fn notify_end_of_startup(
-        &mut self,
+        &self,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
         metric! {
             statsd_time!("startup.timer", self.started_at.unwrap().elapsed());
@@ -531,14 +573,16 @@ impl GeyserPlugin for Plerkle<'static> {
     }
 
     fn update_slot_status(
-        &mut self,
+        &self,
         slot: u64,
         parent: Option<u64>,
         status: SlotStatus,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
         info!("Slot status update: {:?} {:?}", slot, status);
         if status == SlotStatus::Processed && parent.is_some() {
-            self.slots_seen.insert(parent.unwrap());
+            let mut seen = self.slots_seen.lock()
+                .map_err(|e| PlerkleError::SlotsSeenLockError { msg: e.to_string() })?;
+            seen.insert(parent.unwrap())
         }
         if status == self.get_confirmation_level() {
             // playing with this value here
@@ -564,7 +608,8 @@ impl GeyserPlugin for Plerkle<'static> {
                 }
             }
 
-            let seen = &mut self.slots_seen;
+            let mut seen: std::sync::MutexGuard<'_, SlotStore> = self.slots_seen.lock()
+                .map_err(|e| PlerkleError::SlotsSeenLockError { msg: e.to_string() })?;
             let slots_to_purge = seen.needs_purge(slot);
             if let Some(purgable) = slots_to_purge {
                 debug!("Purging slots: {:?}", purgable);
@@ -586,7 +631,7 @@ impl GeyserPlugin for Plerkle<'static> {
     }
 
     fn notify_transaction(
-        &mut self,
+        &self,
         transaction_info: ReplicaTransactionInfoVersions,
         slot: u64,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
@@ -671,42 +716,29 @@ impl GeyserPlugin for Plerkle<'static> {
     }
 
     fn notify_block_metadata(
-        &mut self,
+        &self,
         blockinfo: ReplicaBlockInfoVersions,
-    ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
+    ) -> Result<()> {
         let seen = Instant::now();
-        match blockinfo {
-            ReplicaBlockInfoVersions::V0_0_1(block_info) => {
-                // Get runtime and sender channel.
-                let runtime = self.get_runtime()?;
-                let sender = self.get_sender_clone()?;
+        let plerkle_blockinfo = self.get_plerkle_block_info(blockinfo);
 
-                // Serialize data.
-                let builder = FlatBufferBuilder::new();
-                // Hope to remove this when coupling is not an issue.
-                let block_info = plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaBlockInfoV2 {
-                     parent_slot: 0,
-                     parent_blockhash: "",
-                     slot: block_info.slot,
-                     blockhash: block_info.blockhash,
-                     block_time: block_info.block_time,
-                     block_height: block_info.block_height,
-                     executed_transaction_count: 0,
-                };
+        // Get runtime and sender channel.
+        let runtime = self.get_runtime()?;
+        let sender = self.get_sender_clone()?;
 
-                let builder = serialize_block(builder, &block_info);
+        // Serialize data.
+        let builder = FlatBufferBuilder::new();
+        let builder = serialize_block(builder, &plerkle_blockinfo);
 
-                // Send block info over channel.
-                runtime.spawn(async move {
-                    let data = SerializedData {
-                        stream: BLOCK_STREAM,
-                        builder,
-                        seen_at: seen,
-                    };
-                    let _ = sender.send(data);
-                });
-            }
-        }
+        // Send block info over channel.
+        runtime.spawn(async move {
+            let data = SerializedData {
+                stream: BLOCK_STREAM,
+                builder,
+                seen_at: seen.clone(),
+            };
+            let _ = sender.send(data);
+        });
 
         Ok(())
     }
