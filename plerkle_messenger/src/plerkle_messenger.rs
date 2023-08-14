@@ -12,8 +12,10 @@ use crate::redis_messenger::RedisMessenger;
 
 /// Some constants that can be used as stream key values.
 pub const ACCOUNT_STREAM: &str = "ACC";
+pub const ACCOUNT_BACKFILL_STREAM: &str = "ACCFILL";
 pub const SLOT_STREAM: &str = "SLT";
 pub const TRANSACTION_STREAM: &str = "TXN";
+pub const TRANSACTION_BACKFILL_STREAM: &str = "TXNFILL";
 pub const BLOCK_STREAM: &str = "BLK";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
