@@ -8,12 +8,12 @@ use dashmap::DashMap;
 use figment::{providers::Env, Figment};
 use flatbuffers::FlatBufferBuilder;
 use plerkle_messenger::{
-    select_messenger, MessengerConfig, ACCOUNT_STREAM, BLOCK_STREAM, SLOT_STREAM,
-    TRANSACTION_STREAM,
+    select_messenger, MessengerConfig, ACCOUNT_STREAM, ACCOUNT_BACKFILL_STREAM, BLOCK_STREAM,
+    SLOT_STREAM, TRANSACTION_STREAM, TRANSACTION_BACKFILL_STREAM,
 };
-use plerkle_serialization::{serializer::{
+use plerkle_serialization::serializer::{
     serialize_account, serialize_block, serialize_transaction,
-}};
+};
 use serde::Deserialize;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
@@ -375,13 +375,17 @@ impl GeyserPlugin for Plerkle<'static> {
                     .await
                     .unwrap(); // We want to fail if the messenger is not configured correctly.
 
-                msg.add_stream(ACCOUNT_STREAM).await;
-                msg.add_stream(SLOT_STREAM).await;
-                msg.add_stream(TRANSACTION_STREAM).await;
-                msg.add_stream(BLOCK_STREAM).await;
+                msg.add_stream(ACCOUNT_STREAM).await.unwrap();
+                msg.add_stream(ACCOUNT_BACKFILL_STREAM).await.unwrap();
+                msg.add_stream(SLOT_STREAM).await.unwrap();
+                msg.add_stream(TRANSACTION_STREAM).await.unwrap();
+                msg.add_stream(TRANSACTION_BACKFILL_STREAM).await.unwrap();
+                msg.add_stream(BLOCK_STREAM).await.unwrap();
                 msg.set_buffer_size(ACCOUNT_STREAM, config.account_stream_size.unwrap_or(100_000_000)).await;
+                msg.set_buffer_size(ACCOUNT_BACKFILL_STREAM, config.account_stream_size.unwrap_or(100_000_000)).await;
                 msg.set_buffer_size(SLOT_STREAM, config.slot_stream_size.unwrap_or(100_000)).await;
                 msg.set_buffer_size(TRANSACTION_STREAM, config.transaction_stream_size.unwrap_or(10_000_000)).await;
+                msg.set_buffer_size(TRANSACTION_BACKFILL_STREAM, config.transaction_stream_size.unwrap_or(10_000_000)).await;
                 msg.set_buffer_size(BLOCK_STREAM, config.block_stream_size.unwrap_or(100_000)).await;
                 let chan_msg = (recv, msg);
                 // Idempotent call to add streams.
