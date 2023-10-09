@@ -17,7 +17,7 @@ env:
 
 jobs:
   test-stable:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest-8-cores
     steps:
       - uses: actions/checkout@v2
       - name: Set env vars
