@@ -62,7 +62,7 @@ jobs:
         token: ${{ github.token }}
         body: |
            ## STABLE VERSION: 
-            Reccomended for Mainnet
+            Recommended for Mainnet
             ${{ env.GEYSER_PLUGIN_NAME }} ${{ env.RELEASE }}
             solana ${{ env.SOLANA_VERSION }}
             rust ${{ env.RUST_VERSION }}
