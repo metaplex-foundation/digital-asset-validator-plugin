@@ -1,56 +1,52 @@
-# Source:
-# https://github.com/solana-labs/solana-accountsdb-plugin-postgres/blob/master/.github/workflows/test.yml
+name: Build plerkle plugin
 
 on:
+  workflow_dispatch:
   push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
 
 env:
   CARGO_TERM_COLOR: always
-  IMAGE_NAME: plerkle-test-validator
-  RUST_VERSION: 1.69.0
-  SOLANA_VERSION_STABLE: v1.16.6
 
 jobs:
-  test-stable:
-    runs-on: buildjet-4vcpu-ubuntu-2004
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, ubuntu-22.04]
+
+    runs-on: ["${{ matrix.os }}"]
     steps:
-      - uses: actions/checkout@v2
-      - name: Set env vars
-        run: |
-          source ci/env.sh
-          echo "GEYSER_PLUGIN_NAME=$plugin_name" | tee -a $GITHUB_ENV
-          echo "GEYSER_PLUGIN_LIB=lib${plugin_lib_name}" | tee -a $GITHUB_ENV
-      - if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get upgrade
-          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          sudo apt-add-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main"
-          sudo apt-get update
-          sudo apt-get install -y libudev-dev libssl-dev libsasl2-dev libzstd-dev
-          sudo apt-get install -y openssl --allow-unauthenticated
-          sudo apt-get install -y libssl1.1 --allow-unauthenticated
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
-          override: true
-          profile: minimal
-          components: rustfmt, clippy
-      - uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: cargo-build-${{ hashFiles('**/Cargo.lock') }}-${{ env.RUST_STABLE}}
-      - name: cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --workspace --all-targets #-- --deny=warnings
-      - name: Build
-        run: ./ci/cargo-build-test.sh
+
+    - name: checkout repo
+      uses: actions/checkout@v3
+      with:
+        submodules: true
+        lfs: true
+
+    - name: set env vars
+      run: |
+        source ci/env.sh
+        echo "RUST_VERSION=$rust_version" | tee -a "$GITHUB_ENV"
+        echo "RUST_PROFILE=$rust_profile" | tee -a "$GITHUB_ENV"
+        echo "RUST_COMPONENTS=$rust_components" | tee -a "$GITHUB_ENV"
+
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ env.RUST_VERSION }}
+        override: true
+        profile: ${{ env.RUST_PROFILE }}
+        components: ${{ env.RUST_COMPONENTS }}
+
+    - name: cargo clippy
+      uses: actions-rs/cargo@v1
+      with:
+        command: clippy
+        args: --workspace --all-targets #-- --deny=warnings
+
+    - name: cargo test
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: -- --nocapture
+
+    - name: Build plerkle plugin
+      run: cargo build --verbose --release
