@@ -14,10 +14,10 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 log = "0.4.11"
 async-trait = "0.1.53"
-solana-sdk = { version ="~1.16" }
-solana-transaction-status = { version = "~1.16" }
-solana-geyser-plugin-interface = { version = "~1.16" }
-solana-logger = { version = "~1.16" }
+solana-sdk = { version ="~1.17" }
+solana-transaction-status = { version = "~1.17" }
+solana-geyser-plugin-interface = { version = "~1.17" }
+solana-logger = { version = "~1.17" }
 thiserror = "1.0.30"
 base64 = "0.21.0"
 lazy_static = "1.4.0"
