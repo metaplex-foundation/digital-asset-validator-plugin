@@ -1,6 +1,7 @@
 use crate::{
     CompiledInnerInstructions as FBCompiledInnerInstructions,
-    CompiledInstruction as FBCompiledInstruction, Pubkey as FBPubkey,
+    CompiledInstruction as FBCompiledInstruction, InnerInstructions as FBInnerInstructions,
+    Pubkey as FBPubkey,
 };
 use flatbuffers::{ForwardsUOffset, Vector};
 use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey, signature::Signature};
@@ -51,7 +52,7 @@ pub fn parse_account_keys(
         .collect::<SolanaDeserializeResult<Vec<Pubkey>>>()
 }
 
-pub fn parse_message_instructions(
+pub fn parse_compiled_instructions(
     vec_cix: Option<Vector<'_, ForwardsUOffset<FBCompiledInstruction>>>,
 ) -> SolanaDeserializeResult<Vec<CompiledInstruction>> {
     let mut message_instructions = vec![];
@@ -74,7 +75,7 @@ pub fn parse_message_instructions(
     Ok(message_instructions)
 }
 
-pub fn parse_meta_inner_instructions(
+pub fn parse_compiled_inner_instructions(
     vec_ixs: Option<Vector<'_, ForwardsUOffset<FBCompiledInnerInstructions>>>,
 ) -> SolanaDeserializeResult<Vec<InnerInstructions>> {
     let mut meta_inner_instructions = vec![];
@@ -110,4 +111,42 @@ pub fn parse_meta_inner_instructions(
         })
     }
     Ok(meta_inner_instructions)
+}
+
+pub fn parse_inner_instructions(
+    vec_ixs: Option<Vector<'_, ForwardsUOffset<FBInnerInstructions>>>,
+) -> SolanaDeserializeResult<Vec<InnerInstructions>> {
+    vec_ixs
+        .ok_or(SolanaDeserializerError::NotFound)?
+        .iter()
+        .map(|iixs| {
+            let instructions = iixs
+                .instructions()
+                .ok_or(SolanaDeserializerError::NotFound)?
+                .iter()
+                .map(|cix| {
+                    Ok(InnerInstruction {
+                        instruction: CompiledInstruction {
+                            program_id_index: cix.program_id_index(),
+                            accounts: cix
+                                .accounts()
+                                .ok_or(SolanaDeserializerError::NotFound)?
+                                .bytes()
+                                .to_vec(),
+                            data: cix
+                                .data()
+                                .ok_or(SolanaDeserializerError::NotFound)?
+                                .bytes()
+                                .to_vec(),
+                        },
+                        stack_height: Some(0),
+                    })
+                })
+                .collect::<SolanaDeserializeResult<Vec<InnerInstruction>>>()?;
+            Ok(InnerInstructions {
+                index: iixs.index(),
+                instructions,
+            })
+        })
+        .collect::<SolanaDeserializeResult<Vec<InnerInstructions>>>()
 }
