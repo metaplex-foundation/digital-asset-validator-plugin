@@ -19,24 +19,31 @@ pub enum SolanaDeserializerError {
 
 pub type SolanaDeserializeResult<T> = Result<T, SolanaDeserializerError>;
 
-pub fn parse_pubkey(pubkey: &FBPubkey) -> SolanaDeserializeResult<Pubkey> {
-    Pubkey::try_from(pubkey.0.as_slice())
-        .map_err(|_error| SolanaDeserializerError::InvalidFlatBufferKey)
+pub fn parse_pubkey(pubkey: Option<&FBPubkey>) -> SolanaDeserializeResult<Pubkey> {
+    Pubkey::try_from(
+        pubkey
+            .ok_or(SolanaDeserializerError::NotFound)?
+            .0
+            .as_slice(),
+    )
+    .map_err(|_error| SolanaDeserializerError::InvalidFlatBufferKey)
 }
 
-pub fn parse_slice(data: Vector<'_, u8>) -> SolanaDeserializeResult<&[u8]> {
-    Ok(data.bytes())
+pub fn parse_slice(data: Option<Vector<'_, u8>>) -> SolanaDeserializeResult<&[u8]> {
+    Ok(data.ok_or(SolanaDeserializerError::NotFound)?.bytes())
 }
 
-pub fn parse_signature(data: &str) -> SolanaDeserializeResult<Signature> {
-    data.parse()
+pub fn parse_signature(data: Option<&str>) -> SolanaDeserializeResult<Signature> {
+    data.ok_or(SolanaDeserializerError::NotFound)?
+        .parse()
         .map_err(|_error| SolanaDeserializerError::DeserializationError)
 }
 
 pub fn parse_account_keys(
-    public_keys: Vector<'_, FBPubkey>,
+    public_keys: Option<Vector<'_, FBPubkey>>,
 ) -> SolanaDeserializeResult<Vec<Pubkey>> {
     public_keys
+        .ok_or(SolanaDeserializerError::NotFound)?
         .iter()
         .map(|key| {
             Pubkey::try_from(key.0.as_slice())
@@ -46,24 +53,26 @@ pub fn parse_account_keys(
 }
 
 pub fn parse_compiled_instructions(
-    vec_cix: Vector<'_, ForwardsUOffset<FBCompiledInstruction>>,
+    vec_cix: Option<Vector<'_, ForwardsUOffset<FBCompiledInstruction>>>,
 ) -> SolanaDeserializeResult<Vec<CompiledInstruction>> {
     let mut message_instructions = vec![];
 
-    for cix in vec_cix {
-        message_instructions.push(CompiledInstruction {
-            program_id_index: cix.program_id_index(),
-            accounts: cix
-                .accounts()
-                .ok_or(SolanaDeserializerError::NotFound)?
-                .bytes()
-                .to_vec(),
-            data: cix
-                .data()
-                .ok_or(SolanaDeserializerError::NotFound)?
-                .bytes()
-                .to_vec(),
-        })
+    if let Some(vec_cix) = vec_cix {
+        for cix in vec_cix {
+            message_instructions.push(CompiledInstruction {
+                program_id_index: cix.program_id_index(),
+                accounts: cix
+                    .accounts()
+                    .ok_or(SolanaDeserializerError::NotFound)?
+                    .bytes()
+                    .to_vec(),
+                data: cix
+                    .data()
+                    .ok_or(SolanaDeserializerError::NotFound)?
+                    .bytes()
+                    .to_vec(),
+            })
+        }
     }
 
     Ok(message_instructions)
