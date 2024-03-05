@@ -2150,7 +2150,7 @@ dependencies = [
 
 [[package]]
 name = "plerkle_messenger"
-version = "1.7.0"
+version = "1.8.0"
 dependencies = [
  "async-mutex",
  "async-trait",
