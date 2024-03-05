@@ -126,6 +126,15 @@ impl<'a> PlerklePrivateMethods for Plerkle<'a> {
                      block_time: block_info.block_time,
                      block_height: block_info.block_height,
                      executed_transaction_count: 0,
+                },
+            ReplicaBlockInfoVersions::V0_0_3(block_info) => plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaBlockInfoV2 {
+                    parent_slot: 0,
+                    parent_blockhash: "",
+                    slot: block_info.slot,
+                    blockhash: block_info.blockhash,
+                    block_time: block_info.block_time,
+                    block_height: block_info.block_height,
+                    executed_transaction_count: 0,
                 }
         }
     }
