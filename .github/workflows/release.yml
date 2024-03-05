@@ -6,11 +6,11 @@ on:
 env:
   CARGO_TERM_COLOR: always
   IMAGE_NAME: plerkle-test-validator
-  RUST_VERSION: 1.69.0
-  SOLANA_VERSION_STABLE: v1.16.6
+  RUST_VERSION: 1.73.0
+  SOLANA_VERSION_STABLE: v1.17.20
 jobs:
   release-stable:
-    runs-on: buildjet-8vcpu-ubuntu-2004
+    runs-on: ubuntu-20-04-8-cores
     steps:
       - uses: actions/checkout@v2
       - name: Set env vars
