@@ -13,7 +13,7 @@ env:
   CARGO_TERM_COLOR: always
   IMAGE_NAME: plerkle-test-validator
   RUST_VERSION: 1.75.0
-  SOLANA_VERSION_STABLE: v1.18.20
+  SOLANA_VERSION_STABLE: v1.18.11
 
 jobs:
   test-stable:
