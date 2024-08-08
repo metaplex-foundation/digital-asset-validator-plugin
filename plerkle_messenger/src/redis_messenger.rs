@@ -41,7 +41,7 @@ pub struct RedisMessenger {
     retries: usize,
     batch_size: usize,
     idle_timeout: usize,
-    message_wait_timeout: usize,
+    _message_wait_timeout: usize,
     consumer_group_name: String,
     pipeline_size: usize,
     pipeline_max_time: u64,
@@ -61,7 +61,7 @@ impl RedisMessenger {
         &mut self,
         stream_key: &'static str,
     ) -> Result<Vec<RecvData>, MessengerError> {
-        let mut id = "0-0".to_owned();
+        let id = "0-0".to_owned();
         let mut xauto = cmd("XAUTOCLAIM");
         xauto
             .arg(stream_key)
@@ -227,7 +227,7 @@ impl Messenger for RedisMessenger {
             retries,
             batch_size,
             idle_timeout,
-            message_wait_timeout,
+            _message_wait_timeout: message_wait_timeout,
             consumer_group_name,
             pipeline_size,
             pipeline_max_time,
