@@ -323,15 +323,15 @@ impl GeyserPlugin for Plerkle<'static> {
         "Plerkle"
     }
 
-    fn on_load(&mut self, config_file: &str, _is_reload: bool) -> Result<()> {
+    fn on_load(&mut self, config_file: &str, is_reload: bool) -> Result<()> {
         solana_logger::setup_with_default("info");
 
         // Read in config file.
         info!(
-            "Loading plugin {:?} from config_file {:?} with '_is_reload' flag: {:?}",
+            "Loading plugin {:?} from config_file {:?} with 'is_reload' flag: {:?}",
             self.name(),
             config_file,
-            _is_reload,
+            is_reload,
         );
         let mut file = File::open(config_file)?;
         let mut contents = String::new();
