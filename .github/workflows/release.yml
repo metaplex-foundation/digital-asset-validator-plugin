@@ -6,8 +6,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
   IMAGE_NAME: plerkle-test-validator
-  RUST_VERSION: 1.73.0
-  SOLANA_VERSION_STABLE: v1.17.20
+  RUST_VERSION: 1.75.0
+  SOLANA_VERSION_STABLE: v1.18.20
 jobs:
   release-stable:
     runs-on: ubuntu-20-04-8-cores
