@@ -4,3 +4,4 @@ members = [
     "plerkle",
     "plerkle_serialization"
 ]
+resolver = "2"
