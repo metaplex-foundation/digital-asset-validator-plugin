@@ -8,8 +8,7 @@ use dashmap::DashMap;
 use figment::{providers::Env, Figment};
 use flatbuffers::FlatBufferBuilder;
 use plerkle_messenger::{
-    select_messenger, MessengerConfig, ACCOUNT_STREAM, BLOCK_STREAM, SLOT_STREAM,
-    TRANSACTION_STREAM,
+    select_messenger_stream, MessengerConfig, ACCOUNT_STREAM, BLOCK_STREAM, SLOT_STREAM, TRANSACTION_STREAM
 };
 use plerkle_serialization::serializer::{
     serialize_account, serialize_block, serialize_transaction,
@@ -391,7 +390,7 @@ impl GeyserPlugin for Plerkle<'static> {
             let mut worker_senders = Vec::with_capacity(workers_num);
             for _ in 0..workers_num {
                 let (send, recv) = unbounded_channel::<SerializedData>();
-                let mut msg = select_messenger(config.messenger_config.clone())
+                let mut msg = select_messenger_stream(config.messenger_config.clone())
                     .await
                     .unwrap(); // We want to fail if the messenger is not configured correctly.
 

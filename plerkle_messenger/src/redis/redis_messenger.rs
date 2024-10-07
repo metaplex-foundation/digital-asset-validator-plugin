@@ -1,6 +1,6 @@
 use crate::{
-    error::MessengerError, metric, ConsumptionType, Messenger, MessengerConfig, MessengerType,
-    RecvData,
+    error::MessengerError, metric, ConsumptionType, MessageStreamer, Messenger, MessengerConfig,
+    MessengerType, RecvData,
 };
 use async_trait::async_trait;
 
@@ -23,16 +23,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-// Redis stream values.
-pub const GROUP_NAME: &str = "plerkle";
-pub const DATA_KEY: &str = "data";
-pub const DEFAULT_RETRIES: usize = 3;
-pub const DEFAULT_MSG_BATCH_SIZE: usize = 10;
-pub const MESSAGE_WAIT_TIMEOUT: usize = 10;
-pub const IDLE_TIMEOUT: usize = 5000;
-pub const REDIS_MAX_BYTES_COMMAND: usize = 536870912;
-pub const PIPELINE_SIZE_BYTES: usize = REDIS_MAX_BYTES_COMMAND / 100;
-pub const PIPELINE_MAX_TIME: u64 = 10;
+use super::{
+    DATA_KEY, DEFAULT_MSG_BATCH_SIZE, DEFAULT_RETRIES, GROUP_NAME, IDLE_TIMEOUT,
+    MESSAGE_WAIT_TIMEOUT, PIPELINE_MAX_TIME, PIPELINE_SIZE_BYTES, REDIS_CON_STR,
+};
 
 pub struct RedisMessenger {
     connection: ConnectionManager,
@@ -48,15 +42,84 @@ pub struct RedisMessenger {
 }
 
 pub struct RedisMessengerStream {
-    max_len: Option<StreamMaxlen>,
-    local_buffer: LinkedList<Vec<u8>>,
-    local_buffer_total: usize,
-    local_buffer_last_flush: Instant,
+    pub max_len: Option<StreamMaxlen>,
+    pub local_buffer: LinkedList<Vec<u8>>,
+    pub local_buffer_total: usize,
+    pub local_buffer_last_flush: Instant,
 }
 
-const REDIS_CON_STR: &str = "redis_connection_str";
-
 impl RedisMessenger {
+    pub async fn new(config: MessengerConfig) -> Result<Self, MessengerError> {
+        let uri = config
+            .get(REDIS_CON_STR)
+            .and_then(|u| u.clone().into_string())
+            .ok_or(MessengerError::ConfigurationError {
+                msg: format!("Connection String Missing: {}", REDIS_CON_STR),
+            })?;
+        // Setup Redis client.
+        let client = redis::Client::open(uri).unwrap();
+
+        // Get connection.
+        let connection = client.get_connection_manager().await.map_err(|e| {
+            error!("{}", e.to_string());
+            MessengerError::ConnectionError { msg: e.to_string() }
+        })?;
+
+        let consumer_id = config
+            .get("consumer_id")
+            .and_then(|id| id.clone().into_string())
+            // Using the previous default name when the configuration does not
+            // specify any particular consumer_id.
+            .unwrap_or_else(|| String::from("ingester"));
+
+        let retries = config
+            .get("retries")
+            .and_then(|r| r.clone().to_u128().map(|n| n as usize))
+            .unwrap_or(DEFAULT_RETRIES);
+
+        let batch_size = config
+            .get("batch_size")
+            .and_then(|r| r.clone().to_u128().map(|n| n as usize))
+            .unwrap_or(DEFAULT_MSG_BATCH_SIZE);
+
+        let idle_timeout = config
+            .get("idle_timeout")
+            .and_then(|r| r.clone().to_u128().map(|n| n as usize))
+            .unwrap_or(IDLE_TIMEOUT);
+        let message_wait_timeout = config
+            .get("message_wait_timeout")
+            .and_then(|r| r.clone().to_u128().map(|n| n as usize))
+            .unwrap_or(MESSAGE_WAIT_TIMEOUT);
+
+        let consumer_group_name = config
+            .get("consumer_group_name")
+            .and_then(|r| r.clone().into_string())
+            .unwrap_or_else(|| GROUP_NAME.to_string());
+
+        let pipeline_size = config
+            .get("pipeline_size_bytes")
+            .and_then(|r| r.clone().to_u128().map(|n| n as usize))
+            .unwrap_or(PIPELINE_SIZE_BYTES);
+
+        let pipeline_max_time = config
+            .get("local_buffer_max_window")
+            .and_then(|r| r.clone().to_u128().map(|n| n as u64))
+            .unwrap_or(PIPELINE_MAX_TIME);
+
+        Ok(Self {
+            connection,
+            streams: HashMap::<&'static str, RedisMessengerStream>::default(),
+            consumer_id,
+            retries,
+            batch_size,
+            idle_timeout,
+            _message_wait_timeout: message_wait_timeout,
+            consumer_group_name,
+            pipeline_size,
+            pipeline_max_time,
+        })
+    }
+
     async fn xautoclaim(
         &mut self,
         stream_key: &'static str,
@@ -128,7 +191,7 @@ impl RedisMessenger {
             // Get data from map.
 
             let bytes = match data {
-                Value::Data(bytes) => bytes,
+                Value::BulkString(bytes) => bytes,
                 _ => {
                     error!("Redis data for ID {id} in wrong format");
                     continue;
@@ -158,82 +221,6 @@ impl RedisMessenger {
 
 #[async_trait]
 impl Messenger for RedisMessenger {
-    async fn new(config: MessengerConfig) -> Result<Self, MessengerError> {
-        let uri = config
-            .get(REDIS_CON_STR)
-            .and_then(|u| u.clone().into_string())
-            .ok_or(MessengerError::ConfigurationError {
-                msg: format!("Connection String Missing: {}", REDIS_CON_STR),
-            })?;
-        // Setup Redis client.
-        let client = redis::Client::open(uri).unwrap();
-
-        // Get connection.
-        let connection = client.get_tokio_connection_manager().await.map_err(|e| {
-            error!("{}", e.to_string());
-            MessengerError::ConnectionError { msg: e.to_string() }
-        })?;
-
-        let _cluster_mode = config
-            .get("cluster_mode")
-            .and_then(|r| r.clone().to_bool())
-            .unwrap_or(false);
-
-        let consumer_id = config
-            .get("consumer_id")
-            .and_then(|id| id.clone().into_string())
-            // Using the previous default name when the configuration does not
-            // specify any particular consumer_id.
-            .unwrap_or_else(|| String::from("ingester"));
-
-        let retries = config
-            .get("retries")
-            .and_then(|r| r.clone().to_u128().map(|n| n as usize))
-            .unwrap_or(DEFAULT_RETRIES);
-
-        let batch_size = config
-            .get("batch_size")
-            .and_then(|r| r.clone().to_u128().map(|n| n as usize))
-            .unwrap_or(DEFAULT_MSG_BATCH_SIZE);
-
-        let idle_timeout = config
-            .get("idle_timeout")
-            .and_then(|r| r.clone().to_u128().map(|n| n as usize))
-            .unwrap_or(IDLE_TIMEOUT);
-        let message_wait_timeout = config
-            .get("message_wait_timeout")
-            .and_then(|r| r.clone().to_u128().map(|n| n as usize))
-            .unwrap_or(MESSAGE_WAIT_TIMEOUT);
-
-        let consumer_group_name = config
-            .get("consumer_group_name")
-            .and_then(|r| r.clone().into_string())
-            .unwrap_or_else(|| GROUP_NAME.to_string());
-
-        let pipeline_size = config
-            .get("pipeline_size_bytes")
-            .and_then(|r| r.clone().to_u128().map(|n| n as usize))
-            .unwrap_or(PIPELINE_SIZE_BYTES);
-
-        let pipeline_max_time = config
-            .get("local_buffer_max_window")
-            .and_then(|r| r.clone().to_u128().map(|n| n as u64))
-            .unwrap_or(PIPELINE_MAX_TIME);
-
-        Ok(Self {
-            connection,
-            streams: HashMap::<&'static str, RedisMessengerStream>::default(),
-            consumer_id,
-            retries,
-            batch_size,
-            idle_timeout,
-            _message_wait_timeout: message_wait_timeout,
-            consumer_group_name,
-            pipeline_size,
-            pipeline_max_time,
-        })
-    }
-
     fn messenger_type(&self) -> MessengerType {
         MessengerType::Redis
     }
@@ -244,6 +231,93 @@ impl Messenger for RedisMessenger {
             Ok(reply) => Ok(reply),
             Err(e) => Err(MessengerError::ConnectionError { msg: e.to_string() }),
         }
+    }
+
+    // is used only on client side
+    // Geyser does not call this method
+    async fn recv(
+        &mut self,
+        stream_key: &'static str,
+        consumption_type: ConsumptionType,
+    ) -> Result<Vec<RecvData>, MessengerError> {
+        let mut data_vec = Vec::with_capacity(self.batch_size * 2);
+        if consumption_type == ConsumptionType::New || consumption_type == ConsumptionType::All {
+            let opts = StreamReadOptions::default()
+                //.block(self.message_wait_timeout)
+                .count(self.batch_size)
+                .group(self.consumer_group_name.as_str(), self.consumer_id.as_str());
+
+            // Read on stream key and save the reply. Log but do not return errors.
+            let reply: StreamReadReply = self
+                .connection
+                .xread_options(&[stream_key], &[">"], &opts)
+                .await
+                .map_err(|e| {
+                    error!("Redis receive error: {e}");
+                    MessengerError::ReceiveError { msg: e.to_string() }
+                })?;
+            // Parse data in stream read reply and store in Vec to return to caller.
+            for StreamKey { key: _, ids } in reply.keys.into_iter() {
+                for StreamId { id, map } in ids {
+                    // Get data from map.
+                    let data = if let Some(data) = map.get(DATA_KEY) {
+                        data
+                    } else {
+                        error!("No Data was stored in Redis for ID {id}");
+                        continue;
+                    };
+                    let bytes = match data {
+                        Value::BulkString(bytes) => bytes,
+                        _ => {
+                            error!("Redis data for ID {id} in wrong format");
+                            continue;
+                        }
+                    };
+
+                    data_vec.push(RecvData::new(id, bytes.to_vec()));
+                }
+            }
+        }
+        if consumption_type == ConsumptionType::Redeliver
+            || consumption_type == ConsumptionType::All
+        {
+            let xauto_reply = self.xautoclaim(stream_key).await;
+            match xauto_reply {
+                Ok(reply) => {
+                    let mut pending_messages = reply;
+                    data_vec.append(&mut pending_messages);
+                }
+                Err(e) => {
+                    error!("XPENDING ERROR {e}");
+                }
+            }
+        }
+
+        Ok(data_vec)
+    }
+
+    async fn ack_msg(
+        &mut self,
+        stream_key: &'static str,
+        ids: &[String],
+    ) -> Result<(), MessengerError> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+        let mut pipe = redis::pipe();
+        pipe.xack(stream_key, self.consumer_group_name.as_str(), ids);
+        pipe.xdel(stream_key, ids);
+
+        pipe.query_async(&mut self.connection)
+            .await
+            .map_err(|e| MessengerError::AckError { msg: e.to_string() })
+    }
+}
+
+#[async_trait]
+impl MessageStreamer for RedisMessenger {
+    fn messenger_type(&self) -> MessengerType {
+        MessengerType::Redis
     }
 
     async fn add_stream(&mut self, stream_key: &'static str) -> Result<(), MessengerError> {
@@ -328,84 +402,6 @@ impl Messenger for RedisMessenger {
             }
         }
         Ok(())
-    }
-
-    async fn recv(
-        &mut self,
-        stream_key: &'static str,
-        consumption_type: ConsumptionType,
-    ) -> Result<Vec<RecvData>, MessengerError> {
-        let mut data_vec = Vec::with_capacity(self.batch_size * 2);
-        if consumption_type == ConsumptionType::New || consumption_type == ConsumptionType::All {
-            let opts = StreamReadOptions::default()
-                //.block(self.message_wait_timeout)
-                .count(self.batch_size)
-                .group(self.consumer_group_name.as_str(), self.consumer_id.as_str());
-
-            // Read on stream key and save the reply. Log but do not return errors.
-            let reply: StreamReadReply = self
-                .connection
-                .xread_options(&[stream_key], &[">"], &opts)
-                .await
-                .map_err(|e| {
-                    error!("Redis receive error: {e}");
-                    MessengerError::ReceiveError { msg: e.to_string() }
-                })?;
-            // Parse data in stream read reply and store in Vec to return to caller.
-            for StreamKey { key: _, ids } in reply.keys.into_iter() {
-                for StreamId { id, map } in ids {
-                    // Get data from map.
-                    let data = if let Some(data) = map.get(DATA_KEY) {
-                        data
-                    } else {
-                        error!("No Data was stored in Redis for ID {id}");
-                        continue;
-                    };
-                    let bytes = match data {
-                        Value::Data(bytes) => bytes,
-                        _ => {
-                            error!("Redis data for ID {id} in wrong format");
-                            continue;
-                        }
-                    };
-
-                    data_vec.push(RecvData::new(id, bytes.to_vec()));
-                }
-            }
-        }
-        if consumption_type == ConsumptionType::Redeliver
-            || consumption_type == ConsumptionType::All
-        {
-            let xauto_reply = self.xautoclaim(stream_key).await;
-            match xauto_reply {
-                Ok(reply) => {
-                    let mut pending_messages = reply;
-                    data_vec.append(&mut pending_messages);
-                }
-                Err(e) => {
-                    error!("XPENDING ERROR {e}");
-                }
-            }
-        }
-
-        Ok(data_vec)
-    }
-
-    async fn ack_msg(
-        &mut self,
-        stream_key: &'static str,
-        ids: &[String],
-    ) -> Result<(), MessengerError> {
-        if ids.is_empty() {
-            return Ok(());
-        }
-        let mut pipe = redis::pipe();
-        pipe.xack(stream_key, self.consumer_group_name.as_str(), ids);
-        pipe.xdel(stream_key, ids);
-
-        pipe.query_async(&mut self.connection)
-            .await
-            .map_err(|e| MessengerError::AckError { msg: e.to_string() })
     }
 }
 

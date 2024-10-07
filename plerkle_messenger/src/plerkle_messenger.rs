@@ -1,13 +1,10 @@
-use crate::error::MessengerError;
+use crate::{error::MessengerError, redis_pool_messenger::RedisPoolMessenger};
 use async_trait::async_trait;
 use blake3::OUT_LEN;
 use figment::value::{Dict, Value};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
-#[cfg(feature = "pulsar")]
-use crate::pulsar_messenger::PulsarMessenger;
-#[cfg(feature = "redis")]
 use crate::redis_messenger::RedisMessenger;
 
 /// Some constants that can be used as stream key values.
@@ -51,14 +48,12 @@ pub enum ConsumptionType {
 
 #[async_trait]
 pub trait Messenger: Sync + Send {
-    async fn new(config: MessengerConfig) -> Result<Self, MessengerError>
-    where
-        Self: Sized;
     fn messenger_type(&self) -> MessengerType;
-    async fn add_stream(&mut self, stream_key: &'static str) -> Result<(), MessengerError>;
-    async fn set_buffer_size(&mut self, stream_key: &'static str, max_buffer_size: usize);
-    async fn send(&mut self, stream_key: &'static str, bytes: &[u8]) -> Result<(), MessengerError>;
-    async fn recv(&mut self, stream_key: &'static str, consumption_type: ConsumptionType) -> Result<Vec<RecvData>, MessengerError>;
+    async fn recv(
+        &mut self,
+        stream_key: &'static str,
+        consumption_type: ConsumptionType,
+    ) -> Result<Vec<RecvData>, MessengerError>;
     async fn stream_size(&mut self, stream_key: &'static str) -> Result<u64, MessengerError>;
 
     // Ack-ing messages is made a bit awkward by the current interface layout because
@@ -81,24 +76,50 @@ pub trait Messenger: Sync + Send {
     ) -> Result<(), MessengerError>;
 }
 
-pub async fn select_messenger(
+#[async_trait]
+pub trait MessageStreamer: Sync + Send {
+    fn messenger_type(&self) -> MessengerType;
+    async fn add_stream(&mut self, stream_key: &'static str) -> Result<(), MessengerError>;
+    async fn set_buffer_size(&mut self, stream_key: &'static str, max_buffer_size: usize);
+    async fn send(&mut self, stream_key: &'static str, bytes: &[u8]) -> Result<(), MessengerError>;
+}
+
+pub async fn select_messenger_read(
     config: MessengerConfig,
 ) -> Result<Box<dyn Messenger>, MessengerError> {
     match config.messenger_type {
-        #[cfg(feature = "redis")]
         MessengerType::Redis => {
             RedisMessenger::new(config).await.map(|a| Box::new(a) as Box<dyn Messenger>)
         }
         _ => Err(MessengerError::ConfigurationError {
-            msg: "This Messenger type is not valid, unimplemented or you dont have the right crate features on.".to_string()
+            msg: "This Messenger type is not valid, unimplemented or you don't have the right crate features on.".to_string()
+        })
+    }
+}
+
+pub async fn select_messenger_stream(
+    config: MessengerConfig,
+) -> Result<Box<dyn MessageStreamer>, MessengerError> {
+    match config.messenger_type {
+        MessengerType::Redis => {
+            RedisMessenger::new(config).await.map(|a| Box::new(a) as Box<dyn MessageStreamer>)
+        }
+        MessengerType::RedisPool => {
+            RedisPoolMessenger::new(config).await.map(|a| Box::new(a) as Box<dyn MessageStreamer>)
+        }
+        _ => Err(MessengerError::ConfigurationError {
+            msg: "This Messenger type is not valid, unimplemented or you don't have the right crate features on.".to_string()
         })
     }
 }
 
 #[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum MessengerType {
+    // Connect to one Redis instance
     Redis,
-    Pulsar,
+    // Connect to few different Redis instances
+    // Not a cluster
+    RedisPool,
     Invalid,
 }
 
