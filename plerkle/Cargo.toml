@@ -36,7 +36,7 @@ tracing-subscriber = { version = "0.3.16", features = [
   "ansi",
 ] }
 hex = "0.4.3"
-plerkle_messenger = { path = "../plerkle_messenger", version = "1.6.0", features = ["redis"] }
+plerkle_messenger = { path = "../plerkle_messenger", version = "1.6.0" }
 flatbuffers = "23.1.21"
 plerkle_serialization = { path = "../plerkle_serialization", version = "1.6.0" }
 tokio = { version = "1.23.0", features = ["full"] }
