@@ -71,7 +71,9 @@ fn _main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[derive(Deserialize)]
 pub struct Config {
+    // path to the built Geyser binary
     pub libpath: String,
+    // path to the Geyser config file
     pub geyser_conf_path: String,
     pub throttle_nanos: u64,
 }

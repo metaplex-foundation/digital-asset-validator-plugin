@@ -2,7 +2,10 @@
 
 SHELL := /bin/bash
 
-SNAPSHOTDIR=./plerkle_snapshot/snapshot/*.tar.zst
+ifneq (,$(wildcard .env))
+	include .env
+	export $(shell sed 's/=.*//' .env)
+endif
 
 export IMAGE_NAME=solana-snapshot-etl
 

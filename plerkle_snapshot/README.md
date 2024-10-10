@@ -6,6 +6,9 @@
 
 **`solana-snapshot-etl` efficiently extracts all accounts in a snapshot** to load them into an external system.
 
+> [!IMPORTANT]  
+> This code is a fork of the [original repository](https://github.com/riptl/solana-snapshot-etl.git) and has been modified to diverge from the behavior of the original implementation.
+
 ## Motivation
 
 Solana nodes periodically backup their account database into a `.tar.zst` "snapshot" stream.

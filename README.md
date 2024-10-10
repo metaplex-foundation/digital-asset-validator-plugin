@@ -22,6 +22,7 @@ It is built on the following principles.
 1. Plerkle -> Geyser Plugin that sends raw information to a message bus using Messenger
 2. Messenger -> A message bus agnostic Messaging Library that sends Transaction, Account, Block and Slot updates in the Plerkle Serialization format.
 3. Plerkle Serialization -> FlatBuffers based serialization code and schemas. This is the wire-format of Plerkle.
+4. Plerkle Snapshot -> ETL for Solana accounts snapshot.
 
 ## Developing
 
@@ -170,3 +171,25 @@ NOTE WE DO NOT PUBLISH THE PLUGIN ANY MORE:
 
 plerkle_messenger-https://crates.io/crates/plerkle_messenger
 plerkle_serialization-https://crates.io/crates/plerkle_serialization
+
+## Snapshot ETL
+
+The Plerkle snapshot tool can be used for parsing Solana account snapshots. The repository already includes pre-configured geyser-config.json and etl-config.json files, which are ready to use. The only thing you might want to modify is the list of programs in geyser-config.json; otherwise, you can leave the configurations as they are.
+
+Before running the tool, it's important to create an .env file, modeled after .env.example. In this file, you should specify the path to the directory containing the snapshots as well as the Plerkle messenger configuration.
+
+Once everything is set up, you can build the Docker container for ETL by running:
+
+```
+make build
+```
+
+This will create a Docker container with the Geyser plugin and ETL fully built and ready to use.
+
+The next step is to run the ETL:
+
+```
+make stream
+```
+
+This command will launch the ETL Docker container. It will load the snapshot archives, the Geyser plugin binary, and stream all the accounts from the snapshot to the plugin.
