@@ -92,7 +92,7 @@ pub async fn select_messenger_read(
             RedisMessenger::new(config).await.map(|a| Box::new(a) as Box<dyn Messenger>)
         }
         _ => Err(MessengerError::ConfigurationError {
-            msg: "This Messenger type is not valid, unimplemented or you don't have the right crate features on.".to_string()
+            msg: "This Messenger type is not valid or not unimplemented.".to_string()
         })
     }
 }
