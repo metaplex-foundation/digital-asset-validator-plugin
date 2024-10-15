@@ -7,7 +7,7 @@ on:
 
 jobs:
   etl:
-    if: contains(github.ref, 'refs/tags/snapshot-v')
+    if: contains(github.ref, 'refs/tags/snapshot-v*')
     name: Build and Push Snapshot ETL
     runs-on: ubuntu-latest
     permissions:
