@@ -12,6 +12,8 @@ A = \007#         BEEP
 .PHONY: build push clean download stream
 
 SHELL := /bin/bash
+#APP=$(shell basename -s .git $(shell git remote get-url origin))
+#REGISTRY=ghcr.io/obezsmertnyi
 VERSION=$(shell git describe --tags --abbrev=0)
 BASEDIR = ./snapshot/*.tar.zst
 BASEPATH=${REGISTRY}/${APP}:${VERSION}
