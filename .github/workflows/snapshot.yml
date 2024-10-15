@@ -13,8 +13,7 @@ jobs:
       packages: write
       contents: read
     if: >
-      github.ref_type == 'tag' &&
-            contains(github.event.head_commit.message, 'plerkle_snapshot/')
+      contains(github.event.head_commit.message, 'plerkle_snapshot/')
 
     steps:
       - name: Checkout Repository
