@@ -13,8 +13,7 @@ jobs:
       packages: write
       contents: read
     if: >
-      startsWith(github.ref, 'refs/tags/snapshot-v') &&
-            contains(github.event.head_commit.message, 'plerkle_snapshot/')
+      startsWith(github.ref, 'refs/tags/snapshot-v')
 
     steps:
       - name: Checkout Repository
