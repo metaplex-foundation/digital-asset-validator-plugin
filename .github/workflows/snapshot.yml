@@ -20,9 +20,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Change Directory to plerkle_snapshot
-        run: cd plerkle_snapshot
-
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -34,6 +31,7 @@ jobs:
         env:
           APP: "solana-snapshot-etl"
           REGISTRY: ghcr.io/${{ github.repository_owner }}
+        working-directory: plerkle_snapshot
         run: make build push
         
       - name: Clean
