@@ -155,7 +155,6 @@ impl MessageStreamer for RedisPoolMessenger {
                 stream.local_buffer.len(),
                 stream.local_buffer_last_flush.elapsed().as_millis()
             );
-            return Ok(());
         } else {
             let mut pipe = redis::pipe();
             pipe.atomic();
