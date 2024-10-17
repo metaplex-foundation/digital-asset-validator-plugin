@@ -3,7 +3,7 @@ name: Build and Push Solana Snapshot ETL Docker Image
 on:
   push:
     tags:
-      - "snapshot-v*"
+      - "v*"
 
 jobs:
   etl:
@@ -12,8 +12,26 @@ jobs:
     permissions:
       packages: write
       contents: read
-    #if: contains(github.event.head_commit.message, 'plerkle_snapshot/')
 
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check PR labels
+        id: check_labels
+        run: |
+          if [[ "${{ github.event.pull_request.labels[*] }}" == *"build-snapshot-etl"* ]]; then
+            echo "::set-output name=build_snapshot_etl::true"
+          else
+            echo "::set-output name=build_snapshot_etl::false"
+          fi
+
+  build-etl:
+    runs-on: ubuntu-latest
+    needs: etl
+    if: needs.etl.outputs.build_snapshot_etl == 'true'
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
