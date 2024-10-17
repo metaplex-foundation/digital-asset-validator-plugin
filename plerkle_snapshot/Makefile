@@ -12,7 +12,7 @@ A = \007#         BEEP
 .PHONY: build push clean download stream
 
 SHELL := /bin/bash
-#APP = solana-snapshot-etl 
+#APP = solana-snapshot-etl
 #REGISTRY = ghcr.io/metaplex-foundation
 REPO_NAME = $(shell basename -s .git $(shell git remote get-url origin))
 VERSION = $(shell git describe --tags --abbrev=0)
