@@ -1,0 +1,5 @@
+{
+    "libpath": "/app/target/release/libplerkle.so",
+    "geyser_conf_path": "/app/geyser-config.json",
+    "throttle_nanos": 0
+}
