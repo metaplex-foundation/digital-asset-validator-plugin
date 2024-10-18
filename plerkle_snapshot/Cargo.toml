@@ -1,21 +1,5 @@
-[package]
-name = "plerkle_snapshot"
-version = "1.4.0"
-edition = "2021"
-description = "Cli tool to load a snapshot into a wile plerkle"
-
-[dependencies]
-reqwest = "0.11.4"
-tokio = { version = "1.25.0", features = ["full"] }
-solana-snapshot-etl = { git = "https://github.com/austbot/solana-snapshot-etl", features=["parallel","standalone"] }
-solana-runtime="1.14.14"
-figment = { version = "0.10.6", features = ["env"] }
-indicatif = "0.17.3"
-thiserror = "1.0.29"
-tracing = "0.1.37"
-tracing-subscriber = "0.3.16"
-serde = { version = "1.0.152", features = ["derive"] }
-solana-geyser-plugin-interface = "1.14.14"
-libloading = "0.7.4"
-serde_json = "1.0.93"
-json5 = "0.4.1"
+[workspace]
+members=[
+    "solana-geyser-zmq/solana-geyser-plugin-scaffold",
+    "solana-snapshot-etl",
+]
