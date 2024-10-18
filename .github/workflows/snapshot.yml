@@ -9,27 +9,27 @@ jobs:
   check-label:
     runs-on: ubuntu-latest
     outputs:
-      build_snapshot_etl: ${{ steps.check_label.outputs.shouldBuild }}
+      build_snapshot_etl: ${{ steps.set_build_flag.outputs.build_snapshot_etl }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Check for Label 'build-snapshot-etl'
-        id: check_label
-        uses: actions-ecosystem/action-get-latest-pull-request@v1
+      - name: Apply labels based on changes
+        uses: actions/labeler@v5
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set output for build flag
+      - name: Set build flag
         id: set_build_flag
         run: |
-          if [[ ${{ steps.check_label.outputs.labels }} == *"build-snapshot-etl"* ]]; then
+          if [[ "${{ steps.labeler.outputs.all-labels }}" == *"build-snapshot-etl"* ]]; then
             echo "build_snapshot_etl=true" >> $GITHUB_OUTPUT
           else
             echo "build_snapshot_etl=false" >> $GITHUB_OUTPUT
-          fi
+        outputs:
+          build_snapshot_etl: ${{ steps.set_build_flag.outputs.build_snapshot_etl }}
 
   build-etl:
     runs-on: ubuntu-latest
