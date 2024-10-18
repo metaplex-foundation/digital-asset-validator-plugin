@@ -28,8 +28,6 @@ jobs:
             echo "build_snapshot_etl=true" >> $GITHUB_OUTPUT
           else
             echo "build_snapshot_etl=false" >> $GITHUB_OUTPUT
-        outputs:
-          build_snapshot_etl: ${{ steps.set_build_flag.outputs.build_snapshot_etl }}
 
   build-etl:
     runs-on: ubuntu-latest
