@@ -3,7 +3,7 @@ name: Build and Push Snapshot ETL
 on:
   push:
     tags:
-      - 'v*' 
+      - 'v*'
 
 jobs:
   check-label:
@@ -16,30 +16,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get Pull Request and Check for Label
+      - name: Check for Label 'build-snapshot-etl'
         id: check_label
-        uses: actions/github-script@v6
+        uses: actions-ecosystem/action-get-latest-pull-request@v1
         with:
-          script: |
-            const pr = await github.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'closed',
-              per_page: 1,
-              sort: 'updated',
-              direction: 'desc'
-            });
-            
-            if (pr.data.length > 0 && pr.data[0].labels.some(label => label.name === 'build-snapshot-etl')) {
-              return { shouldBuild: 'true' };
-            } else {
-              return { shouldBuild: 'false' };
-            }
-        env:
-          GITHUB_OUTPUT: ${{ github.output }}
-        
-      - name: Set build flag
-        run: echo "build_snapshot_etl=${{ steps.check_label.outputs.shouldBuild }}" >> $GITHUB_OUTPUT
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set output for build flag
+        id: set_build_flag
+        run: |
+          if [[ ${{ steps.check_label.outputs.labels }} == *"build-snapshot-etl"* ]]; then
+            echo "build_snapshot_etl=true" >> $GITHUB_OUTPUT
+          else
+            echo "build_snapshot_etl=false" >> $GITHUB_OUTPUT
+          fi
 
   build-etl:
     runs-on: ubuntu-latest
