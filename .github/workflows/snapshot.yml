@@ -3,7 +3,7 @@ name: Build and Push Snapshot ETL
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*' 
 
 jobs:
   check-label:
