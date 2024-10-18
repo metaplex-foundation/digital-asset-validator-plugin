@@ -9,25 +9,36 @@ jobs:
   check-label:
     runs-on: ubuntu-latest
     outputs:
-      build_snapshot_etl: ${{ steps.set_build_flag.outputs.build_snapshot_etl }}
+      build_snapshot_etl: ${{ steps.set_build_flag.outputs.build_snapshot_etl }} 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Apply labels based on changes
-        uses: actions/labeler@v5
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set build flag
+      - name: Get related Pull Request and check label
         id: set_build_flag
-        run: |
-          if [[ "${{ steps.labeler.outputs.all-labels }}" == *"build-snapshot-etl"* ]]; then
-            echo "build_snapshot_etl=true" >> $GITHUB_OUTPUT
-          else
-            echo "build_snapshot_etl=false" >> $GITHUB_OUTPUT
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const pulls = await github.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              sort: 'updated',
+              direction: 'desc',
+              per_page: 1
+            });
+
+            const pr = pulls.data[0];  // Отримуємо останній PR
+            const hasLabel = pr.labels.some(label => label.name === 'build-snapshot-etl');
+            if (hasLabel) {
+              console.log("Label 'build-snapshot-etl' found, setting build_snapshot_etl to true");
+              return { build_snapshot_etl: 'true' };
+            } else {
+              console.log("Label 'build-snapshot-etl' not found, setting build_snapshot_etl to false");
+              return { build_snapshot_etl: 'false' };
+            }
 
   build-etl:
     runs-on: ubuntu-latest
