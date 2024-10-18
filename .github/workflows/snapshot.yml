@@ -3,7 +3,7 @@ name: Build and Push Snapshot ETL
 on:
   push:
     tags:
-      - 'v*'  # Лише на глобальні теги для продакшн білдів
+      - 'v*' 
 
 jobs:
   check-label:
