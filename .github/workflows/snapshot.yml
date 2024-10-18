@@ -1,4 +1,4 @@
-name: Build and Push Solana Snapshot ETL Docker Image
+name: Build and Push Snapshot ETL
 
 on:
   push:
@@ -29,21 +29,31 @@ jobs:
           script: |
             const labels = context.payload.pull_request.labels.map(label => label.name);
             if (labels.includes('build-snapshot-etl')) {
-              return { shouldBuild: true };
+              return { shouldBuild: 'true' };
             } else {
-              return { shouldBuild: false };
-          result-encoding: string
+              return { shouldBuild: 'false' };
+        env:
+          GITHUB_OUTPUT: ${{ github.output }} 
+
+      - name: Set build flag
+        run: |
+          echo "build_snapshot_etl=${{ steps.check_label.outputs.shouldBuild }}" >> $GITHUB_OUTPUT
+          echo "::debug::The value of build_snapshot_etl is ${{ steps.check_label.outputs.shouldBuild }}"
 
   build-etl:
     runs-on: ubuntu-latest
     needs: etl
     if: needs.etl.outputs.build_snapshot_etl == 'true'
     steps:
+      - name: Debugging Output
+        run: |
+          echo "::debug::Checking if the job should run based on the output"
+          echo "build_snapshot_etl=${{ needs.etl.outputs.build_snapshot_etl }}"
+
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
