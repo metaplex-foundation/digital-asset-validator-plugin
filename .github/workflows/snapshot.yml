@@ -3,65 +3,38 @@ name: Build and Push Snapshot ETL
 on:
   push:
     tags:
-      - 'v*'  # Лише на глобальні теги для продакшн білдів
-
+      - 'v*'
+      
 jobs:
-  etl:
-    name: Check if Snapshot ETL should be built
+  check-label:
     runs-on: ubuntu-latest
-    permissions:
-      packages: write
-      contents: read
-
     outputs:
       build_snapshot_etl: ${{ steps.check_label.outputs.shouldBuild }}
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Check if the 'build-snapshot-etl' label exists
-        id: check_label
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const pull_request = await github.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'closed',
-              sort: 'updated',
-              direction: 'desc',
-              per_page: 1
-            });
-            
-            if (pull_request.data.length > 0 && pull_request.data[0].labels.some(label => label.name === 'build-snapshot-etl')) {
-              return { shouldBuild: 'true' };
-            } else {
-              return { shouldBuild: 'false' };
-            }
-
-      - name: Set build flag
+      - name: Get Commit Information
+        id: get_commit
         run: |
-          echo "build_snapshot_etl=${{ steps.check_label.outputs.shouldBuild }}" >> $GITHUB_OUTPUT
-          echo "::debug::The value of build_snapshot_etl is ${{ steps.check_label.outputs.shouldBuild }}"
+          echo "Commit message: ${{ github.event.head_commit.message }}"
+          if [[ "${{ github.event.head_commit.message }}" == *"[build-snapshot-etl]"* ]]; then
+            echo "shouldBuild=true" >> $GITHUB_OUTPUT
+          else
+            echo "shouldBuild=false" >> $GITHUB_OUTPUT
+          fi
 
   build-etl:
     runs-on: ubuntu-latest
-    needs: etl
-    if: needs.etl.outputs.build_snapshot_etl == 'true'
+    needs: check-label
+    if: needs.check-label.outputs.build_snapshot_etl == 'true'
     steps:
-      - name: Debugging Output
-        run: |
-          echo "::debug::Checking if the job should run based on the output"
-          echo "build_snapshot_etl=${{ needs.etl.outputs.build_snapshot_etl }}"
-
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
