@@ -28,12 +28,8 @@ jobs:
         with:
           script: |
             const labels = context.payload.pull_request.labels.map(label => label.name);
-            if (labels.includes('build-snapshot-etl')) {
-              return { shouldBuild: 'true' };
-            } else {
-              return { shouldBuild: 'false' };
-        env:
-          GITHUB_OUTPUT: ${{ github.output }} 
+            const shouldBuild = labels.includes('build-snapshot-etl') ? 'true' : 'false';
+            return { shouldBuild };
 
       - name: Set build flag
         run: |
