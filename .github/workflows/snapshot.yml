@@ -27,7 +27,6 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-
             const pull_request = await github.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
