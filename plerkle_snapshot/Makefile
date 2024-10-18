@@ -13,7 +13,7 @@ A = \007#         BEEP
 
 SHELL := /bin/bash
 #APP = solana-snapshot-etl
-#REGISTRY = ghcr.io/metaplex-foundation 
+#REGISTRY = ghcr.io/metaplex-foundation
 REPO_NAME = $(shell basename -s .git $(shell git remote get-url origin))
 VERSION = $(shell git describe --tags --abbrev=0)
 BASEDIR = ./snapshot/
