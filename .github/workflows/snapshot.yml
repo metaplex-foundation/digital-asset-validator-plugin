@@ -21,19 +21,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Check if PR has 'build-snapshot-etl' label
         id: check_label
         uses: actions/github-script@v6
         with:
           script: |
             const labels = context.payload.pull_request.labels.map(label => label.name);
-            if (labels.includes('build-snapshot-etl')) {
-              return { shouldBuild: 'true' };
-            } else {
-              return { shouldBuild: 'false' };
-        env:
-          GITHUB_OUTPUT: ${{ github.output }} 
+            const shouldBuild = labels.includes('build-snapshot-etl') ? 'true' : 'false';
+            return { shouldBuild };
 
       - name: Set build flag
         run: |
