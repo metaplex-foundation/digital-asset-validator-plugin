@@ -12,8 +12,8 @@ A = \007#         BEEP
 .PHONY: build push clean download stream
 
 SHELL := /bin/bash
-APP = solana-snapshot-etl
-REPO_NAME = $(shell basename -s .git $(shell git remote get-url origin))
+#APP = solana-snapshot-etl
+#REPO_NAME = $(shell basename -s .git $(shell git remote get-url origin))
 REGISTRY=ghcr.io/obezsmertnyi
 VERSION=$(shell git describe --tags --abbrev=0)
 BASEDIR = ./snapshot/
