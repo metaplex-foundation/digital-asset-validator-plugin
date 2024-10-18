@@ -1,9 +1,2472 @@
+Ви сказали:
+Є монорепа з мікросерввсамм в різних папках
+Які можуть бути тригери для білду в прод гітхабу імаджа виключно цього застосунку
+Тегування наскрізне не прив'язане до застосунку 
+Програма ChatGPT сказала:
+ChatGPT
+
+Щоб налаштувати білд Docker-іміджів виключно для певного мікросервісу в монорепозиторії на GitHub, можна використовувати кілька підходів для тригерів CI/CD, зокрема GitHub Actions. Ось три варіанти тригерів для білду тільки того застосунку, який був змінений:
+1. Використання GitHub Actions з тригером на зміни у папці застосунку
+
+Можна налаштувати GitHub Actions так, щоб він запускав білд лише в тому випадку, якщо були зміни в конкретній папці (наприклад, /ingester або /api). Це можна зробити за допомогою налаштування шляху в on.push або on.pull_request:
+
+yaml
+
+name: Build Specific Service
+
+on:
+  push:
+    paths:
+      - 'ingester/**'  # Зміни в папці "ingester"
+  pull_request:
+    paths:
+      - 'ingester/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build Docker Image for ingester
+      run: |
+        docker build -t myrepo/ingester:${{ github.sha }} ./ingester
+        docker push myrepo/ingester:${{ github.sha }}
+
+У цьому прикладі білд і пуш іміджу запускається тільки при змінах в папці ingester.
+2. Використання тегів або міток для вказання застосунку
+
+Якщо ви не прив’язуєте тег до конкретного мікросервісу, можна використовувати мітки або певні тегування коммітів, які вказують на необхідність білду конкретного застосунку. Наприклад, використання тегів типу ingester-vX.X.X.
+
+yaml
+
+name: Build Image Based on Tag
+
+on:
+  push:
+    tags:
+      - 'ingester-*'  # Тег тільки для сервісу "ingester"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build Docker Image for ingester
+      run: |
+        docker build -t myrepo/ingester:${{ github.ref }} ./ingester
+        docker push myrepo/ingester:${{ github.ref }}
+
+Цей сценарій білдить тільки тоді, коли тег починається з ingester-.
+3. Використання GitHub Matrix для білду тільки змінених сервісів
+
+Ще один спосіб – використовувати matrix strategy для динамічного визначення, який мікросервіс білдити. Можна використовувати скрипти, щоб визначати змінені папки, і тільки тоді запускати білд.
+
+yaml
+
+name: Build Changed Services
+
+on: push
+
+jobs:
+  determine-services:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.changed.outputs.services }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Determine changed services
+      id: changed
+      run: |
+        CHANGED_FOLDERS=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | cut -d/ -f1 | sort -u)
+        echo "Changed services: $CHANGED_FOLDERS"
+        echo "::set-output name=services::$CHANGED_FOLDERS"
+
+  build:
+    needs: determine-services
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.determine-services.outputs.services) }}
+
+    steps:
+    - name: Build and push Docker image for ${{ matrix.service }}
+      run: |
+        docker build -t myrepo/${{ matrix.service }}:${{ github.sha }} ./${{ matrix.service }}
+        docker push myrepo/${{ matrix.service }}:${{ github.sha }}
+
+У цьому прикладі визначаються змінені папки, і на основі цього будується тільки той сервіс, у якому були зміни.
+
+Ці підходи дозволяють білдити виключно потрібний застосунок у монорепозиторії без прив'язки до наскрізного тегування.
+Ви сказали:
+1 варіант не знаю чи підходить бо рушити будуть часто, а потрібно тільки для проду
+Запропонуй стратегію розвитку
+2. Ні, теги будуть глобальні v0.1 в т.і
+3. Не знаю як робити
+В там ще є щось про лейбли
+Програма ChatGPT сказала:
+ChatGPT
+
+Зважаючи на те, що для продуктивного середовища вам потрібна більш вибіркова стратегія білду, можна запропонувати наступний план розвитку системи CI/CD для монорепозиторію, де глобальні теги, наприклад, v0.1, використовуються для всього репозиторію.
+Стратегія розвитку CI/CD для продакшн білдів:
+1. Використання глобальних тегів з окремими умовами для білду кожного мікросервісу
+
+Оскільки теги глобальні, для кожного мікросервісу можна використовувати механізм лейблів або специфічні тригери, щоб вирішувати, чи потрібно білдити конкретний сервіс під час створення глобального тегу. Це зменшить кількість білдів і збереже контроль над тим, що білдиться для продуктивного середовища.
+2. Додавання лейблів для специфічних сервісів
+
+Лейбли (або мітки) можна використовувати для вказання на те, що зміни в коміті мають бути включені в білд мікросервісу для продакшн. Наприклад, ви можете додавати лейбли типу build-ingester або build-api, щоб вказати, який мікросервіс білдити під час тегування.
+
+Для цього можна використовувати GitHub Actions і робити перевірку на наявність лейблів:
+
+yaml
+
+name: Build Production Image Based on Labels
+
+on:
+  push:
+    tags:
+      - 'v*'  # Білд для глобальних тегів
+
+jobs:
+  check-label:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Check labels for services to build
+      id: check_labels
+      run: |
+        if git log -1 --pretty=%B | grep -q 'build-ingester'; then
+          echo "::set-output name=ingester::true"
+        else
+          echo "::set-output name=ingester::false"
+        fi
+        if git log -1 --pretty=%B | grep -q 'build-api'; then
+          echo "::set-output name=api::true"
+        else
+          echo "::set-output name=api::false"
+        fi
+
+  build:
+    runs-on: ubuntu-latest
+    needs: check-label
+    strategy:
+      matrix:
+        service: [ingester, api]
+    if: needs.check-label.outputs.${{ matrix.service }} == 'true'
+    steps:
+    - name: Build and Push ${{ matrix.service }} Image
+      run: |
+        docker build -t myrepo/${{ matrix.service }}:${{ github.sha }} ./${{ matrix.service }}
+        docker push myrepo/${{ matrix.service }}:${{ github.sha }}
+
+3. Оптимізація з використанням матриці та залежностей
+
+Можна налаштувати білд мікросервісів на основі змін у їхніх папках, але тільки під час глобального тегування для продакшн. Використовуйте матричну стратегію для перевірки, чи був змінений конкретний мікросервіс, і білдьте тільки ті, що були змінені:
+
+yaml
+
+name: Build Production Microservices
+
+on:
+  push:
+    tags:
+      - 'v*'  # Тригери тільки для глобальних тегів
+
+jobs:
+  determine-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.changed.outputs.services }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Determine changed services
+      id: changed
+      run: |
+        CHANGED_FOLDERS=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | cut -d/ -f1 | sort -u)
+        echo "::set-output name=services::$CHANGED_FOLDERS"
+
+  build:
+    needs: determine-changes
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [ingester, api, raw_backfiller, synchronizer]
+    if: matrix.service in(fromJson(needs.determine-changes.outputs.services))
+    steps:
+    - name: Build and push ${{ matrix.service }} Image
+      run: |
+        docker build -t myrepo/${{ matrix.service }}:${{ github.sha }} ./${{ matrix.service }}
+        docker push myrepo/${{ matrix.service }}:${{ github.sha }}
+
+Переваги такої стратегії:
+
+    Оптимізація ресурсів: Білдяться тільки ті мікросервіси, які були змінені або які мають відповідний лейбл, а не всі разом.
+    Гнучкість: Ви можете керувати, які сервіси підлягають білду для продакшн, за допомогою лейблів або матриці змін.
+    Контроль версій: Глобальні теги можуть бути використані для всіх сервісів, але білд і пуш Docker-іміджів буде відбуватися лише для тих, які потребують оновлення.
+
+Це дозволить краще керувати процесом релізів, не запускати зайвих білдів і зменшити час на доставку змін у продуктивне середовище.
+Ви сказали:
+Лейбли в нашому випадку ми можемо назначати тільки на комміт?
+Які є strategy окрім matrics
+Програма ChatGPT сказала:
+ChatGPT
+
+Так, лейбли в GitHub зазвичай призначаються на pull requests або issues, а не безпосередньо на коміти. Однак, можна створити механізм, за якого ви будете додавати лейбли вручну під час створення pull request, а GitHub Actions зможе використовувати їх для вибору білду конкретного мікросервісу після злиття гілки у main або після створення глобального тегу.
+
+Якщо лейбли безпосередньо на коміти не підходять, можна використовувати інші стратегії для визначення білду того чи іншого сервісу.
+Альтернативи матричній стратегії
+
+    Conditional Steps (умовні кроки) Ви можете налаштувати окремі job-и або steps у GitHub Actions, що будуть запускатися лише за певних умов. Наприклад, можна виконати білд конкретного сервісу тільки за умови, що у файлах були зміни в певних папках або файлах.
+
+yaml
+
+jobs:
+  build-ingester:
+    runs-on: ubuntu-latest
+    if: contains(github.event.commits, 'ingester/')  # Білд тільки якщо є зміни в папці "ingester"
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build Docker Image for ingester
+      run: |
+        docker build -t myrepo/ingester:${{ github.sha }} ./ingester
+        docker push myrepo/ingester:${{ github.sha }}
+
+  build-api:
+    runs-on: ubuntu-latest
+    if: contains(github.event.commits, 'api/')
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build Docker Image for API
+      run: |
+        docker build -t myrepo/api:${{ github.sha }} ./api
+        docker push myrepo/api:${{ github.sha }}
+
+Тут кожен білд виконується умовно — тільки для тих мікросервісів, які мають зміни в їх папках.
+
+    Job Dependencies Використання job dependencies (needs), де один білд залежить від результатів іншого. Наприклад, ви можете спочатку перевіряти зміни, а потім виконувати білд мікросервісу тільки за потреби.
+
+yaml
+
+jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      ingester_changed: ${{ steps.detect-changes.outputs.ingester_changed }}
+      api_changed: ${{ steps.detect-changes.outputs.api_changed }}
+    steps:
+    - name: Detect Changes
+      id: detect-changes
+      run: |
+        if git diff --name-only HEAD^ HEAD | grep 'ingester/'; then
+          echo "::set-output name=ingester_changed::true"
+        else
+          echo "::set-output name=ingester_changed::false"
+        fi
+        if git diff --name-only HEAD^ HEAD | grep 'api/'; then
+          echo "::set-output name=api_changed::true"
+        else
+          echo "::set-output name=api_changed::false"
+        fi
+
+  build-ingester:
+    runs-on: ubuntu-latest
+    needs: check-changes
+    if: needs.check-changes.outputs.ingester_changed == 'true'
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build Docker Image for ingester
+      run: |
+        docker build -t myrepo/ingester:${{ github.sha }} ./ingester
+        docker push myrepo/ingester:${{ github.sha }}
+
+  build-api:
+    runs-on: ubuntu-latest
+    needs: check-changes
+    if: needs.check-changes.outputs.api_changed == 'true'
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build Docker Image for API
+      run: |
+        docker build -t myrepo/api:${{ github.sha }} ./api
+        docker push myrepo/api:${{ github.sha }}
+
+    Parallel Jobs (Паралельні job-и без матриць) Якщо потрібно запускати кілька білдів одночасно без використання матриць, можна зробити це за допомогою паралельних job-ів. Кожен сервіс білдиться незалежно, але ви можете контролювати їх тригери та запускати їх паралельно, якщо цього потребує продуктивне середовище.
+
+yaml
+
+jobs:
+  build-ingester:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build Docker Image for ingester
+      run: |
+        docker build -t myrepo/ingester:${{ github.sha }} ./ingester
+        docker push myrepo/ingester:${{ github.sha }}
+
+  build-api:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build Docker Image for API
+      run: |
+        docker build -t myrepo/api:${{ github.sha }} ./api
+        docker push myrepo/api:${{ github.sha }}
+
+Тут кожен сервіс білдиться паралельно без матриці, і ви можете контролювати їх запуск незалежно.
+Висновок:
+
+Для продуктивного середовища ви можете використовувати conditional steps або job dependencies як альтернативу матричній стратегії. Це дозволяє гнучко контролювати, які сервіси білдяться, залежно від змін у коді або тегів, навіть без лейблів.
+Ви сказали:
+Ні, це все не потрібно
+Давай повернемось до того що ти пропонував
+З лейблами і мають бути PR
+Програма ChatGPT сказала:
+ChatGPT
+
+Щоб налаштувати білд лише потрібного мікросервісу при злитті PR у main з використанням лейблів на PR, можна використовувати GitHub Actions. Стратегія з лейблами дозволить вручну контролювати, які сервіси повинні білдитися для продакшн-середовища під час глобального тегування.
+Стратегія з використанням лейблів і PR для білду мікросервісів
+Основна ідея:
+
+    Ви додаєте лейбли до pull request-ів для кожного мікросервісу, наприклад, build-ingester, build-api, тощо.
+    Після того, як PR зливається в основну гілку (main), GitHub Actions перевіряє наявність лейблів і виконує білд тільки для тих мікросервісів, які позначені лейблами.
+    Теги залишаються глобальними для всього репозиторію, але білд іміджів відбувається лише для сервісів, які зазначені через лейбли.
+
+Налаштування GitHub Actions
+
+Ось приклад, як це можна реалізувати:
+
+    Спочатку додаємо лейбли до pull request, коли ви хочете, щоб певний мікросервіс білдився під час продакшн-релізу.
+
+    Налаштовуємо GitHub Actions, щоб вони реагували на ці лейбли після злиття PR у гілку main.
+
+yaml
+
+name: Build Microservices Based on Labels
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main  # Лише коли PR зливаються у main
+  push:
+    tags:
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+
+jobs:
+  build:
+    if: github.event.pull_request.merged == true  # Тільки для злитих PR
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Check PR labels
+      id: check_labels
+      run: |
+        labels=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+        https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels \
+        | jq -r '.[].name')
+        echo "Labels: $labels"
+        if echo "$labels" | grep -q "build-ingester"; then
+          echo "::set-output name=build_ingester::true"
+        else
+          echo "::set-output name=build_ingester::false"
+        fi
+        if echo "$labels" | grep -q "build-api"; then
+          echo "::set-output name=build_api::true"
+        else
+          echo "::set-output name=build_api::false"
+        fi
+
+  build-ingester:
+    runs-on: ubuntu-latest
+    needs: build
+    if: needs.build.outputs.build_ingester == 'true'
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build Docker Image for ingester
+      run: |
+        docker build -t myrepo/ingester:${{ github.sha }} ./ingester
+        docker push myrepo/ingester:${{ github.sha }}
+
+  build-api:
+    runs-on: ubuntu-latest
+    needs: build
+    if: needs.build.outputs.build_api == 'true'
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build Docker Image for API
+      run: |
+        docker build -t myrepo/api:${{ github.sha }} ./api
+        docker push myrepo/api:${{ github.sha }}
+
+Як це працює:
+
+    PR лейбли: Ви додаєте лейбли на PR, такі як build-ingester або build-api. Ці лейбли сигналізують, який мікросервіс має бути зібраний після злиття PR у main.
+
+    Детекція лейблів: Коли PR зливається, GitHub Actions викликає API GitHub, щоб перевірити, які лейбли були додані до PR. Якщо знайдено лейбли, що стосуються конкретного сервісу, система виконує білд тільки для зазначеного мікросервісу.
+
+    Білд сервісів: Після злиття PR і запуску глобального тегування білдяться тільки ті сервіси, які мають відповідний лейбл.
+
+Додаткові ідеї:
+
+    Додавання більше лейблів: Ви можете розширити систему для інших мікросервісів, просто додаючи більше умов для перевірки лейблів.
+    Оптимізація білдів: Використовуючи такий підхід, ви уникнете зайвих білдів для сервісів, які не були змінені або не потребують оновлення для продакшн середовища.
+
+Такий підхід дає можливість вручну контролювати, що саме повинно білдитися для продакшн, при цьому зберігаючи гнучкість у використанні глобальних тегів.
+Ви сказали:
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main  # Лише коли PR зливаються у main
+  push:
+    tags:
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+Це працює як логічне або?
+Тобто джоба запуститься коли просто додадуть тег?
+Програма ChatGPT сказала:
+ChatGPT
+
+Так, у поточній конфігурації секції on: в GitHub Actions, це дійсно працює як логічне "або". Це означає, що джоба запуститься при будь-якій з двох подій:
+
+    Коли PR зливається у гілку main (умова pull_request: types: [closed], branches: [main]).
+    Коли додається тег, що починається з v (умова push: tags: ['v*']).
+
+Таким чином, дійсно, якщо хтось просто додасть тег (наприклад, v1.0.0), то джоба також запуститься, навіть якщо це не пов'язано із злиттям PR.
+Як цього уникнути:
+
+Якщо ви хочете, щоб джоба запускалася тільки при злитті PR у main з глобальним тегом, можна скоригувати конфігурацію. Наприклад, можна додати окремі jobs для різних умов або чітко розділити тригери.
+
+Для того щоб запускати джоби тільки при обох умовах (і PR у main, і тегування), можна скористатися перевіркою всередині jobs:
+
+yaml
+
+name: Build Microservices Based on Labels
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main  # Лише коли PR зливаються у main
+  push:
+    tags:
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+
+jobs:
+  build:
+    if: github.event.pull_request.merged == true && startsWith(github.ref, 'refs/tags/v')  # Тільки якщо є PR злиття і доданий тег
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Check PR labels
+      id: check_labels
+      run: |
+        labels=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+        https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels \
+        | jq -r '.[].name')
+        echo "Labels: $labels"
+        if echo "$labels" | grep -q "build-ingester"; then
+          echo "::set-output name=build_ingester::true"
+        else
+          echo "::set-output name=build_ingester::false"
+        fi
+        if echo "$labels" | grep -q "build-api"; then
+          echo "::set-output name=build_api::true"
+        else
+          echo "::set-output name=build_api::false"
+        fi
+
+  build-ingester:
+    runs-on: ubuntu-latest
+    needs: build
+    if: needs.build.outputs.build_ingester == 'true'
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build Docker Image for ingester
+      run: |
+        docker build -t myrepo/ingester:${{ github.sha }} ./ingester
+        docker push myrepo/ingester:${{ github.sha }}
+
+  build-api:
+    runs-on: ubuntu-latest
+    needs: build
+    if: needs.build.outputs.build_api == 'true'
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build Docker Image for API
+      run: |
+        docker build -t myrepo/api:${{ github.sha }} ./api
+        docker push myrepo/api:${{ github.sha }}
+
+Пояснення:
+
+    Використовується умова if: github.event.pull_request.merged == true && startsWith(github.ref, 'refs/tags/v'), щоб перевіряти, що:
+        PR був злитий.
+        Є тег, який починається з v.
+    Таким чином, джоба не буде запускатися, якщо лише додано тег або лише злитий PR без тегу.
+
+Ви сказали:
+А в секції лейб точно потрібно курлом робити 
+Ми будемо працювати з поточною репою
+Можливо ж готові екшени для багатьох шагів джоби?
+Програма ChatGPT сказала:
+ChatGPT
+
+Ви абсолютно праві! Використовувати curl для отримання лейблів з GitHub API — це зайва складність, оскільки GitHub надає змогу працювати з лейблами в pull request безпосередньо через контекст дії (action context). Для спрощення та оптимізації процесу можна використовувати готові GitHub Actions або вбудовані змінні, які дозволяють зчитувати лейбли PR без необхідності робити додаткові HTTP-запити.
+Ось спрощений і оптимізований приклад використання лейблів з GitHub Actions:
+
+    Використовуємо стандартний контекст GitHub Actions для отримання лейблів.
+    Прибираємо використання curl і замінюємо його на більш інтегрований спосіб роботи з лейблами.
+
+Оновлений YAML-файл:
+
+yaml
+
+name: Build Microservices Based on Labels
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main  # Лише коли PR зливаються у main
+  push:
+    tags:
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+
+jobs:
+  build:
+    if: github.event.pull_request.merged == true && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    # Перевіряємо наявність лейблів без використання API-запитів
+    - name: Check PR labels
+      id: check_labels
+      run: |
+        if [[ "${{ github.event.pull_request.labels[*] }}" == *"build-ingester"* ]]; then
+          echo "::set-output name=build_ingester::true"
+        else
+          echo "::set-output name=build_ingester::false"
+        fi
+        if [[ "${{ github.event.pull_request.labels[*] }}" == *"build-api"* ]]; then
+          echo "::set-output name=build_api::true"
+        else
+          echo "::set-output name=build_api::false"
+        fi
+
+  build-ingester:
+    runs-on: ubuntu-latest
+    needs: build
+    if: needs.build.outputs.build_ingester == 'true'
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build Docker Image for ingester
+      run: |
+        docker build -t myrepo/ingester:${{ github.sha }} ./ingester
+        docker push myrepo/ingester:${{ github.sha }}
+
+  build-api:
+    runs-on: ubuntu-latest
+    needs: build
+    if: needs.build.outputs.build_api == 'true'
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build Docker Image for API
+      run: |
+        docker build -t myrepo/api:${{ github.sha }} ./api
+        docker push myrepo/api:${{ github.sha }}
+
+Що змінилось:
+
+    Отримання лейблів безпосередньо з контексту GitHub Actions:
+        Використовується контекст github.event.pull_request.labels, який містить усі лейбли, що були додані до pull request.
+        Вивіряємо наявність лейблів за допомогою простого bash-скрипта в рамках самої job-и.
+
+    Відсутність curl:
+        Немає необхідності викликати GitHub API через curl, оскільки вся необхідна інформація доступна безпосередньо в контексті дії.
+
+Готові GitHub Actions:
+
+    Якщо вам потрібні інші часто використовувані функції, ви можете також підключати готові GitHub Actions з маркетплейсу, наприклад, для білду Docker-іміджів, перевірки змін, налаштування середовища і т.д. Але для роботи з лейблами найчастіше достатньо вбудованих інструментів, як показано вище.
+
+Це рішення суттєво спрощує вашу роботу і робить білди зрозумілішими та швидшими без необхідності додаткових API-запитів.
+Ви сказали:
+Це вже краще
+Опиши процес, коли і де  назначати лейбли
+Програма ChatGPT сказала:
+ChatGPT
+Процес призначення лейблів для білду мікросервісів у продакшн:
+
+    Створення Pull Request (PR) для мікросервісу:
+        Коли розробник вносить зміни до коду одного або кількох мікросервісів у вашому монорепозиторії, він створює новий pull request (PR).
+        Це можуть бути зміни в одному або декількох мікросервісах, і саме на цьому етапі потрібно вирішити, чи будуть ці зміни білдитись у продакшн під час злиття PR.
+
+    Призначення лейблів на PR:
+        Коли призначати лейбли: Лейбли призначаються на етапі створення або огляду PR, до того, як PR буде злитий у гілку main. Це можуть зробити самі розробники, рев’ювери або автоматизовані процеси (якщо є певні автоматизовані правила для призначення лейблів).
+        Де призначати лейбли: Лейбли додаються до PR через GitHub інтерфейс:
+            Відкрийте PR у веб-інтерфейсі GitHub.
+            З правого боку буде поле з лейблами під назвою "Labels".
+            Додайте лейбли, що відповідають за конкретні мікросервіси, які мають бути зібрані, наприклад, build-ingester, build-api тощо.
+        Які лейбли призначати:
+            Якщо були змінені файли в мікросервісі ingester, додайте лейбл build-ingester.
+            Якщо зміни стосуються мікросервісу api, додайте лейбл build-api.
+            Можна призначати кілька лейблів, якщо зміни зачіпають кілька мікросервісів.
+
+    Злиття PR в основну гілку main:
+        Після того як PR пройшов перевірку і готовий до злиття, він зливається в гілку main. Це може зробити відповідальний за реліз або автоматизовані процеси, залежно від вашого робочого процесу.
+        Після злиття PR GitHub Actions запускається, але лише для тих мікросервісів, для яких були призначені відповідні лейбли.
+
+    Тегування для продакшн:
+        Після злиття PR ви додаєте глобальний тег для всього репозиторію, наприклад, v1.0.0.
+        Тегування викликає GitHub Actions, який перевіряє наявність призначених лейблів у PR. Якщо відповідні лейбли присутні, буде зібрано лише ті мікросервіси, для яких вони призначені.
+
+    Запуск білду для зазначених мікросервісів:
+        Коли PR злитий і глобальний тег доданий, GitHub Actions перевіряє лейбли, призначені до PR.
+        Наприклад, якщо у PR був лейбл build-ingester, то буде запущений білд і пуш Docker-іміджу для сервісу ingester.
+        Якщо в PR був лейбл build-api, то буде зібраний Docker-імідж для api.
+
+Приклад робочого процесу:
+
+    Розробник вносить зміни до мікросервісу ingester та створює PR з описом змін.
+    Розробник або рев'ювер додає лейбл build-ingester до цього PR.
+    PR проходить рев'ю і зливається в гілку main.
+    Відповідальна особа додає тег, наприклад, v1.0.0, для випуску нової версії у продакшн.
+    GitHub Actions запускається, перевіряє лейбли і білдить Docker-імідж для сервісу ingester.
+
+Важливі моменти:
+
+    Контроль білдів: Лейбли дозволяють точно вказати, які сервіси мають бути зібрані для продакшн. Це зручно, якщо зміни внесені тільки в один або кілька сервісів, і немає необхідності білдити все.
+    Призначення лейблів вручну або автоматично: Якщо необхідно, можна автоматизувати процес призначення лейблів, аналізуючи зміни в файлах або структурах папок.
+    Глобальні теги: Тегування зберігається глобальним для всього репозиторію, але лейбли допомагають контролювати, які сервіси будуть білдитись під час цього релізу.
+
+Ви сказали:
+Добре, ця частина точно потрібна?
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main  
+Програма ChatGPT сказала:
+ChatGPT
+
+Ні, секція pull_request: types: [closed] не є обов'язковою в даному контексті, оскільки ви хочете запускати білд тільки на основі глобальних тегів. Ця секція потрібна тільки тоді, коли ви хочете запускати джоби після злиття PR в гілку main, але без обов'язкового тегування. У вашому випадку, коли тригером для білду є додавання глобального тегу (наприклад, v1.0.0), перевірка лейблів на етапі PR злиття не потрібна.
+
+Таким чином, можна спростити конфігурацію і прибрати цю секцію. Ось спрощений варіант:
+Спрощений YAML-файл:
+
+yaml
+
+name: Build Microservices Based on Labels
+
+on:
+  push:
+    tags:
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    # Перевіряємо лейбли PR без використання API-запитів
+    - name: Check PR labels
+      id: check_labels
+      run: |
+        if [[ "${{ github.event.pull_request.labels[*] }}" == *"build-ingester"* ]]; then
+          echo "::set-output name=build_ingester::true"
+        else
+          echo "::set-output name=build_ingester::false"
+        fi
+        if [[ "${{ github.event.pull_request.labels[*] }}" == *"build-api"* ]]; then
+          echo "::set-output name=build_api::true"
+        else
+          echo "::set-output name=build_api::false"
+        fi
+
+  build-ingester:
+    runs-on: ubuntu-latest
+    needs: build
+    if: needs.build.outputs.build_ingester == 'true'
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build Docker Image for ingester
+      run: |
+        docker build -t myrepo/ingester:${{ github.sha }} ./ingester
+        docker push myrepo/ingester:${{ github.sha }}
+
+  build-api:
+    runs-on: ubuntu-latest
+    needs: build
+    if: needs.build.outputs.build_api == 'true'
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build Docker Image for API
+      run: |
+        docker build -t myrepo/api:${{ github.sha }} ./api
+        docker push myrepo/api:${{ github.sha }}
+
+Висновок:
+
+    Ви не потребуєте секції pull_request: types: [closed], якщо ваша мета — запускати білди тільки на основі глобальних тегів.
+    Білд буде запускатися лише тоді, коли буде додано тег, що відповідає шаблону (наприклад, v*), і перевірка лейблів виконається для злитого PR на основі змін у репозиторії.
+
+Таким чином, процес буде простішим і більш зосередженим на реальному моменті релізу з тегуванням.
+Ви сказали:
+давай під цю стратерію переробимо також і інший проект
+ось що тут зараз
+jobs:
+  etl:
+    name: Build and Push Snapshot ETL
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    #if: contains(github.event.head_commit.message, 'plerkle_snapshot/')
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker Image for Snapshot ETL
+        env:
+          APP: "solana-snapshot-etl"
+          REGISTRY: ghcr.io/${{ github.repository_owner }}/digital-asset-validator-plugin
+        working-directory: plerkle_snapshot
+        run: make build push
+        
+      - name: Clean
+        run: make clean
+Програма ChatGPT сказала:
+ChatGPT
+
+Для того щоб переробити цей процес під стратегію з глобальними тегами і лейблами, як у попередньому проекті, ми можемо зробити кілька змін:
+Стратегія:
+
+    Лейбли: Якщо цей білд пов'язаний з конкретним мікросервісом або підпроєктом у монорепозиторії, ми можемо використовувати лейбли, як у попередньому прикладі. Наприклад, додамо лейбл build-snapshot-etl для індикатора білду цього сервісу.
+    Тригери: Білд запускається тільки після додавання глобального тегу (наприклад, v*), і перевіряються лейбли в PR, щоб виконати білд.
+
+Оновлений YAML:
+
+yaml
+
 name: Build and Push Snapshot ETL
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+
+jobs:
+  etl:
+    name: Build and Push Snapshot ETL
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check PR labels
+        id: check_labels
+        run: |
+          if [[ "${{ github.event.pull_request.labels[*] }}" == *"build-snapshot-etl"* ]]; then
+            echo "::set-output name=build_snapshot_etl::true"
+          else
+            echo "::set-output name=build_snapshot_etl::false"
+          fi
+
+  build-etl:
+    runs-on: ubuntu-latest
+    needs: etl
+    if: needs.etl.outputs.build_snapshot_etl == 'true'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker Image for Snapshot ETL
+        env:
+          APP: "solana-snapshot-etl"
+          REGISTRY: ghcr.io/${{ github.repository_owner }}/digital-asset-validator-plugin
+        working-directory: plerkle_snapshot
+        run: make build push
+
+      - name: Clean
+        run: make clean
+
+Що змінилось:
+
+    Тригери: Білд тепер буде запускатися тільки на основі глобальних тегів (починаючи з v*).
+    Перевірка лейблів: Перевіряється, чи був призначений лейбл build-snapshot-etl в PR. Якщо лейбл призначений, білд запускається.
+    Секція build-etl: Білд Docker-іміджу і пуш в GitHub Container Registry буде виконано тільки за умови, що лейбл build-snapshot-etl був призначений.
+
+Процес:
+
+    Додавання лейбла: Коли розробник створює PR з змінами, що стосуються Snapshot ETL, він додає лейбл build-snapshot-etl.
+    Злиття PR: Після злиття PR в гілку main, додається глобальний тег.
+    Запуск білду: GitHub Actions перевіряє лейбл і, якщо він призначений, білдить і пушить Docker-імідж для Snapshot ETL.
+
+Це дозволяє запускати білд тільки при необхідності і тільки для продакшн-версій, що позначені глобальним тегом.
+Ви сказали:
+добре як захистити бранчу main в гітхабі щоб обовязково треба було робити PR
+Програма ChatGPT сказала:
+ChatGPT
+
+Щоб захистити гілку main на GitHub і забезпечити обов'язкове створення pull request (PR) перед будь-якими змінами, можна скористатися налаштуваннями захисту гілок. Це дозволить заблокувати можливість прямого пушу в main і вимагати, щоб всі зміни проходили через PR. Ось кроки для налаштування:
+Як налаштувати захист гілки main на GitHub
+
+    Перейдіть до налаштувань репозиторію:
+        Відкрийте свій репозиторій на GitHub.
+        Клікніть на вкладку Settings у верхньому меню.
+
+    Перейдіть до розділу "Branches":
+        На лівій панелі перейдіть до секції Branches.
+
+    Створення правила захисту гілки:
+        У секції Branch protection rules клікніть на кнопку Add rule.
+
+    Налаштування правила для гілки main:
+        У полі Branch name pattern введіть main, щоб це правило стосувалося гілки main.
+
+    Увімкніть обов'язкові PR для змін:
+        Поставте галочку біля опції Require pull request reviews before merging. Це гарантує, що зміни в main можуть бути внесені лише через pull request, і ви зможете додатково налаштувати, скільки оглядів повинно бути зроблено перед злиттям.
+
+    Заборона прямого пушу до main:
+        Увімкніть опцію Restrict who can push to matching branches, щоб обмежити прямий пуш у гілку main. Тільки вибрані користувачі або боти зможуть пушити в main напряму, всі інші повинні використовувати PR.
+
+    Додаткові опції для захисту:
+        Require status checks to pass before merging: Вимагайте успішного виконання всіх перевірок CI/CD перед злиттям PR. Наприклад, GitHub Actions, що білдить ваш код.
+        Require branches to be up to date before merging: Вимагайте, щоб PR були синхронізовані з гілкою main перед злиттям, що запобігає конфліктам.
+        Require signed commits: Якщо потрібно, можна вимагати підписаних коммітів для додаткової безпеки.
+        Include administrators: Якщо увімкнути цю опцію, правило буде застосовуватись навіть до адміністраторів.
+
+    Збережіть правило:
+        Після того як налаштували всі необхідні параметри, натисніть кнопку Create для збереження правила.
+
+Після налаштування:
+
+    Ніхто не зможе пушити прямо в гілку main, крім тих, хто має спеціальні дозволи.
+    Всі зміни повинні проходити через pull request, який буде перевірений і схвалений (якщо увімкнута перевірка).
+
+Ці налаштування допоможуть гарантувати, що всі зміни в main проходять контроль якості через pull request і автоматизовані перевірки.
+Ви сказали:
+
+Run if [[ "Array" == *"build-snapshot-etl"* ]]; then
+Warning: The set-output command is deprecated and will be disabled soon. Please upgrade to using Environment Files. For more information see: https://github.blog/changelog/2022-10-11-github-actions-deprecating-save-state-and-set-output-commands/
+
+October 11, 2022
+
+24-July-2023 Update: Our telemetry shows significant usage of these commands so we have decided to postpone the removal. To learn more, visit the latest changelog post.
+
+To avoid untrusted logged data to use save-stateand set-output workflow commands without the intention of the workflow author we have introduced a new set of environment files to manage state and output.
+
+Starting today runner version 2.298.2 will begin to warn you if you use the save-state or set-output commands via stdout. We are monitoring telemetry for the usage of these commands and plan to fully disable them on 31st May 2023. Starting 1st June 2023 workflows using save-state or set-output commands via stdout will fail with an error. Our telemetry shows significant usage of these commands. Given the number of impacted customers we are postponing the removal.
+Patching your actions and workflows
+
+If you are using self-hosted runners make sure they are updated to version 2.297.0 or greater.
+
+Action authors who are using the toolkit should update the @actions/core package to v1.10.0 or greater to get the updated saveState and setOutput functions.
+
+Action and workflow authors who are using save-state or set-output via stdout should update to use the new environment files.
+Examples
+
+A workflow using save-state or set-output like the following
+
+- name: Save state
+run: echo "::save-state name={name}::{value}"
+
+- name: Set output
+run: echo "::set-output name={name}::{value}"
+
+should be updated to write to the new GITHUB_STATE and GITHUB_OUTPUT environment files:
+
+- name: Save state
+run: echo "{name}={value}" >> $GITHUB_STATE
+
+- name: Set output
+run: echo "{name}={value}" >> $GITHUB_OUTPUT
+Програма ChatGPT сказала:
+ChatGPT
+
+Дякую за інформацію! Дійсно, команда set-output є застарілою, і її використання необхідно замінити на нову механіку з використанням файлів стану та виходу (GITHUB_STATE і GITHUB_OUTPUT).
+
+Ось як можна оновити ваш поточний скрипт для встановлення вихідних значень без використання застарілої команди set-output.
+Оновлений приклад GitHub Actions:
+
+yaml
+
+name: Build and Push Snapshot ETL
+
+on:
+  push:
+    tags:
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+
+jobs:
+  etl:
+    name: Build and Push Snapshot ETL
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check PR labels
+        id: check_labels
+        run: |
+          if [[ "${{ github.event.pull_request.labels[*] }}" == *"build-snapshot-etl"* ]]; then
+            echo "build_snapshot_etl=true" >> $GITHUB_OUTPUT
+          else
+            echo "build_snapshot_etl=false" >> $GITHUB_OUTPUT
+          fi
+
+  build-etl:
+    runs-on: ubuntu-latest
+    needs: etl
+    if: needs.etl.outputs.build_snapshot_etl == 'true'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker Image for Snapshot ETL
+        env:
+          APP: "solana-snapshot-etl"
+          REGISTRY: ghcr.io/${{ github.repository_owner }}/digital-asset-validator-plugin
+        working-directory: plerkle_snapshot
+        run: make build push
+
+      - name: Clean
+        run: make clean
+
+Що змінилося:
+
+    Використання $GITHUB_OUTPUT:
+        Ми замінили команду set-output на новий механізм, де результат записується в файл $GITHUB_OUTPUT.
+        Якщо лейбл build-snapshot-etl присутній, ми записуємо build_snapshot_etl=true, інакше — build_snapshot_etl=false.
+
+Приклад збереження стану:
+
+Якщо вам потрібно зберігати стан між кроками (аналогічно до save-state), ви можете використовувати змінну $GITHUB_STATE за аналогією:
+
+yaml
+
+- name: Save state
+  run: echo "some_state=some_value" >> $GITHUB_STATE
+
+Це забезпечить коректну роботу GitHub Actions відповідно до нових вимог без використання застарілих команд.
+Ви сказали:
+    if: needs.etl.outputs.build_snapshot_etl == 'true' це точно вірно?
+Програма ChatGPT сказала:
+ChatGPT
+
+Ні, дякую за зауваження! Для GitHub Actions правильний синтаксис для доступу до виводів іншої job-и має бути дещо іншим.
+
+У випадку, коли ми використовуємо файли для передачі значень, вивід job-и можна отримати за допомогою needs.<job_id>.outputs.<output_name>. Однак, щоб це працювало, треба спочатку визначити, що job має вихідний параметр.
+
+Ось правильний спосіб:
+
+    Ми повинні явно вказати, що наша job etl повертає вихідний параметр.
+    Використовуємо цей вихідний параметр в наступній job.
+
+Оновлений приклад:
+1. Визначаємо вихідні дані в job etl:
+
+yaml
+
+name: Build and Push Snapshot ETL
+
+on:
+  push:
+    tags:
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+
+jobs:
+  etl:
+    name: Build and Push Snapshot ETL
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    outputs:
+      build_snapshot_etl: ${{ steps.check_labels.outputs.build_snapshot_etl }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check PR labels
+        id: check_labels
+        run: |
+          if [[ "${{ github.event.pull_request.labels[*] }}" == *"build-snapshot-etl"* ]]; then
+            echo "build_snapshot_etl=true" >> $GITHUB_OUTPUT
+          else
+            echo "build_snapshot_etl=false" >> $GITHUB_OUTPUT
+          fi
+
+2. Використовуємо вихідні дані в наступній job build-etl:
+
+yaml
+
+  build-etl:
+    runs-on: ubuntu-latest
+    needs: etl
+    if: needs.etl.outputs.build_snapshot_etl == 'true'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker Image for Snapshot ETL
+        env:
+          APP: "solana-snapshot-etl"
+          REGISTRY: ghcr.io/${{ github.repository_owner }}/digital-asset-validator-plugin
+        working-directory: plerkle_snapshot
+        run: make build push
+
+      - name: Clean
+        run: make clean
+
+Що змінилося:
+
+    У job etl ми тепер визначаємо вихідні дані через секцію outputs, що дозволяє передати значення build_snapshot_etl у наступну job.
+    У job build-etl ми отримуємо вихідні дані через needs.etl.outputs.build_snapshot_etl.
+
+Тепер умова для виконання job build-etl працюватиме коректно, використовуючи передані вихідні дані з попередньої job.
+Ви сказали:
+Workflow commands for GitHub Actions
+
+You can use workflow commands when running shell commands in a workflow or in an action's code.
+Tool navigation
+
+    Bash
+    PowerShell
+
+In this article
+
+    About workflow commands
+    Using workflow commands to access toolkit functions
+    Setting a debug message
+    Setting a notice message
+    Setting a warning message
+    Setting an error message
+    Grouping log lines
+    Masking a value in a log
+    Stopping and starting workflow commands
+    Sending values to the pre and post actions
+    Environment files
+    Setting an environment variable
+    Setting an output parameter
+    Adding a job summary
+    Adding a system path
+
+About workflow commands
+
+Actions can communicate with the runner machine to set environment variables, output values used by other actions, add debug messages to the output logs, and other tasks.
+
+Most workflow commands use the echo command in a specific format, while others are invoked by writing to a file. For more information, see "Environment files."
+Example of a workflow command
+Bash
+
+echo "::workflow-command parameter1={data},parameter2={data}::{command value}"
+
+Note: Workflow command and parameter names are case insensitive.
+
+Warning: If you are using Command Prompt, omit double quote characters (") when using workflow commands.
+Using workflow commands to access toolkit functions
+
+The actions/toolkit includes a number of functions that can be executed as workflow commands. Use the :: syntax to run the workflow commands within your YAML file; these commands are then sent to the runner over stdout.
+
+For example, instead of using code to create an error annotation, as below:
+JavaScript
+
+core.error('Missing semicolon', {file: 'app.js', startLine: 1})
+
+Example: Creating an annotation for an error
+
+You can use the error command in your workflow to create the same error annotation:
+YAML
+
+      - name: Create annotation for build error
+        run: echo "::error file=app.js,line=1::Missing semicolon"
+
+The following table shows which toolkit functions are available within a workflow:
+Toolkit function	Equivalent workflow command
+core.addPath	Accessible using environment file GITHUB_PATH
+core.debug	debug
+core.notice	notice
+core.error	error
+core.endGroup	endgroup
+core.exportVariable	Accessible using environment file GITHUB_ENV
+core.getInput	Accessible using environment variable INPUT_{NAME}
+core.getState	Accessible using environment variable STATE_{NAME}
+core.isDebug	Accessible using environment variable RUNNER_DEBUG
+core.summary	Accessible using environment file GITHUB_STEP_SUMMARY
+core.saveState	Accessible using environment file GITHUB_STATE
+core.setCommandEcho	echo
+core.setFailed	Used as a shortcut for ::error and exit 1
+core.setOutput	Accessible using environment file GITHUB_OUTPUT
+core.setSecret	add-mask
+core.startGroup	group
+core.warning	warning
+Setting a debug message
+
+Prints a debug message to the log. You must create a secret named ACTIONS_STEP_DEBUG with the value true to see the debug messages set by this command in the log. For more information, see "Enabling debug logging."
+Text
+
+::debug::{message}
+
+Example: Setting a debug message
+Bash
+
+echo "::debug::Set the Octocat variable"
+
+Setting a notice message
+
+Creates a notice message and prints the message to the log. This message will create an annotation, which can associate the message with a particular file in your repository. Optionally, your message can specify a position within the file.
+Text
+
+::notice file={name},line={line},endLine={endLine},title={title}::{message}
+
+Parameter	Value	Required	Default
+title	Custom title	No	None
+file	Filename	No	.github
+col	Column number, starting at 1	No	None
+endColumn	End column number	No	None
+line	Line number, starting at 1	No	1
+endLine	End line number	No	1
+Example: Setting a notice message
+Bash
+
+echo "::notice file=app.js,line=1,col=5,endColumn=7::Missing semicolon"
+
+Setting a warning message
+
+Creates a warning message and prints the message to the log. This message will create an annotation, which can associate the message with a particular file in your repository. Optionally, your message can specify a position within the file.
+Text
+
+::warning file={name},line={line},endLine={endLine},title={title}::{message}
+
+Parameter	Value	Required	Default
+title	Custom title	No	None
+file	Filename	No	.github
+col	Column number, starting at 1	No	None
+endColumn	End column number	No	None
+line	Line number, starting at 1	No	1
+endLine	End line number	No	1
+Example: Setting a warning message
+Bash
+
+echo "::warning file=app.js,line=1,col=5,endColumn=7,title=YOUR-TITLE::Missing semicolon"
+
+Setting an error message
+
+Creates an error message and prints the message to the log. This message will create an annotation, which can associate the message with a particular file in your repository. Optionally, your message can specify a position within the file.
+Text
+
+::error file={name},line={line},endLine={endLine},title={title}::{message}
+
+Parameter	Value	Required	Default
+title	Custom title	No	None
+file	Filename	No	.github
+col	Column number, starting at 1	No	None
+endColumn	End column number	No	None
+line	Line number, starting at 1	No	1
+endLine	End line number	No	1
+Example: Setting an error message
+Bash
+
+echo "::error file=app.js,line=1,col=5,endColumn=7,title=YOUR-TITLE::Missing semicolon"
+
+Grouping log lines
+
+Creates an expandable group in the log. To create a group, use the group command and specify a title. Anything you print to the log between the group and endgroup commands is nested inside an expandable entry in the log.
+Text
+
+::group::{title}
+::endgroup::
+
+Example: Grouping log lines
+YAML
+
+jobs:
+  bash-example:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Group of log lines
+        run: |
+            echo "::group::My title"
+            echo "Inside group"
+            echo "::endgroup::"
+
+Screenshot of the log for the workflow step. The second line, "My title", is prefaced by a downward arrow, indicating an expanded group. The next line, "Inside group", is indented below.
+Masking a value in a log
+Text
+
+::add-mask::{value}
+
+Masking a value prevents a string or variable from being printed in the log. Each masked word separated by whitespace is replaced with the * character. You can use an environment variable or string for the mask's value. When you mask a value, it is treated as a secret and will be redacted on the runner. For example, after you mask a value, you won't be able to set that value as an output.
+Example: Masking a string
+
+When you print "Mona The Octocat" in the log, you'll see "***".
+Bash
+
+echo "::add-mask::Mona The Octocat"
+
+Warning: Make sure you register the secret with 'add-mask' before outputting it in the build logs or using it in any other workflow commands.
+Example: Masking an environment variable
+
+When you print the variable MY_NAME or the value "Mona The Octocat" in the log, you'll see "***" instead of "Mona The Octocat".
+YAML
+
+jobs:
+  bash-example:
+    runs-on: ubuntu-latest
+    env:
+      MY_NAME: "Mona The Octocat"
+    steps:
+      - name: bash-version
+        run: echo "::add-mask::$MY_NAME"
+
+Example: Masking a generated output within a single job
+
+If you do not need to pass your secret from one job to another job, you can:
+
+    Generate the secret (without outputting it).
+    Mask it with add-mask.
+    Use GITHUB_OUTPUT to make the secret available to other steps within the job.
+
+YAML
+
+on: push
+jobs:
+  generate-a-secret-output:
+    runs-on: ubuntu-latest
+    steps:
+      - id: sets-a-secret
+        name: Generate, mask, and output a secret
+        run: |
+          the_secret=$((RANDOM))
+          echo "::add-mask::$the_secret"
+          echo "secret-number=$the_secret" >> "$GITHUB_OUTPUT"
+      - name: Use that secret output (protected by a mask)
+        run: |
+          echo "the secret number is ${{ steps.sets-a-secret.outputs.secret-number }}"
+
+Example: Masking and passing a secret between jobs or workflows
+
+If you want to pass a masked secret between jobs or workflows, you should store the secret in a store and then retrieve it in the subsequent job or workflow.
+Setup
+
+    Set up a secret store to store the secret that you will generate during your workflow. For example, Vault.
+    Generate a key for reading and writing to that secret store. Store the key as a repository secret. In the following example workflow, the secret name is SECRET_STORE_CREDENTIALS. For more information, see "Using secrets in GitHub Actions."
+
+Workflow
+
+Note: This workflow uses an imaginary secret store, secret-store, which has imaginary commands store-secret and retrieve-secret. some/secret-store@ 27b31702a0e7fc50959f5ad993c78deac1bdfc29 is an imaginary action that installs the secret-store application and configures it to connect to an instance with credentials.
+YAML
+
+on: push
+
+jobs:
+  secret-generator:
+    runs-on: ubuntu-latest
+    outputs:
+      handle: ${{ steps.generate-secret.outputs.handle }}
+    steps:
+    - uses: some/secret-store@27b31702a0e7fc50959f5ad993c78deac1bdfc29
+      with:
+        credentials: ${{ secrets.SECRET_STORE_CREDENTIALS }}
+        instance: ${{ secrets.SECRET_STORE_INSTANCE }}
+    - name: generate secret
+      id: generate-secret
+      shell: bash
+      run: |
+        GENERATED_SECRET=$((RANDOM))
+        echo "::add-mask::$GENERATED_SECRET"
+        SECRET_HANDLE=$(secret-store store-secret "$GENERATED_SECRET")
+        echo "handle=$SECRET_HANDLE" >> "$GITHUB_OUTPUT"
+  secret-consumer:
+    runs-on: macos-latest
+    needs: secret-generator
+    steps:
+    - uses: some/secret-store@27b31702a0e7fc50959f5ad993c78deac1bdfc29
+      with:
+        credentials: ${{ secrets.SECRET_STORE_CREDENTIALS }}
+        instance: ${{ secrets.SECRET_STORE_INSTANCE }}
+    - name: use secret
+      shell: bash
+      run: |
+        SECRET_HANDLE="${{ needs.secret-generator.outputs.handle }}"
+        RETRIEVED_SECRET=$(secret-store retrieve-secret "$SECRET_HANDLE")
+        echo "::add-mask::$RETRIEVED_SECRET"
+        echo "We retrieved our masked secret: $RETRIEVED_SECRET"
+
+Stopping and starting workflow commands
+
+Stops processing any workflow commands. This special command allows you to log anything without accidentally running a workflow command. For example, you could stop logging to output an entire script that has comments.
+Text
+
+::stop-commands::{endtoken}
+
+To stop the processing of workflow commands, pass a unique token to stop-commands. To resume processing workflow commands, pass the same token that you used to stop workflow commands.
+
+Warning: Make sure the token you're using is randomly generated and unique for each run.
+Text
+
+::{endtoken}::
+
+Example: Stopping and starting workflow commands
+YAML
+
+jobs:
+  workflow-command-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disable workflow commands
+        run: |
+          echo '::warning:: This is a warning message, to demonstrate that commands are being processed.'
+          stopMarker=$(uuidgen)
+          echo "::stop-commands::$stopMarker"
+          echo '::warning:: This will NOT be rendered as a warning, because stop-commands has been invoked.'
+          echo "::$stopMarker::"
+          echo '::warning:: This is a warning again, because stop-commands has been turned off.'
+
+Sending values to the pre and post actions
+
+You can create environment variables for sharing with your workflow's pre: or post: actions by writing to the file located at GITHUB_STATE. For example, you can create a file with the pre: action, pass the file location to the main: action, and then use the post: action to delete the file. Alternatively, you could create a file with the main: action, pass the file location to the post: action, and also use the post: action to delete the file.
+
+If you have multiple pre: or post: actions, you can only access the saved value in the action where it was written to GITHUB_STATE. For more information on the post: action, see "Metadata syntax for GitHub Actions."
+
+The GITHUB_STATE file is only available within an action. The saved value is stored as an environment value with the STATE_ prefix.
+
+This example uses JavaScript to write to the GITHUB_STATE file. The resulting environment variable is named STATE_processID with the value of 12345:
+JavaScript
+
+import * as fs from 'fs'
+import * as os from 'os'
+
+fs.appendFileSync(process.env.GITHUB_STATE, processID=12345${os.EOL}, {
+  encoding: 'utf8'
+})
+
+The STATE_processID variable is then exclusively available to the cleanup script running under the main action. This example runs in main and uses JavaScript to display the value assigned to the STATE_processID environment variable:
+JavaScript
+
+console.log("The running PID from the main action is: " +  process.env.STATE_processID);
+
+Environment files
+
+During the execution of a workflow, the runner generates temporary files that can be used to perform certain actions. The path to these files can be accessed and edited using GitHub's default environment variables. See "Store information in variables." You will need to use UTF-8 encoding when writing to these files to ensure proper processing of the commands. Multiple commands can be written to the same file, separated by newlines. To use environment variables in a GitHub Action, you create or modify .env files using specific GitHub Actions commands.
+
+Here's how:
+YAML
+
+name: Example Workflow for Environment Files
+
+on: push
+
+jobs:
+  set_and_use_env_vars:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set environment variable
+        run: echo "MY_ENV_VAR=myValue" >> $GITHUB_ENV
+
+      - name: Use environment variable
+        run: |
+          echo "The value of MY_ENV_VAR is $MY_ENV_VAR"
+
+Another example would be to use it to store metadata like build timestamps, commit SHAs, or artifact names:
+YAML
+
+steps:
+  - name: Store build timestamp
+    run: echo "BUILD_TIME=$(date +'%T')" >> $GITHUB_ENV
+
+  - name: Deploy using stored timestamp
+    run: echo "Deploying at $BUILD_TIME"
+
+Setting an environment variable
+
+Note: To avoid issues, it's good practice to treat environment variables as case sensitive, irrespective of the behavior of the operating system and shell you are using.
+Bash
+
+echo "{environment_variable_name}={value}" >> "$GITHUB_ENV"
+
+You can make an environment variable available to any subsequent steps in a workflow job by defining or updating the environment variable and writing this to the GITHUB_ENV environment file. The step that creates or updates the environment variable does not have access to the new value, but all subsequent steps in a job will have access.
+
+You can't overwrite the value of the default environment variables named GITHUB_* and RUNNER_*. Currently you can overwrite the value of the CI variable. However, it's not guaranteed that this will always be possible. For more information about the default environment variables, see "Store information in variables."
+
+Note: Due to security restrictions, GITHUB_ENV cannot be used to set the NODE_OPTIONS environment variable.
+Example of writing an environment variable to GITHUB_ENV
+YAML
+
+steps:
+  - name: Set the value
+    id: step_one
+    run: |
+      echo "action_state=yellow" >> "$GITHUB_ENV"
+  - name: Use the value
+    id: step_two
+    run: |
+      printf '%s\n' "$action_state" # This will output 'yellow'
+
+Multiline strings
+
+For multiline strings, you may use a delimiter with the following syntax.
+Text
+
+{name}<<{delimiter}
+{value}
+{delimiter}
+
+Warning: Make sure the delimiter you're using won't occur on a line of its own within the value. If the value is completely arbitrary then you shouldn't use this format. Write the value to a file instead.
+Example of a multiline string
+
+This example uses EOF as the delimiter, and sets the JSON_RESPONSE environment variable to the value of the curl response.
+YAML
+
+steps:
+  - name: Set the value in bash
+    id: step_one
+    run: |
+      {
+        echo 'JSON_RESPONSE<<EOF'
+        curl https://example.com
+        echo EOF
+      } >> "$GITHUB_ENV"
+
+Setting an output parameter
+
+Sets a step's output parameter. Note that the step will need an id to be defined to later retrieve the output value. You can set multi-line output values with the same technique used in the "Multiline strings" section to define multi-line environment variables.
+Bash
+
+echo "{name}={value}" >> "$GITHUB_OUTPUT"
+
+Example of setting an output parameter
+
+This example demonstrates how to set the SELECTED_COLOR output parameter and later retrieve it:
+YAML
+
+      - name: Set color
+        id: color-selector
+        run: echo "SELECTED_COLOR=green" >> "$GITHUB_OUTPUT"
+      - name: Get color
+        env:
+          SELECTED_COLOR: ${{ steps.color-selector.outputs.SELECTED_COLOR }}
+        run: echo "The selected color is $SELECTED_COLOR"
+
+Adding a job summary
+Bash
+
+echo "{markdown content}" >> $GITHUB_STEP_SUMMARY
+
+You can set some custom Markdown for each job so that it will be displayed on the summary page of a workflow run. You can use job summaries to display and group unique content, such as test result summaries, so that someone viewing the result of a workflow run doesn't need to go into the logs to see important information related to the run, such as failures.
+
+Job summaries support GitHub flavored Markdown, and you can add your Markdown content for a step to the GITHUB_STEP_SUMMARY environment file. GITHUB_STEP_SUMMARY is unique for each step in a job. For more information about the per-step file that GITHUB_STEP_SUMMARY references, see "Environment files."
+
+When a job finishes, the summaries for all steps in a job are grouped together into a single job summary and are shown on the workflow run summary page. If multiple jobs generate summaries, the job summaries are ordered by job completion time.
+Example of adding a job summary
+Bash
+
+echo "### Hello world! :rocket:" >> $GITHUB_STEP_SUMMARY
+
+Screenshot of the summary page of a workflow run. Under "example summary" is "Hello world!" and a rocket emoji.
+Multiline Markdown content
+
+For multiline Markdown content, you can use >> to continuously append content for the current step. With every append operation, a newline character is automatically added.
+Example of multiline Markdown content
+
+- name: Generate list using Markdown
+  run: |
+    echo "This is the lead in sentence for the list" >> $GITHUB_STEP_SUMMARY
+    echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
+    echo "- Lets add a bullet point" >> $GITHUB_STEP_SUMMARY
+    echo "- Lets add a second bullet point" >> $GITHUB_STEP_SUMMARY
+    echo "- How about a third one?" >> $GITHUB_STEP_SUMMARY
+
+Overwriting job summaries
+
+To clear all content for the current step, you can use > to overwrite any previously added content in Bash, or remove -Append in PowerShell
+Example of overwriting job summaries
+
+- name: Overwrite Markdown
+  run: |
+    echo "Adding some Markdown content" >> $GITHUB_STEP_SUMMARY
+    echo "There was an error, we need to clear the previous Markdown with some new content." > $GITHUB_STEP_SUMMARY
+
+Removing job summaries
+
+To completely remove a summary for the current step, the file that GITHUB_STEP_SUMMARY references can be deleted.
+Example of removing job summaries
+
+- name: Delete all summary content
+  run: |
+    echo "Adding Markdown content that we want to remove before the step ends" >> $GITHUB_STEP_SUMMARY
+    rm $GITHUB_STEP_SUMMARY
+
+After a step has completed, job summaries are uploaded and subsequent steps cannot modify previously uploaded Markdown content. Summaries automatically mask any secrets that might have been added accidentally. If a job summary contains sensitive information that must be deleted, you can delete the entire workflow run to remove all its job summaries. For more information see "Deleting a workflow run."
+Step isolation and limits
+
+Job summaries are isolated between steps and each step is restricted to a maximum size of 1MiB. Isolation is enforced between steps so that potentially malformed Markdown from a single step cannot break Markdown rendering for subsequent steps. If more than 1MiB of content is added for a step, then the upload for the step will fail and an error annotation will be created. Upload failures for job summaries do not affect the overall status of a step or a job. A maximum of 20 job summaries from steps are displayed per job.
+Adding a system path
+
+Prepends a directory to the system PATH variable and automatically makes it available to all subsequent actions in the current job; the currently running action cannot access the updated path variable. To see the currently defined paths for your job, you can use echo "$PATH" in a step or an action.
+Example of adding a system path
+
+This example demonstrates how to add the user $HOME/.local/bin directory to PATH:
+Bash
+
+echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+ось документація
+ти точно все вірно вказав
+Програма ChatGPT сказала:
+ChatGPT
+
+Дякую за документацію! Після перегляду можу уточнити деякі моменти. Вірно, команда ::set-output є застарілою, і ми повинні використовувати механізм роботи з файлами для передачі значень через $GITHUB_OUTPUT. Ось що потрібно врахувати:
+Що потрібно оновити в прикладі:
+
+    Команда для встановлення вихідного значення (set-output) дійсно застаріла, і ми маємо використовувати $GITHUB_OUTPUT.
+    Передача вихідних значень між job-ами через цей файл також має бути коректно налаштована.
+
+Оновлений приклад:
+
+yaml
+
+name: Build and Push Snapshot ETL
+
+on:
+  push:
+    tags:
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+
+jobs:
+  etl:
+    name: Build and Push Snapshot ETL
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    outputs:
+      build_snapshot_etl: ${{ steps.check_labels.outputs.build_snapshot_etl }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check PR labels
+        id: check_labels
+        run: |
+          if [[ "${{ github.event.pull_request.labels[*] }}" == *"build-snapshot-etl"* ]]; then
+            echo "build_snapshot_etl=true" >> $GITHUB_OUTPUT
+          else
+            echo "build_snapshot_etl=false" >> $GITHUB_OUTPUT
+          fi
+
+  build-etl:
+    runs-on: ubuntu-latest
+    needs: etl
+    if: needs.etl.outputs.build_snapshot_etl == 'true'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker Image for Snapshot ETL
+        env:
+          APP: "solana-snapshot-etl"
+          REGISTRY: ghcr.io/${{ github.repository_owner }}/digital-asset-validator-plugin
+        working-directory: plerkle_snapshot
+        run: make build push
+
+      - name: Clean
+        run: make clean
+
+Важливі моменти:
+
+    Замість застарілої команди ::set-output, ми тепер використовуємо запис в $GITHUB_OUTPUT, щоб передати результати з однієї job в іншу.
+        Наприклад, ми записуємо результат: echo "build_snapshot_etl=true" >> $GITHUB_OUTPUT.
+
+    Передача даних між job-ами:
+        У job etl, ми оголошуємо вихідні дані через секцію outputs, щоб передати значення в наступну job.
+
+    Застосування перевірки для виконання job build-etl:
+        Використовуємо правильний синтаксис для перевірки результатів needs.etl.outputs.build_snapshot_etl == 'true', щоб виконувати білд тільки при наявності відповідного лейбла.
+
+Це оновлення забезпечить правильну роботу передачі даних через GitHub Actions, відповідно до нових вимог і рекомендацій.
+Ви сказали:
+    outputs:
+      build_snapshot_etl: ${{ steps.check_labels.outputs.build_snapshot_etl }}
+це навіщо?
+Програма ChatGPT сказала:
+ChatGPT
+
+Дійсно, ти правий, в цьому випадку секція outputs не потрібна, оскільки ти використовуєш $GITHUB_OUTPUT, який дозволяє передавати результати між кроками без необхідності явно оголошувати outputs на рівні job-и. Вивід через $GITHUB_OUTPUT автоматично доступний для інших кроків або job-ів без додаткового оголошення.
+Ось спрощений і правильний варіант конфігурації без зайвих секцій:
+
+yaml
+
+name: Build and Push Snapshot ETL
+
+on:
+  push:
+    tags:
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+
+jobs:
+  etl:
+    name: Build and Push Snapshot ETL
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check PR labels
+        id: check_labels
+        run: |
+          if [[ "${{ github.event.pull_request.labels[*] }}" == *"build-snapshot-etl"* ]]; then
+            echo "build_snapshot_etl=true" >> $GITHUB_OUTPUT
+          else
+            echo "build_snapshot_etl=false" >> $GITHUB_OUTPUT
+          fi
+
+  build-etl:
+    runs-on: ubuntu-latest
+    needs: etl
+    if: needs.etl.outputs.build_snapshot_etl == 'true'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker Image for Snapshot ETL
+        env:
+          APP: "solana-snapshot-etl"
+          REGISTRY: ghcr.io/${{ github.repository_owner }}/digital-asset-validator-plugin
+        working-directory: plerkle_snapshot
+        run: make build push
+
+      - name: Clean
+        run: make clean
+
+Основні моменти:
+
+    Немає потреби в секції outputs на рівні job-и etl, оскільки ми використовуємо $GITHUB_OUTPUT для передачі результату між кроками і job-ами.
+    Передача даних через $GITHUB_OUTPUT автоматично забезпечує доступ до значення build_snapshot_etl у наступній job через needs.etl.outputs.build_snapshot_etl.
+
+Це спрощує конфігурацію та робить її більш читабельною і ефективною.
+Ви сказали:
+ build-etl:
+    runs-on: ubuntu-latest
+    needs: etl
+    if: needs.etl.outputs.build_snapshot_etl == 'true'
+    steps: тут точно вірно?
+Програма ChatGPT сказала:
+ChatGPT
+
+Ні, у цьому випадку варто внести корективи. Хоча ти правильно намагаєшся використовувати результат з попередньої job, для передачі даних між job-ами потрібно коректно обробляти результат з $GITHUB_OUTPUT. Ось що потрібно виправити.
+Правильний підхід:
+
+    Ми використовуємо $GITHUB_OUTPUT для передачі результату з одного кроку (step) до наступного в межах тієї ж job.
+    Якщо ми хочемо використовувати результат з job etl у job build-etl, нам потрібно коректно передати цей результат через outputs на рівні job.
+
+Ось правильна конфігурація з використанням outputs на рівні job, щоб передати результат з однієї job до іншої:
+Оновлений YAML:
+
+yaml
+
+name: Build and Push Snapshot ETL
+
+on:
+  push:
+    tags:
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+
+jobs:
+  etl:
+    name: Build and Push Snapshot ETL
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    outputs:
+      build_snapshot_etl: ${{ steps.check_labels.outputs.build_snapshot_etl }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check PR labels
+        id: check_labels
+        run: |
+          if [[ "${{ github.event.pull_request.labels[*] }}" == *"build-snapshot-etl"* ]]; then
+            echo "build_snapshot_etl=true" >> $GITHUB_OUTPUT
+          else
+            echo "build_snapshot_etl=false" >> $GITHUB_OUTPUT
+          fi
+
+  build-etl:
+    runs-on: ubuntu-latest
+    needs: etl
+    if: needs.etl.outputs.build_snapshot_etl == 'true'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker Image for Snapshot ETL
+        env:
+          APP: "solana-snapshot-etl"
+          REGISTRY: ghcr.io/${{ github.repository_owner }}/digital-asset-validator-plugin
+        working-directory: plerkle_snapshot
+        run: make build push
+
+      - name: Clean
+        run: make clean
+
+Пояснення:
+
+    Використання секції outputs: У job etl тепер ми використовуємо секцію outputs, щоб передати результат з кроку check_labels у job build-etl.
+        outputs: build_snapshot_etl: ${{ steps.check_labels.outputs.build_snapshot_etl }} Це робить результат доступним у наступній job.
+
+    Перевірка умови в job build-etl: У job build-etl ми перевіряємо результат через:
+
+    yaml
+
+    if: needs.etl.outputs.build_snapshot_etl == 'true'
+
+    Це забезпечує виконання job build-etl тільки у випадку, коли лейбл build-snapshot-etl був присутній.
+
+Чому це важливо:
+
+Використання outputs на рівні job-ів забезпечує коректну передачу результатів між job-ами, що дозволяє умовно запускати наступну job (build-etl) на основі результатів попередньої (etl).
+Ви сказали:
+це оптимальний варіант
+чи можна зробити якось бест практіс
+Програма ChatGPT сказала:
+ChatGPT
+
+Для досягнення бест практис в GitHub Actions для сценарію з умовним білдом на основі лейблів можна покращити деякі аспекти, щоб зробити конфігурацію більш оптимальною, гнучкою та зручнішою для підтримки. Ось рекомендації для покращення:
+1. Робота з лейблами за допомогою офіційного GitHub Action:
+
+Замість використання Bash для перевірки лейблів, можна скористатися готовим GitHub Action для роботи з лейблами — наприклад, actions/github-script або actions/labeler. Це дозволяє уникнути ручної обробки виведення і зробити код чистішим.
+2. Зберігання виходів через файли стану:
+
+Використання $GITHUB_OUTPUT є правильним підходом для передачі значень між кроками. Важливо правильно організувати кроки, щоб зробити структуру прозорішою.
+Ось оновлений варіант з використанням бест практис:
+Оновлений YAML з GitHub Action для лейблів:
+
+yaml
+
+name: Build and Push Snapshot ETL
+
+on:
+  push:
+    tags:
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+
+jobs:
+  etl:
+    name: Check and Build Snapshot ETL
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if PR has 'build-snapshot-etl' label
+        id: check_label
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const labels = context.payload.pull_request.labels.map(label => label.name);
+            if (labels.includes('build-snapshot-etl')) {
+              return { shouldBuild: true };
+            }
+            return { shouldBuild: false };
+          result-encoding: string
+
+      - name: Set build flag
+        run: echo "build_snapshot_etl=${{ steps.check_label.outputs.shouldBuild }}" >> $GITHUB_OUTPUT
+
+  build-etl:
+    runs-on: ubuntu-latest
+    needs: etl
+    if: needs.etl.outputs.build_snapshot_etl == 'true'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker Image for Snapshot ETL
+        env:
+          APP: "solana-snapshot-etl"
+          REGISTRY: ghcr.io/${{ github.repository_owner }}/digital-asset-validator-plugin
+        working-directory: plerkle_snapshot
+        run: make build push
+
+      - name: Clean
+        run: make clean
+
+Що змінилося та чому це кращий підхід:
+
+    Офіційний GitHub Action для роботи з лейблами: Замість використання Bash для перевірки лейблів у PR, ми використовуємо actions/github-script, який дозволяє працювати з контекстом PR без необхідності ручної обробки через shell. Це спрощує логіку і робить її менш вразливою до помилок.
+
+    Структура кроків:
+        Використання outputs і передача значень між job-ами через needs залишається, що є стандартом у GitHub Actions для передачі станів між різними job-ами.
+
+    Краща читаємість:
+        Код став простішим і легшим для підтримки. Замість ручних перевірок лейблів через bash, ми використовуємо готовий механізм GitHub для взаємодії з лейблами.
+        Всі важливі дії логічно розбиті на окремі кроки, що полегшує дебагінг і масштабування.
+
+Додаткові покращення:
+
+    Обов'язковий review перед злиттям PR: Якщо білд виконується на основі лейблів PR, варто в налаштуваннях GitHub для гілки main вимагати review та перевірки статусу CI перед злиттям PR.
+
+    Перевірки перед злиттям: Можна також налаштувати обов’язкові перевірки (status checks), які повинні пройти перед злиттям PR, щоб забезпечити, що зміни успішно пройшли через CI/CD пайплайн.
+
+Застосування цих покращень допоможе зробити процес автоматизації білдів більш надійним, масштабованим та легким у підтримці.
+Ви сказали:
+  build-etl:
+    runs-on: ubuntu-latest
+    needs: etl
+    if: needs.etl.outputs.build_snapshot_etl == 'true'
+
+якщо ми змінити підхід навіщо тут 
+    if: needs.etl.outputs.build_snapshot_etl == 'true'
+Програма ChatGPT сказала:
+ChatGPT
+
+Якщо ми змінимо підхід і використовуємо GitHub Action для роботи з лейблами, а не встановлюємо умови вручну через if: needs.etl.outputs.build_snapshot_etl == 'true', то цей рядок дійсно може бути непотрібним. Ось пояснення.
+Пояснення:
+
+    Поточний підхід із if:
+        Ми використовували умову if: needs.etl.outputs.build_snapshot_etl == 'true', щоб вирішити, чи потрібно запускати job build-etl, на основі вихідних даних з попередньої job etl.
+        Це було необхідно, щоб забезпечити умовне виконання job на основі результату перевірки лейбла в попередній job.
+
+    Якщо змінюємо підхід: Якщо ми використовуємо actions/github-script для перевірки лейблів, то можна робити умовне виконання job безпосередньо в контексті, і тоді це дозволить повністю усунути використання if. Ми можемо не запускати цю job взагалі, якщо лейбл відсутній. Наприклад, можна скористатися GitHub Action для умовного запуску job на основі перевірки лейблів і відмовитися від внутрішньої умови if.
+
+Приклад, де if більше не потрібен:
+
+yaml
+
+name: Build and Push Snapshot ETL
+
+on:
+  push:
+    tags:
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+
+jobs:
+  etl:
+    name: Check if Snapshot ETL should be built
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if PR has 'build-snapshot-etl' label
+        id: check_label
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const labels = context.payload.pull_request.labels.map(label => label.name);
+            if (labels.includes('build-snapshot-etl')) {
+              return { shouldBuild: true };
+            } else {
+              return { shouldBuild: false };
+            }
+          result-encoding: string
+
+      - name: Set build flag
+        run: echo "build_snapshot_etl=${{ steps.check_label.outputs.shouldBuild }}" >> $GITHUB_OUTPUT
+
+  build-etl:
+    runs-on: ubuntu-latest
+    needs: etl
+    if: ${{ steps.check_label.outputs.shouldBuild == 'true' }}  # Умова базується на результаті перевірки
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker Image for Snapshot ETL
+        env:
+          APP: "solana-snapshot-etl"
+          REGISTRY: ghcr.io/${{ github.repository_owner }}/digital-asset-validator-plugin
+        working-directory: plerkle_snapshot
+        run: make build push
+
+      - name: Clean
+        run: make clean
+
+Пояснення змін:
+
+    Умова в самій job build-etl:
+        Ми більше не використовуємо проміжний результат через outputs з попередньої job. Тепер безпосередньо в кроці steps.check_label.outputs.shouldBuild перевіряється, чи лейбл build-snapshot-etl є присутнім.
+        Це дозволяє виконувати job build-etl тільки у випадку, якщо цей лейбл є у PR.
+
+    Якщо лейбл не встановлено:
+        Якщо лейбл відсутній, job build-etl взагалі не запускається. Це дозволяє уникнути запуску зайвих кроків і зробити процес більш ефективним.
+
+Чому це кращий варіант:
+
+    Ви уникаєте зайвих проміжних етапів з передачі значень між job-ами через outputs, зберігаючи всю логіку перевірки в одній job.
+    Це спрощує конфігурацію і зменшує ризик помилок, пов'язаних з неправильною передачею станів між job-ами.
+
+Ви сказали:
+Unrecognized named-value: 'steps'
+You can use the if conditional to prevent a job from running unless a condition is met. You can use any supported context and expression to create a conditional.
+
+Available expression contexts: github, inputs, vars, needs
+
+Available expression functions: always, failure, cancelled, success
+Програма ChatGPT сказала:
+ChatGPT
+
+Дякую за уточнення. Дійсно, ви не можете використовувати контекст steps у секції if на рівні job, оскільки steps доступні тільки всередині кроків (steps) в рамках однієї job. У секції if для job ви можете використовувати лише контексти, доступні на рівні job, такі як needs, github, inputs, vars.
+
+Щоб вирішити цю ситуацію, вам потрібно зробити перевірку на рівні job через секцію outputs у попередній job і передати результат через needs, що дозволить використовувати його у наступній job.
+Оновлений варіант з використанням outputs:
+
+    Передаємо результат перевірки лейбла через outputs з job etl.
+    Використовуємо результат через needs у job build-etl.
+
+Оновлений YAML:
+
+yaml
+
+name: Build and Push Snapshot ETL
+
+on:
+  push:
+    tags:
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+
+jobs:
+  etl:
+    name: Check if Snapshot ETL should be built
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    outputs:
+      build_snapshot_etl: ${{ steps.check_label.outputs.shouldBuild }}  # Вивід, який буде використаний у наступній job
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if PR has 'build-snapshot-etl' label
+        id: check_label
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const labels = context.payload.pull_request.labels.map(label => label.name);
+            if (labels.includes('build-snapshot-etl')) {
+              return { shouldBuild: true };
+            } else {
+              return { shouldBuild: false };
+          result-encoding: string
+
+  build-etl:
+    runs-on: ubuntu-latest
+    needs: etl
+    if: needs.etl.outputs.build_snapshot_etl == 'true'  # Умова на основі результату попередньої job
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker Image for Snapshot ETL
+        env:
+          APP: "solana-snapshot-etl"
+          REGISTRY: ghcr.io/${{ github.repository_owner }}/digital-asset-validator-plugin
+        working-directory: plerkle_snapshot
+        run: make build push
+
+      - name: Clean
+        run: make clean
+
+Пояснення:
+
+    Передача результату через outputs:
+        У job etl ми тепер зберігаємо результат перевірки лейбла (shouldBuild) через секцію outputs, щоб передати цей результат наступній job.
+
+    Умова на рівні job build-etl:
+        У job build-etl ми використовуємо контекст needs, щоб отримати результат з попередньої job і зробити перевірку через:
+
+        yaml
+
+        if: needs.etl.outputs.build_snapshot_etl == 'true'
+
+        Це забезпечує запуск job build-etl лише в тому випадку, якщо лейбл build-snapshot-etl був присутній у PR.
+
+Чому це правильний підхід:
+
+    Використання outputs на рівні job дозволяє передавати значення з однієї job до іншої, що є стандартним методом для таких сценаріїв в GitHub Actions.
+    Використання needs забезпечує доступ до результатів попередньої job у наступній job без зайвих кроків.
+
+Цей підхід є бест практис і дозволяє правильно керувати умовами для виконання job-ів на основі результатів попередніх job-ів.
+Ви сказали:
+
+Build and Push Snapshot ETL
+The set-output command is deprecated and will be disabled soon. Please upgrade to using Environment Files. For more information see: https://github.blog/changelog/2022-10-11-github-actions-deprecating-save-state-and-set-output-commands/
+Програма ChatGPT сказала:
+ChatGPT
+
+Згідно з новими вимогами GitHub Actions, команда ::set-output застаріла і замінюється використанням файлів середовища ($GITHUB_OUTPUT) для передачі вихідних даних між кроками і job-ами. Тому нам потрібно оновити конфігурацію, щоб використовувати новий метод.
+Як це виправити:
+
+Ми замінимо використання застарілої команди set-output на запис у файл $GITHUB_OUTPUT, щоб передавати результат між кроками і job-ами.
+Ось правильна версія з використанням файлів середовища:
+
+yaml
+
+name: Build and Push Snapshot ETL
+
+on:
+  push:
+    tags:
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+
+jobs:
+  etl:
+    name: Check if Snapshot ETL should be built
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    outputs:
+      build_snapshot_etl: ${{ steps.check_label.outputs.shouldBuild }}  # Вивід результату перевірки лейблу
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if PR has 'build-snapshot-etl' label
+        id: check_label
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const labels = context.payload.pull_request.labels.map(label => label.name);
+            if (labels.includes('build-snapshot-etl')) {
+              return { shouldBuild: 'true' };
+            } else {
+              return { shouldBuild: 'false' };
+        env:
+          GITHUB_OUTPUT: ${{ github.output }}  # Записуємо вивід в GITHUB_OUTPUT
+
+      - name: Set build flag
+        run: echo "build_snapshot_etl=${{ steps.check_label.outputs.shouldBuild }}" >> $GITHUB_OUTPUT  # Запис результату у файл
+
+  build-etl:
+    runs-on: ubuntu-latest
+    needs: etl
+    if: needs.etl.outputs.build_snapshot_etl == 'true'  # Використання результату перевірки лейблу
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker Image for Snapshot ETL
+        env:
+          APP: "solana-snapshot-etl"
+          REGISTRY: ghcr.io/${{ github.repository_owner }}/digital-asset-validator-plugin
+        working-directory: plerkle_snapshot
+        run: make build push
+
+      - name: Clean
+        run: make clean
+
+Основні зміни:
+
+    Використання $GITHUB_OUTPUT: Ми тепер використовуємо файл $GITHUB_OUTPUT для запису результату перевірки лейблу замість set-output.
+        Результат перевірки зберігається у файлі $GITHUB_OUTPUT через:
+
+        bash
+
+        echo "build_snapshot_etl=true" >> $GITHUB_OUTPUT
+
+    Передача значення між job-ами: Як і раніше, результат (build_snapshot_etl) передається між job-ами через секцію outputs.
+
+Це рішення відповідає останнім вимогам GitHub Actions і є оптимальним способом передачі даних між кроками і job-ами, враховуючи застарілість команди set-output.
+Ви сказали:
+треба додати дебаг інформації бо друга дроба скіпаєься
+Програма ChatGPT сказала:
+ChatGPT
+
+Щоб додати дебаг інформацію і зрозуміти, чому друга job (або job build-etl) скіпається, можна зробити кілька речей:
+
+    Додати дебаг вивід у кожному кроці для перевірки, що відбувається з перемінними і чи правильно передаються значення.
+    Активувати режим дебагу в GitHub Actions для детального логування.
+
+Оновлений приклад з додаванням дебаг інформації:
+
+    Вмикаємо режим дебагу: Для активації детального логування в GitHub Actions потрібно створити секрет ACTIONS_STEP_DEBUG з значенням true.
+        Перейдіть у ваш репозиторій на GitHub.
+        Перейдіть у розділ Settings -> Secrets -> Actions.
+        Додайте секрет з іменем ACTIONS_STEP_DEBUG і значенням true.
+
+    Додаємо дебаг у workflow: Включаємо дебаг повідомлення в кроках, щоб переконатися, що значення передаються коректно.
+
+Оновлений YAML:
+
+yaml
+
+name: Build and Push Snapshot ETL
+
+on:
+  push:
+    tags:
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+
+jobs:
+  etl:
+    name: Check if Snapshot ETL should be built
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    outputs:
+      build_snapshot_etl: ${{ steps.check_label.outputs.shouldBuild }}  # Вивід результату перевірки лейблу
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if PR has 'build-snapshot-etl' label
+        id: check_label
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const labels = context.payload.pull_request.labels.map(label => label.name);
+            if (labels.includes('build-snapshot-etl')) {
+              return { shouldBuild: 'true' };
+            } else {
+              return { shouldBuild: 'false' };
+        env:
+          GITHUB_OUTPUT: ${{ github.output }}  # Записуємо вивід в GITHUB_OUTPUT
+
+      - name: Set build flag
+        run: |
+          echo "build_snapshot_etl=${{ steps.check_label.outputs.shouldBuild }}" >> $GITHUB_OUTPUT
+          echo "::debug::The value of build_snapshot_etl is ${{ steps.check_label.outputs.shouldBuild }}"
+
+  build-etl:
+    runs-on: ubuntu-latest
+    needs: etl
+    if: needs.etl.outputs.build_snapshot_etl == 'true'
+    steps:
+      - name: Debugging Output
+        run: |
+          echo "::debug::Checking if the job should run based on the output"
+          echo "build_snapshot_etl=${{ needs.etl.outputs.build_snapshot_etl }}"
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker Image for Snapshot ETL
+        env:
+          APP: "solana-snapshot-etl"
+          REGISTRY: ghcr.io/${{ github.repository_owner }}/digital-asset-validator-plugin
+        working-directory: plerkle_snapshot
+        run: make build push
+
+      - name: Clean
+        run: make clean
+
+Що було додано:
+
+    Дебаг повідомлення в job etl:
+        Після того, як ми визначаємо значення build_snapshot_etl, додаємо дебаг повідомлення:
+
+        bash
+
+    echo "::debug::The value of build_snapshot_etl is ${{ steps.check_label.outputs.shouldBuild }}"
+
+Дебаг вивід в job build-etl:
+
+    Додаємо крок на початку job build-etl, щоб перевірити значення, яке передається з попередньої job:
+
+    bash
+
+        echo "build_snapshot_etl=${{ needs.etl.outputs.build_snapshot_etl }}"
+
+Що це дасть:
+
+    Детальний лог у виконанні workflow: Після запуску workflow в GitHub Actions ви зможете побачити, які значення насправді передаються між job-ами і чи коректно вони встановлені.
+    Режим дебагу дозволить побачити додаткову інформацію в логах для всіх кроків, що допоможе виявити проблему зі скіпом job.
+
+Ви сказали:
+
+Check if Snapshot ETL should be built
+Unhandled error: SyntaxError: Unexpected token ')'
+Check if Snapshot ETL should be built
+The following actions use a deprecated Node.js version and will be forced to run on node20: actions/github-script@v6. For more info: https://github.blog/changelog/2024-03-07-github-actions-all-actions-will-run-on-node20-instead-of-node16-by-default/
+
+
+GitHub Actions; All Actions will run on Node20 instead of Node16 by default
+
+    actions
+
+March 7, 2024
+
+Node16 has been out of support since September 2023. As a result we have started the deprecation process of Node16 for GitHub Actions. We plan to migrate all actions to run on Node20 by Spring 2024.
+Following on from our warning in workflows using Node16 we will start enforcing the use of Node20 rather than Node16 on the 3rd of June.
+
+If you would like to test this ahead of timer, you can choose to set
+FORCE_JAVASCRIPT_ACTIONS_TO_NODE20=true
+as an ‘env’ in their workflow or as an environment variable on your runner machine to force the use of Node20 now.
+
+To opt out of this and continue using Node16 while it is still available in the runner, you can choose to set ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true
+as an ‘env’ in their workflow or as an environment variable on your runner machine. This will only work until we upgrade the runner removing Node16 later in the spring.
+Removal of Operating System support for non-Node20 OS versions
+
+To support this change, we will be removing the Action runner support for the following operating systems which do not have official support for Node20:
+– Red Hat Enterprise Linux 7
+– CentOS 7
+– Oracle Linux 7
+– Debian 9
+– Ubuntu 16.04
+– Linux Mint 18
+– openSUSE 15
+– SUSE Enterprise Linux (SLES) 12 SP2
+– Windows 7 64-bit
+– Windows 8.1 64-bit
+
+To find out more about our currently supported OS versions, please read our public docs
+What you need to do
+
+For Actions maintainers: Update your actions to run on Node20 instead of Node16 (Actions configuration settings)
+For Actions users: Update your workflows with latest versions of the actions which runs on Node20 (Using versions for Actions)
+GitHub Support Portal redesign: Toward a more personalized future
+March 6, 2024
+
+    support
+
+We’re excited to announce the launch of our redesigned Support Portal! Our aim is to enhance your support experience, and we’ve tailored the portal with your needs in mind.
+
+The redesign focuses on increased user-friendliness, accessibility, and intuitive navigation, enabling us to provide you with more personalized content. This ensures you can quickly and easily find the answers you’re looking for.
+
+Whether you have a question, an issue, or a suggestion, our Support Portal is designed to help you get the most out of our products and services.
+
+Explore the new look at https://support.github.com and share your feedback with us!
+See more
+Group Configuration Options for Dependabot Security Updates – Public Beta
+March 6, 2024
+
+    advanced-securitydependabotsecurity-and-compliance
+
+Dependabot security updates help you keep your dependencies secure by opening pull requests when a Dependabot alert is raised. With today’s release, you can now use flexible grouping options in dependabot.yml to control how Dependabot structures its security pull requests to make them more mergeable for you based on your context. Whether you’d like to simply update as many dependencies at once as possible (patterns: '*') or minimize the risk of breaking changes (dependency-type: development or update-types: "patch"), there are grouping options for you.
+
+By specifying applies-to: security-updates in your group rule configuration, you can specify how you would like Dependabot to group your security updates. If you would like Dependabot to group together all possible updates for an ecosystem, you can instead use the UI located in your repository settings to do so. To learn more about this, check out our documentation here.
+
+The available grouping options are:
+
+    patterns, which will match based on package names
+    dependency-type, which will group based on development or production dependencies, for ecosystems where this is supported, and
+    update-types, which will group based on SemVer level update
+Програма ChatGPT сказала:
+ChatGPT
+
+Схоже, що ви зіткнулися з двома проблемами:
+
+    Помилка SyntaxError: Unexpected token ')' означає, що є помилка синтаксису в скрипті, який ви виконуєте через GitHub Action actions/github-script@v6.
+    Попередження про застарілу версію Node.js для actions/github-script@v6, що вимагає оновлення до Node.js 20.
+
+Виправлення помилки синтаксису
+
+Помилка синтаксису виникає через неправильне використання дужок. Ось правильний код для перевірки лейблів:
+Оновлений блок скрипту:
+
+yaml
+
+      - name: Check if PR has 'build-snapshot-etl' label
+        id: check_label
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const labels = context.payload.pull_request.labels.map(label => label.name);
+            const shouldBuild = labels.includes('build-snapshot-etl') ? 'true' : 'false';
+            return { shouldBuild };
+
+Попередження про застарілу версію Node.js
+
+Щоб виправити це попередження, потрібно або оновити до останньої версії дії github-script, яка підтримує Node.js 20, або ви можете явно вказати використання Node.js 20, додавши змінну середовища для примусового переходу на нову версію.
+Додавання змінної середовища для примусового використання Node.js 20:
+
+yaml
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true
+
+Повний оновлений workflow:
+
+yaml
+
+name: Build and Push Snapshot ETL
+
+on:
+  push:
+    tags:
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true  # Примусове використання Node.js 20
 
 jobs:
   etl:
@@ -21,6 +2484,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Check if PR has 'build-snapshot-etl' label
         id: check_label
         uses: actions/github-script@v6
@@ -29,6 +2493,305 @@ jobs:
             const labels = context.payload.pull_request.labels.map(label => label.name);
             const shouldBuild = labels.includes('build-snapshot-etl') ? 'true' : 'false';
             return { shouldBuild };
+
+      - name: Set build flag
+        run: |
+          echo "build_snapshot_etl=${{ steps.check_label.outputs.shouldBuild }}" >> $GITHUB_OUTPUT
+          echo "::debug::The value of build_snapshot_etl is ${{ steps.check_label.outputs.shouldBuild }}"
+
+  build-etl:
+    runs-on: ubuntu-latest
+    needs: etl
+    if: needs.etl.outputs.build_snapshot_etl == 'true'
+    steps:
+      - name: Debugging Output
+        run: |
+          echo "::debug::Checking if the job should run based on the output"
+          echo "build_snapshot_etl=${{ needs.etl.outputs.build_snapshot_etl }}"
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker Image for Snapshot ETL
+        env:
+          APP: "solana-snapshot-etl"
+          REGISTRY: ghcr.io/${{ github.repository_owner }}/digital-asset-validator-plugin
+        working-directory: plerkle_snapshot
+        run: make build push
+
+      - name: Clean
+        run: make clean
+
+Ви сказали:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true  # Примусове використання Node.js 20
+яку ми задачу вирішуємо
+навіщо це тут
+Програма ChatGPT сказала:
+ChatGPT
+
+Ви праві, це примусове використання Node.js 20 через змінну середовища (FORCE_JAVASCRIPT_ACTIONS_TO_NODE20) не є обов'язковим. В попередньому попередженні говориться, що GitHub планує автоматично оновити всі дії на Node.js 20 у майбутньому, але на цей момент це не є критичною зміною, якщо ваші дії вже працюють з новішими версіями.
+Що сталося:
+
+    У попередженні було зазначено, що всі дії будуть переведені на Node.js 20, і пропонувалося використовувати змінну середовища, щоб примусово тестувати цей перехід вже зараз.
+
+Чому це може бути не потрібно:
+
+    Якщо у вас немає явної необхідності використовувати Node.js 20 вже зараз, то немає потреби додавати цю змінну середовища. GitHub автоматично оновить ваші дії на Node.js 20 у майбутньому, і це не повинно вплинути на вашу поточну роботу.
+
+Висновок:
+
+Якщо у вас немає критичних проблем із сумісністю і ви не бажаєте тестувати дію на Node.js 20 прямо зараз, просто видаліть цю змінну середовища. Ось оновлена версія без неї:
+
+yaml
+
+name: Build and Push Snapshot ETL
+
+on:
+  push:
+    tags:
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+
+jobs:
+  etl:
+    name: Check if Snapshot ETL should be built
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    outputs:
+      build_snapshot_etl: ${{ steps.check_label.outputs.shouldBuild }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if PR has 'build-snapshot-etl' label
+        id: check_label
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const labels = context.payload.pull_request.labels.map(label => label.name);
+            const shouldBuild = labels.includes('build-snapshot-etl') ? 'true' : 'false';
+            return { shouldBuild };
+
+      - name: Set build flag
+        run: |
+          echo "build_snapshot_etl=${{ steps.check_label.outputs.shouldBuild }}" >> $GITHUB_OUTPUT
+          echo "::debug::The value of build_snapshot_etl is ${{ steps.check_label.outputs.shouldBuild }}"
+
+  build-etl:
+    runs-on: ubuntu-latest
+    needs: etl
+    if: needs.etl.outputs.build_snapshot_etl == 'true'
+    steps:
+      - name: Debugging Output
+        run: |
+          echo "::debug::Checking if the job should run based on the output"
+          echo "build_snapshot_etl=${{ needs.etl.outputs.build_snapshot_etl }}"
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker Image for Snapshot ETL
+        env:
+          APP: "solana-snapshot-etl"
+          REGISTRY: ghcr.io/${{ github.repository_owner }}/digital-asset-validator-plugin
+        working-directory: plerkle_snapshot
+        run: make build push
+
+      - name: Clean
+        run: make clean
+
+Тепер ви можете продовжити без примусового використання Node.js 20.
+Ви сказали:
+1 error and 1 warning
+Check if Snapshot ETL should be built
+Unhandled error: TypeError: Cannot read properties of undefined (reading 'labels')
+Check if Snapshot ETL should be built
+The following actions use a deprecated Node.js version and will be forced to run on node20: actions/github-script@v6. For more info: https://github.blog/changelog/2024-03-07-github-actions-all-actions-will-run-on-node20-instead-of-node16-by-default/
+Програма ChatGPT сказала:
+ChatGPT
+
+Помилка, яку ви отримуєте — "Cannot read properties of undefined (reading 'labels')", вказує на те, що контекст, з якого ви намагаєтеся отримати лейбли PR, є неправильним або не визначеним. Це може відбуватися, якщо workflow запускається не з Pull Request, а з іншої події (наприклад, з push події без PR).
+Причина проблеми:
+
+Ви використовуєте context.payload.pull_request.labels, але цей контекст існує тільки при запуску workflow з події Pull Request. У вашому випадку, оскільки workflow запускається на події push, контекст pull_request може бути відсутнім.
+Як виправити:
+
+    Перевірка, чи є pull_request у контексті: Потрібно спочатку перевірити, чи існує context.payload.pull_request, перш ніж намагатися отримати його лейбли.
+
+    Переконайтеся, що workflow правильно тригериться на події pull_request: Якщо ви хочете, щоб workflow запускався тільки на PR, потрібно додати подію pull_request у ваші тригери.
+
+Оновлений приклад з перевіркою контексту і виправленням помилки:
+
+yaml
+
+name: Build and Push Snapshot ETL
+
+on:
+  push:
+    tags:
+      - 'v*'  # Лише на глобальні теги для продакшн білдів
+  pull_request:  # Триггер на подію Pull Request
+    branches:
+      - main
+
+jobs:
+  etl:
+    name: Check if Snapshot ETL should be built
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    outputs:
+      build_snapshot_etl: ${{ steps.check_label.outputs.shouldBuild }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if PR has 'build-snapshot-etl' label
+        id: check_label
+        uses: actions/github-script@v6
+        with:
+          script: |
+            if (context.payload.pull_request) {
+              const labels = context.payload.pull_request.labels.map(label => label.name);
+              const shouldBuild = labels.includes('build-snapshot-etl') ? 'true' : 'false';
+              return { shouldBuild };
+            } else {
+              return { shouldBuild: 'false' };
+            }
+
+      - name: Set build flag
+        run: |
+          echo "build_snapshot_etl=${{ steps.check_label.outputs.shouldBuild }}" >> $GITHUB_OUTPUT
+          echo "::debug::The value of build_snapshot_etl is ${{ steps.check_label.outputs.shouldBuild }}"
+
+  build-etl:
+    runs-on: ubuntu-latest
+    needs: etl
+    if: needs.etl.outputs.build_snapshot_etl == 'true'
+    steps:
+      - name: Debugging Output
+        run: |
+          echo "::debug::Checking if the job should run based on the output"
+          echo "build_snapshot_etl=${{ needs.etl.outputs.build_snapshot_etl }}"
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker Image for Snapshot ETL
+        env:
+          APP: "solana-snapshot-etl"
+          REGISTRY: ghcr.io/${{ github.repository_owner }}/digital-asset-validator-plugin
+        working-directory: plerkle_snapshot
+        run: make build push
+
+      - name: Clean
+        run: make clean
+
+Що змінилося:
+
+    Триггер на подію pull_request: Тепер workflow буде запускатися не тільки на події push для тегів, але й на події pull_request для гілки main.
+
+    Перевірка контексту pull_request: Додано перевірку на наявність контексту pull_request, перш ніж намагатися отримати лейбли. Це дозволить уникнути помилок, коли контекст не існує (наприклад, при push події).
+
+Попередження про Node.js:
+
+Щодо попередження про Node.js: зараз немає потреби вживати негайних дій. GitHub автоматично перейде на Node.js 20 в майбутньому, і якщо це не викликає проблем, можете ігнорувати це попередження поки що або оновити версії дій, коли це буде необхідно.
+Ви сказали:
+я буду робити тег в мейн бранчу
+і тоді має запустить білд і тільки по лейблі
+врахуй це і запамятай
+Програма ChatGPT сказала:
+ChatGPT
+
+Дякую за уточнення! З урахуванням того, що ви будете робити тег у гілці main, і білд має запускатися тільки за наявності лейбла, я оновлю workflow відповідно до цього підходу.
+Оновлений workflow:
+
+    Білд запускається тільки при створенні тега в гілці main.
+    Перевіряється наявність лейбла перед запуском білду.
+
+yaml
+
+name: Build and Push Snapshot ETL
+
+on:
+  push:
+    tags:
+      - 'v*'
+jobs:
+  etl:
+    name: Check if Snapshot ETL should be built
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    outputs:
+      build_snapshot_etl: ${{ steps.check_label.outputs.shouldBuild }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if the 'build-snapshot-etl' label exists
+        id: check_label
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const pull_request = await github.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              sort: 'updated',
+              direction: 'desc',
+              per_page: 1
+            });
+            
+            if (pull_request.data.length > 0 && pull_request.data[0].labels.some(label => label.name === 'build-snapshot-etl')) {
+              return { shouldBuild: 'true' };
+            } else {
+              return { shouldBuild: 'false' };
+            }
 
       - name: Set build flag
         run: |
