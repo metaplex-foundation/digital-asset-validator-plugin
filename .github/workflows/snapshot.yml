@@ -22,7 +22,7 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            const commit_sha = github.context.sha;
+            const commit_sha = github.event.after || github.sha || github.context.sha;
             const { data: pullRequests } = await github.repos.listPullRequestsAssociatedWithCommit({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -41,6 +41,7 @@ jobs:
               console.log("No PR found for the commit.");
               core.setOutput("build_snapshot_etl", "false");
             }
+
   build-etl:
     runs-on: ubuntu-latest
     needs: check-label
