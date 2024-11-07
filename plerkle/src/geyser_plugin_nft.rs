@@ -98,6 +98,7 @@ pub(crate) struct Plerkle<'a> {
     account_event_cache: Arc<DashMap<u64, DashMap<Pubkey, (u64, SerializedData<'a>)>>>,
     transaction_event_cache: Arc<DashMap<u64, DashMap<Signature, (u64, SerializedData<'a>)>>>,
     conf_level: Option<SlotStatus>,
+    snapshot_parsing: bool,
 }
 
 trait PlerklePrivateMethods {
@@ -195,6 +196,24 @@ impl<'a> Plerkle<'a> {
             account_event_cache: Arc::new(DashMap::new()),
             transaction_event_cache: Arc::new(DashMap::new()),
             conf_level: None,
+            snapshot_parsing: false,
+        }
+    }
+
+    pub fn new_for_etl() -> Self {
+        init_logger();
+        Plerkle {
+            runtime: None,
+            accounts_selector: None,
+            transaction_selector: None,
+            sender: None,
+            started_at: None,
+            handle_startup: false,
+            slots_seen: Arc::new(Mutex::new(SlotStore::new())),
+            account_event_cache: Arc::new(DashMap::new()),
+            transaction_event_cache: Arc::new(DashMap::new()),
+            conf_level: None,
+            snapshot_parsing: true,
         }
     }
 
@@ -477,7 +496,7 @@ impl GeyserPlugin for Plerkle<'static> {
         slot: u64,
         is_startup: bool,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
-        if !self.handle_startup && is_startup {
+        if !self.snapshot_parsing && !self.handle_startup && is_startup {
             return Ok(());
         }
         let rep: plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaAccountInfoV2;
@@ -554,7 +573,7 @@ impl GeyserPlugin for Plerkle<'static> {
         let runtime = self.get_runtime()?;
         let sender = self.get_sender_clone()?;
 
-        if is_startup {
+        if is_startup || self.snapshot_parsing {
             Plerkle::send(sender, runtime, data)?;
         } else {
             let account_key = Pubkey::try_from(account.pubkey).expect("valid Pubkey");
@@ -781,6 +800,18 @@ impl GeyserPlugin for Plerkle<'static> {
 /// This function returns the GeyserPluginPostgres pointer as trait GeyserPlugin.
 pub unsafe extern "C" fn _create_plugin() -> *mut dyn GeyserPlugin {
     let plugin = Plerkle::new();
+    let plugin: Box<dyn GeyserPlugin> = Box::new(plugin);
+    Box::into_raw(plugin)
+}
+
+#[no_mangle]
+#[allow(improper_ctypes_definitions)]
+/// # Safety
+///
+/// This function returns the GeyserPluginPostgres pointer as trait GeyserPlugin.
+/// This binary has to be used for snapshot parsing.
+pub unsafe extern "C" fn _create_etl_plugin() -> *mut dyn GeyserPlugin {
+    let plugin = Plerkle::new_for_etl();
     let plugin: Box<dyn GeyserPlugin> = Box::new(plugin);
     Box::into_raw(plugin)
 }
