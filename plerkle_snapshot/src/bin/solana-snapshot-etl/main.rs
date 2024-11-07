@@ -116,7 +116,7 @@ unsafe fn load_plugin_inner(
     type PluginConstructor = unsafe fn() -> *mut dyn GeyserPlugin;
     // Load library and leak, as we never want to unload it.
     let lib = Box::leak(Box::new(Library::new(libpath)?));
-    let constructor: Symbol<PluginConstructor> = lib.get(b"_create_plugin")?;
+    let constructor: Symbol<PluginConstructor> = lib.get(b"_create_etl_plugin")?;
     // Unsafe call down to library.
     let plugin_raw = constructor();
     let mut plugin = Box::from_raw(plugin_raw);
