@@ -64,7 +64,7 @@ impl GeyserDumper {
                 write_version: account.meta.write_version,
             }),
             slot,
-            /* is_startup */ true,
+            /* is_startup */ false,
         )?;
         self.accounts_count += 1;
         if self.accounts_count % 1024 == 0 {

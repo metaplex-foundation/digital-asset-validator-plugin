@@ -496,7 +496,7 @@ impl GeyserPlugin for Plerkle<'static> {
         slot: u64,
         is_startup: bool,
     ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
-        if !self.snapshot_parsing && !self.handle_startup && is_startup {
+        if !self.handle_startup && is_startup {
             return Ok(());
         }
         let rep: plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaAccountInfoV2;
