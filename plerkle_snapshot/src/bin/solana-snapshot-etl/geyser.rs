@@ -1,9 +1,9 @@
 // TODO add multi-threading
 
-use indicatif::{ProgressBar, ProgressStyle};
-use solana_geyser_plugin_interface::geyser_plugin_interface::{
+use agave_geyser_plugin_interface::geyser_plugin_interface::{
     GeyserPlugin, ReplicaAccountInfo, ReplicaAccountInfoVersions,
 };
+use indicatif::{ProgressBar, ProgressStyle};
 use plerkle_snapshot::append_vec::{AppendVec, StoredAccountMeta};
 use plerkle_snapshot::append_vec_iter;
 use plerkle_snapshot::parallel::{AppendVecConsumer, GenericResult};

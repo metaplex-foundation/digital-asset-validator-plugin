@@ -12,8 +12,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
   IMAGE_NAME: plerkle-test-validator
-  RUST_VERSION: 1.75.0
-  SOLANA_VERSION_STABLE: v1.18.11
+  RUST_VERSION: 1.83.0
+  SOLANA_VERSION_STABLE: v2.0.15
 
 jobs:
   test-stable:
@@ -35,6 +35,7 @@ jobs:
           sudo apt-get install -y libudev-dev libssl-dev libsasl2-dev libzstd-dev
           sudo apt-get install -y openssl --allow-unauthenticated
           sudo apt-get install -y libssl1.1 --allow-unauthenticated
+          sudo apt-get install -y protobuf-compiler
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ env.RUST_VERSION }}
