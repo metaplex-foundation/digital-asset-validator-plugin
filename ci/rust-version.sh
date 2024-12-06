@@ -23,21 +23,20 @@
 if [[ -n $RUST_VERSION ]]; then
   stable_version="$RUST_VERSION"
 else
-  stable_version=1.69.0
+  stable_version=latest
 fi
 
 if [[ -n $RUST_NIGHTLY_VERSION ]]; then
   nightly_version="$RUST_NIGHTLY_VERSION"
 else
-  nightly_version=2022-04-01
+  nightly_version=latest
 fi
 
 
 export rust_stable="$stable_version"
-export rust_stable_docker_image=solanalabs/rust:"$stable_version"
+export rust_stable_docker_image=rust:"$stable_version"
 
-export rust_nightly=nightly-"$nightly_version"
-export rust_nightly_docker_image=solanalabs/rust-nightly:"$nightly_version"
+export rust_nightly_docker_image=shepmaster/rust-nightly:"$nightly_version"
 
 [[ -z $1 ]] || (
   rustup_install() {
@@ -56,11 +55,11 @@ export rust_nightly_docker_image=solanalabs/rust-nightly:"$nightly_version"
     rustup_install "$rust_stable"
     ;;
   nightly)
-    rustup_install "$rust_nightly"
+    rustup_install "nightly"
     ;;
   all)
     rustup_install "$rust_stable"
-    rustup_install "$rust_nightly"
+    rustup_install "nightly"
     ;;
   *)
     echo "$0: Note: ignoring unknown argument: $1" >&2

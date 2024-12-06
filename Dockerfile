@@ -1,6 +1,6 @@
-FROM rust:1.70.0
+FROM rust:1.83.0
 
-RUN apt-get update && apt install -y git curl
+RUN apt-get update && apt install -y git curl protobuf-compiler
 
 WORKDIR /app
 

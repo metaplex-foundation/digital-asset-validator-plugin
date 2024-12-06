@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use solana_geyser_plugin_interface::geyser_plugin_interface::GeyserPluginError;
+use agave_geyser_plugin_interface::geyser_plugin_interface::GeyserPluginError;
 
 #[derive(Error, Debug)]
 pub enum PlerkleError {
