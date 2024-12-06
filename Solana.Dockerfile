@@ -1,4 +1,4 @@
-ARG SOLANA_VERSION=v1.18.11
+ARG SOLANA_VERSION=v2.0.15
 ARG RUST_VERSION=1.83.0
 FROM rust:$RUST_VERSION-bullseye as builder
 RUN apt-get update \
@@ -12,8 +12,8 @@ RUN apt-get update \
            linux-headers-generic \
            pkg-config \
            curl \
-          cmake \
-          protobuf-compiler
+           cmake \
+           protobuf-compiler \
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
@@ -26,7 +26,7 @@ COPY Cargo.lock /rust/
 WORKDIR /rust
 RUN cargo build --release
 
-FROM solanalabs/solana:$SOLANA_VERSION
+FROM anzaxyz/agave:$SOLANA_VERSION
 COPY --from=builder /rust/target/release/libplerkle.so /plugin/plugin.so      
 COPY ./docker .
 RUN chmod +x ./*.sh
