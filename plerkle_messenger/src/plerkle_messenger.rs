@@ -56,7 +56,7 @@ pub trait Messenger: Sync + Send {
     ) -> Result<Vec<RecvData>, MessengerError>;
     async fn stream_size(&mut self, stream_key: &'static str) -> Result<u64, MessengerError>;
 
-    // Ack-ing messages is made a bit awkward by the current interface layout because
+    // Ack-ing messages are made a bit awkward by the current interface layout because
     // the sequence of msgs returned by `recv` will mutably borrow `self`, and calling
     // `ack_msg` need to do the same thing, which isn't possible while that returned `Vec`
     // is alive or the borrow checker complains. We can do stuff like making `recv` and `ack`
