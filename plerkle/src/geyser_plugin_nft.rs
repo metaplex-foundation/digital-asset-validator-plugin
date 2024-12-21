@@ -429,7 +429,7 @@ impl GeyserPlugin for Plerkle<'static> {
             let mut tasks = Vec::new();
             for worker in messenger_workers.into_iter() {
                 tasks.push(tokio::spawn(async move {
-                    let (mut reciever, mut messenger) = worker;
+                    let (mut receiver, mut messenger) = worker;
                     while let Some(data) = reciever.recv().await {
                         let start = Instant::now();
                         let bytes = data.builder.finished_data();
