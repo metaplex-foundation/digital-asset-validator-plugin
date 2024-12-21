@@ -56,7 +56,7 @@ jobs:
           name: STABLE ${{ env.CI_TAG }} 
           body: |
             ## STABLE VERSION: 
-            Reccomended for Mainnet
+            Recommended for Mainnet
             ${{ env.GEYSER_PLUGIN_NAME }} ${{ env.CI_TAG }}
             solana ${{ env.SOLANA_VERSION_STABLE }}
             rust ${{ env.RUST_VERSION }}
