@@ -84,7 +84,7 @@ The PLUGIN_MESSENGER_CONFIG determines which compiled messenger to select and a 
 ***Producer Configuration***
 
 - "pipeline_size_bytes" - Maximum command size, roughly equates to the payload size. This setting locally buffers bytes in a queue to be flushed when the buffer grows past the desired amount. Default is 512MB (max redis command size) / 1000, maximum is 512MB (max redis command size) / 1000. You should test your optimal size to avoid high send latency and avoid RTT.
-- "local_buffer_max_window" - Maximum time to wait for the buffer to fill be for flushing. For lower traffic you dont want to be waiting around so set a max window and it will send at a minumum of every X milliseconds . Default 10
+- "local_buffer_max_window" - Maximum time to wait for the buffer to fill be for flushing. For lower traffic you dont want to be waiting around so set a max window and it will send at a minimum of every X milliseconds . Default 10
 - "confirmation_level" - Can be one of "Processed", "Confirmed", "Rooted". Defaults to Processed which is the level we wait for before sending. "Processed" is essentially when we first see it which can on rare cases be reverted. "Confirmed" has extremley low likley hood of being reverted but takes longer (~1k ms in our testing) to show up. "Rooted" is impossible to revert but takes the longest.
 - "num_workers" - This is the number of workers who will pickup notifications from the plugin and send them to the messenger. Default is 5
 - "account_stream_size" - default value 100_000_000
@@ -108,7 +108,7 @@ PLUGIN_MESSENGER_CONFIG='{pipeline_size_bytes=50000000,local_buffer_max_window=5
 ***Consumer Configuration***
 
 - "retries" - Amount of times to deliver the message. If delivered this many times and not ACKed, then it is deleted
-- "batch_size" - Max Amout of messages to grab within the wait timeout window.
+- "batch_size" - Max Amount of messages to grab within the wait timeout window.
 - "message_wait_timeout" - Amount of time the consumer will keep the stream open and wait for messages 
 - "idle_timeout" - Amount of time a consumer can have the message before it goes back on the queue
 - "consumer_id" - VERY important. This is used to scale horizontally so messages arent duplicated over instances.Make sure this is different per instance
