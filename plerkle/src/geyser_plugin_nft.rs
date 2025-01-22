@@ -8,13 +8,17 @@ use dashmap::DashMap;
 use figment::{providers::Env, Figment};
 use flatbuffers::FlatBufferBuilder;
 use plerkle_messenger::{
-    select_messenger_stream, MessengerConfig, ACCOUNT_STREAM, BLOCK_STREAM, SLOT_STREAM, TRANSACTION_STREAM
+    select_messenger_stream, MessengerConfig, ACCOUNT_STREAM, BLOCK_STREAM, SLOT_STREAM,
+    TRANSACTION_STREAM,
 };
 use plerkle_serialization::serializer::{
     serialize_account, serialize_block, serialize_transaction,
 };
 use serde::Deserialize;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tokio::{
+    sync::mpsc::{unbounded_channel, UnboundedSender},
+    task::JoinSet,
+};
 
 use solana_geyser_plugin_interface::geyser_plugin_interface::{
     GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions, ReplicaBlockInfoVersions,
@@ -322,11 +326,10 @@ impl<'a> Plerkle<'a> {
 
     // Currently not used but may want later.
     pub fn _txn_contains_program<'b>(keys: AccountKeys, program: &Pubkey) -> bool {
-        keys.iter()
-            .any(|p| {
-                let d = *p;
-                d.eq(program)
-            })
+        keys.iter().any(|p| {
+            let d = *p;
+            d.eq(program)
+        })
     }
 }
 
@@ -426,9 +429,9 @@ impl GeyserPlugin for Plerkle<'static> {
                 messenger_workers.push(chan_msg);
                 worker_senders.push(send);
             }
-            let mut tasks = Vec::new();
+            let mut tasks = JoinSet::<()>::new();
             for worker in messenger_workers.into_iter() {
-                tasks.push(tokio::spawn(async move {
+                tasks.spawn(async move {
                     let (mut reciever, mut messenger) = worker;
                     while let Some(data) = reciever.recv().await {
                         let start = Instant::now();
@@ -449,10 +452,10 @@ impl GeyserPlugin for Plerkle<'static> {
                             );
                         };
                     }
-                }));
+                });
             }
 
-            tasks.push(tokio::spawn(async move {
+            tasks.spawn(async move {
                 let mut last_idx = 0;
                 while let Some(data) = main_receiver.recv().await {
                     let seen = data.seen_at.elapsed().as_millis() as u64;
@@ -478,7 +481,8 @@ impl GeyserPlugin for Plerkle<'static> {
                     last_idx = (last_idx + 1) % worker_senders.len();
 
                 }
-            }));
+            });
+            tasks.join_all().await;
 
         });
         self.sender = Some(sender);
