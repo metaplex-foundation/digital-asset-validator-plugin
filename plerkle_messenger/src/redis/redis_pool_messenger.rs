@@ -126,82 +126,81 @@ impl MessageStreamer for RedisPoolMessenger {
         }
     }
 
-    fn send(&mut self, stream_key: &'static str, bytes: &[u8]) -> Result<(), MessengerError> {
-        unreachable!()
-        // // Check if stream is configured.
-        // let stream = if let Some(stream) = self.streams.get_mut(stream_key) {
-        //     stream
-        // } else {
-        //     error!("Cannot send data for stream key {stream_key}, it is not configured");
-        //     return Ok(());
-        // };
-        //
-        // // Get max length for the stream.
-        // let maxlen = if let Some(maxlen) = stream.max_len {
-        //     maxlen
-        // } else {
-        //     error!("Cannot send data for stream key {stream_key}, buffer size not set.");
-        //     return Ok(());
-        // };
-        // stream.local_buffer.push_back(bytes.to_vec());
-        // stream.local_buffer_total += bytes.len();
-        // // Put serialized data into Redis.
-        // if stream.local_buffer_total < self.pipeline_size
-        //     && stream.local_buffer_last_flush.elapsed()
-        //         <= Duration::from_millis(self.pipeline_max_time as u64)
-        // {
-        //     debug!(
-        //         "Redis local buffer bytes {} and message pipeline size {} elapsed time {}ms",
-        //         stream.local_buffer_total,
-        //         stream.local_buffer.len(),
-        //         stream.local_buffer_last_flush.elapsed().as_millis()
-        //     );
-        // } else {
-        //     let mut pipe = redis::pipe();
-        //     pipe.atomic();
-        //     for bytes in stream.local_buffer.iter() {
-        //         pipe.xadd_maxlen(stream_key, maxlen, "*", &[(DATA_KEY, &bytes)]);
-        //     }
-        //
-        //     let mut tasks = JoinSet::new();
-        //
-        //     for connection in &self.connections_pool {
-        //         let mut connection = connection.clone();
-        //         let pipe = pipe.clone();
-        //         tasks.spawn(async move {
-        //             let result: Result<Vec<String>, redis::RedisError> =
-        //                 pipe.query_async(&mut connection).await;
-        //             if let Err(e) = result {
-        //                 error!("Redis send error: {e}");
-        //                 return Err(MessengerError::SendError { msg: e.to_string() });
-        //             }
-        //
-        //             Ok(())
-        //         });
-        //     }
-        //
-        //     while let Some(task) = tasks.join_next().await {
-        //         match task {
-        //             Ok(_) => {
-        //                 debug!("One of the message send tasks was finished")
-        //             }
-        //             Err(err) if err.is_panic() => {
-        //                 let msg = err.to_string();
-        //                 error!("Task panic during sending message to Redis: {:?}", err);
-        //                 return Err(MessengerError::SendError { msg });
-        //             }
-        //             Err(err) => {
-        //                 let msg = err.to_string();
-        //                 return Err(MessengerError::SendError { msg });
-        //             }
-        //         }
-        //     }
-        //
-        //     debug!("Data Sent to {}", stream_key);
-        //     stream.local_buffer.clear();
-        //     stream.local_buffer_total = 0;
-        //     stream.local_buffer_last_flush = Instant::now();
-        // }
-        // Ok(())
+    async fn send(&mut self, stream_key: &'static str, bytes: &[u8]) -> Result<(), MessengerError> {
+        // Check if stream is configured.
+        let stream = if let Some(stream) = self.streams.get_mut(stream_key) {
+            stream
+        } else {
+            error!("Cannot send data for stream key {stream_key}, it is not configured");
+            return Ok(());
+        };
+
+        // Get max length for the stream.
+        let maxlen = if let Some(maxlen) = stream.max_len {
+            maxlen
+        } else {
+            error!("Cannot send data for stream key {stream_key}, buffer size not set.");
+            return Ok(());
+        };
+        stream.local_buffer.push_back(bytes.to_vec());
+        stream.local_buffer_total += bytes.len();
+        // Put serialized data into Redis.
+        if stream.local_buffer_total < self.pipeline_size
+            && stream.local_buffer_last_flush.elapsed()
+                <= Duration::from_millis(self.pipeline_max_time as u64)
+        {
+            debug!(
+                "Redis local buffer bytes {} and message pipeline size {} elapsed time {}ms",
+                stream.local_buffer_total,
+                stream.local_buffer.len(),
+                stream.local_buffer_last_flush.elapsed().as_millis()
+            );
+        } else {
+            let mut pipe = redis::pipe();
+            pipe.atomic();
+            for bytes in stream.local_buffer.iter() {
+                pipe.xadd_maxlen(stream_key, maxlen, "*", &[(DATA_KEY, &bytes)]);
+            }
+
+            let mut tasks = JoinSet::new();
+
+            for connection in &self.connections_pool {
+                let mut connection = connection.clone();
+                let pipe = pipe.clone();
+                tasks.spawn(async move {
+                    let result: Result<Vec<String>, redis::RedisError> =
+                        pipe.query_async(&mut connection).await;
+                    if let Err(e) = result {
+                        error!("Redis send error: {e}");
+                        return Err(MessengerError::SendError { msg: e.to_string() });
+                    }
+
+                    Ok(())
+                });
+            }
+
+            while let Some(task) = tasks.join_next().await {
+                match task {
+                    Ok(_) => {
+                        debug!("One of the message send tasks was finished")
+                    }
+                    Err(err) if err.is_panic() => {
+                        let msg = err.to_string();
+                        error!("Task panic during sending message to Redis: {:?}", err);
+                        return Err(MessengerError::SendError { msg });
+                    }
+                    Err(err) => {
+                        let msg = err.to_string();
+                        return Err(MessengerError::SendError { msg });
+                    }
+                }
+            }
+
+            debug!("Data Sent to {}", stream_key);
+            stream.local_buffer.clear();
+            stream.local_buffer_total = 0;
+            stream.local_buffer_last_flush = Instant::now();
+        }
+        Ok(())
     }
 }

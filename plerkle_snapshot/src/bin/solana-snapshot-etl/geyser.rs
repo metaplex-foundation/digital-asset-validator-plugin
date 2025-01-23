@@ -1,37 +1,27 @@
 // TODO add multi-threading
 
-use async_trait::async_trait;
-use figment::value::Dict;
+use figment::value::{Map, Tag};
 use indicatif::{ProgressBar, ProgressStyle};
 use plerkle_messenger::redis_messenger::RedisMessenger;
 use plerkle_messenger::{MessageStreamer, MessengerConfig};
 use plerkle_serialization::serializer::serialize_account;
-use plerkle_snapshot::append_vec::{AppendVec, StoredMeta};
-use plerkle_snapshot::append_vec_iter;
-use plerkle_snapshot::parallel::{AppendVecConsumer, GenericResult};
+use plerkle_snapshot::append_vec::StoredMeta;
 use solana_geyser_plugin_interface::geyser_plugin_interface::ReplicaAccountInfo;
 use solana_sdk::account::{Account, AccountSharedData};
 use std::error::Error;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
-use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore};
+use tokio::sync::Mutex;
 
 const ACCOUNT_STREAM_KEY: &str = "ACC";
-const NUM_WORKERS: usize = 2000;
 
+#[derive(Clone)]
 pub(crate) struct GeyserDumper {
-    messenger: RedisMessenger,
+    messenger: Arc<Mutex<RedisMessenger>>,
     throttle_nanos: u64,
     pub accounts_spinner: ProgressBar,
-    pub accounts_count: AtomicU64,
+    pub accounts_count: Arc<AtomicU64>,
 }
-
-// #[async_trait]
-// impl AppendVecConsumer for GeyserDumper {
-//     async fn on_append_vec(&mut self, append_vec: AppendVec) -> GenericResult<()> {
-//         Ok(())
-//     }
-// }
 
 impl GeyserDumper {
     pub(crate) async fn new(throttle_nanos: u64) -> Self {
@@ -44,20 +34,22 @@ impl GeyserDumper {
             .with_style(spinner_style)
             .with_prefix("accs");
 
-        // let worker_semaphore = Arc::new(Semaphore::new(NUM_WORKERS));
-
-        let mut connection_config = Dict::new();
+        let mut connection_config = Map::new();
         connection_config.insert(
             "redis_connection_str".to_owned(),
-            figment::value::Value::from("redis://localhost:6379"),
+            figment::value::Value::String(
+                Tag::default(),
+                std::env::var("SNAPSHOT_REDIS_CONNECTION_STR").expect(
+                    "SNAPSHOT_REDIS_CONNECTION_STR must be present for snapshot processing",
+                ),
+            ),
         );
-        let config = MessengerConfig {
+        let mut messenger = RedisMessenger::new(MessengerConfig {
             messenger_type: plerkle_messenger::MessengerType::Redis,
             connection_config,
-        };
-        let mut messenger = RedisMessenger::new(config)
-            .await
-            .expect("create redis messenger");
+        })
+        .await
+        .expect("create redis messenger");
         messenger
             .add_stream(ACCOUNT_STREAM_KEY)
             .await
@@ -65,22 +57,19 @@ impl GeyserDumper {
         messenger
             .set_buffer_size(ACCOUNT_STREAM_KEY, 100_000_000)
             .await;
-        // let messenger = Arc::new(Mutex::new(messenger));
 
         Self {
-            // worker_semaphore,
-            messenger,
+            messenger: Arc::new(Mutex::new(messenger)),
             accounts_spinner,
-            accounts_count: AtomicU64::new(0),
+            accounts_count: Arc::new(AtomicU64::new(0)),
             throttle_nanos,
         }
     }
 
-    pub(crate) fn dump_account(
+    pub async fn dump_account(
         &mut self,
         (meta, account): (StoredMeta, AccountSharedData),
         slot: u64,
-        // _permit: OwnedSemaphorePermit,
     ) -> Result<(), Box<dyn Error>> {
         let account: Account = account.into();
         // Get runtime and sender channel.
@@ -109,23 +98,36 @@ impl GeyserDumper {
         let builder = serialize_account(builder, &account, slot, false);
         let data = builder.finished_data();
 
-        self.messenger.send(ACCOUNT_STREAM_KEY, data)?;
+        self.messenger
+            .lock()
+            .await
+            .send(ACCOUNT_STREAM_KEY, data)
+            .await?;
         let prev = self
             .accounts_count
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        // if (prev + 1) % 1024 == 0 {
         self.accounts_spinner.set_position(prev + 1);
-        // }
 
         if self.throttle_nanos > 0 {
-            std::thread::sleep(std::time::Duration::from_nanos(self.throttle_nanos));
+            tokio::time::sleep(std::time::Duration::from_nanos(self.throttle_nanos)).await;
         }
         Ok(())
     }
 
-    pub fn force_flush(mut self) {
-        self.messenger
+    pub async fn force_flush(self) {
+        self.accounts_spinner.set_position(
+            self.accounts_count
+                .load(std::sync::atomic::Ordering::Relaxed),
+        );
+        self.accounts_spinner
+            .finish_with_message("Finished processing snapshot!");
+        let messenger_mutex = Arc::into_inner(self.messenger)
+            .expect("reference count to messenger to be 0 when forcing flush at the end");
+
+        messenger_mutex
+            .into_inner()
             .force_flush()
-            .expect("force flush must succeed");
+            .await
+            .expect("force flush to succeed");
     }
 }
