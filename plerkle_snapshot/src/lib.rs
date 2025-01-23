@@ -4,6 +4,7 @@ use std::io::Read;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
+use solana_sdk::account::AccountSharedData;
 use thiserror::Error;
 
 pub mod append_vec;
@@ -20,6 +21,8 @@ use crate::solana::{
     deserialize_from, AccountsDbFields, DeserializableVersionedBank,
     SerializableAccountStorageEntry,
 };
+
+use self::append_vec::StoredMeta;
 
 const SNAPSHOTS_DIR: &str = "snapshots";
 
@@ -56,22 +59,22 @@ fn parse_append_vec_name(name: &OsStr) -> Option<(u64, u64)> {
     }
 }
 
-pub fn append_vec_iter(append_vec: Arc<AppendVec>) -> impl Iterator<Item = StoredAccountMetaHandle> {
+pub fn append_vec_iter(append_vec: AppendVec) -> impl Iterator<Item = (StoredMeta, AccountSharedData)> {
     let mut offsets = Vec::<usize>::new();
+    let mut metas = Vec::new();
     let mut offset = 0usize;
     loop {
         match append_vec.get_account(offset) {
             None => break,
-            Some((_, next_offset)) => {
+            Some((meta, next_offset)) => {
                 offsets.push(offset);
+                metas.push(meta.clone_account());
                 offset = next_offset;
             }
         }
     }
-    let append_vec = append_vec.clone();
-    offsets
-        .into_iter()
-        .map(move |offset| StoredAccountMetaHandle::new(append_vec.clone(), offset))
+
+    metas.into_iter()
 }
 
 pub struct StoredAccountMetaHandle {

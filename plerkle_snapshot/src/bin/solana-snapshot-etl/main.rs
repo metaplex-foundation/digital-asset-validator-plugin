@@ -6,15 +6,17 @@ use log::{error, info};
 use plerkle_snapshot::archived::ArchiveSnapshotExtractor;
 use plerkle_snapshot::parallel::AppendVecConsumer;
 use plerkle_snapshot::unpacked::UnpackedSnapshotExtractor;
-use plerkle_snapshot::{AppendVecIterator, ReadProgressTracking, SnapshotExtractor};
+use plerkle_snapshot::{
+    append_vec_iter, AppendVecIterator, ReadProgressTracking, SnapshotExtractor,
+};
 use reqwest::blocking::Response;
 use serde::Deserialize;
 use solana_geyser_plugin_interface::geyser_plugin_interface::GeyserPlugin;
-use tokio::task::JoinSet;
 use std::fs::File;
 use std::io::{IoSliceMut, Read};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use tokio::task::JoinSet;
 
 mod geyser;
 mod mpl_metadata;
@@ -57,19 +59,24 @@ async fn _main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut dumper = GeyserDumper::new(cfg.throttle_nanos).await;
     for append_vec in loader.iter() {
-        match append_vec {
-            Ok(v) => {
-                dumper.on_append_vec(v).await.unwrap_or_else(|error| {
-                    error!("on_append_vec: {:?}", error);
-                });
-            }
-            Err(error) => error!("append_vec: {:?}", error),
-        };
+        let append_vec = append_vec.unwrap();
+        let slot = append_vec.get_slot();
+
+        for account in append_vec_iter(append_vec) {
+            dumper
+                .dump_account(account, slot /* , permit */)
+                .expect("failed to dump account");
+        }
     }
 
+    info!(
+        "Done! Accounts: {}",
+        dumper
+            .accounts_count
+            .load(std::sync::atomic::Ordering::Relaxed)
+    );
 
-    tokio::time::sleep(Duration::from_secs(10)).await;
-    info!("Done!");
+    dumper.force_flush();
 
     Ok(())
 }
