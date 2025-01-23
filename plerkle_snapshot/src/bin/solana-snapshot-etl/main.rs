@@ -3,16 +3,18 @@ use clap::Parser;
 use indicatif::{ProgressBar, ProgressBarIter, ProgressStyle};
 use libloading::{Library, Symbol};
 use log::{error, info};
-use reqwest::blocking::Response;
-use serde::Deserialize;
-use solana_geyser_plugin_interface::geyser_plugin_interface::GeyserPlugin;
 use plerkle_snapshot::archived::ArchiveSnapshotExtractor;
 use plerkle_snapshot::parallel::AppendVecConsumer;
 use plerkle_snapshot::unpacked::UnpackedSnapshotExtractor;
 use plerkle_snapshot::{AppendVecIterator, ReadProgressTracking, SnapshotExtractor};
+use reqwest::blocking::Response;
+use serde::Deserialize;
+use solana_geyser_plugin_interface::geyser_plugin_interface::GeyserPlugin;
+use tokio::task::JoinSet;
 use std::fs::File;
 use std::io::{IoSliceMut, Read};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 mod geyser;
 mod mpl_metadata;
@@ -26,17 +28,18 @@ struct Args {
     geyser: String,
 }
 
-fn main() {
+#[tokio::main(flavor = "multi_thread")]
+async fn main() {
     env_logger::init_from_env(
         env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
     );
-    if let Err(e) = _main() {
+    if let Err(e) = _main().await {
         error!("{}", e);
         std::process::exit(1);
     }
 }
 
-fn _main() -> Result<(), Box<dyn std::error::Error>> {
+async fn _main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     let mut loader = SupportedLoader::new(&args.source, Box::new(LoadProgressTracking {}))?;
@@ -45,18 +48,18 @@ fn _main() -> Result<(), Box<dyn std::error::Error>> {
     let cfg = Config::read(&args.geyser)
         .map_err(|e| format!("Config error: {}", e.to_string()))
         .unwrap();
-    let plugin = unsafe { load_plugin(&cfg.geyser_conf_path, cfg.libpath)? };
+    // let plugin = unsafe { load_plugin(&cfg.geyser_conf_path, cfg.libpath)? };
 
-    assert!(
-        plugin.account_data_notifications_enabled(),
-        "Geyser plugin does not accept account data notifications"
-    );
+    // assert!(
+    //     plugin.account_data_notifications_enabled(),
+    //     "Geyser plugin does not accept account data notifications"
+    // );
 
-    let mut dumper = GeyserDumper::new(plugin, cfg.throttle_nanos);
+    let mut dumper = GeyserDumper::new(cfg.throttle_nanos).await;
     for append_vec in loader.iter() {
         match append_vec {
             Ok(v) => {
-                dumper.on_append_vec(v).unwrap_or_else(|error| {
+                dumper.on_append_vec(v).await.unwrap_or_else(|error| {
                     error!("on_append_vec: {:?}", error);
                 });
             }
@@ -64,6 +67,8 @@ fn _main() -> Result<(), Box<dyn std::error::Error>> {
         };
     }
 
+
+    tokio::time::sleep(Duration::from_secs(10)).await;
     info!("Done!");
 
     Ok(())

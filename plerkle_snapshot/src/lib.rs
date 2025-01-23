@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::ffi::OsStr;
 use std::io::Read;
 use std::path::Path;
-use std::rc::Rc;
 use std::str::FromStr;
+use std::sync::Arc;
 use thiserror::Error;
 
 pub mod append_vec;
@@ -56,7 +56,7 @@ fn parse_append_vec_name(name: &OsStr) -> Option<(u64, u64)> {
     }
 }
 
-pub fn append_vec_iter(append_vec: Rc<AppendVec>) -> impl Iterator<Item = StoredAccountMetaHandle> {
+pub fn append_vec_iter(append_vec: Arc<AppendVec>) -> impl Iterator<Item = StoredAccountMetaHandle> {
     let mut offsets = Vec::<usize>::new();
     let mut offset = 0usize;
     loop {
@@ -68,19 +68,19 @@ pub fn append_vec_iter(append_vec: Rc<AppendVec>) -> impl Iterator<Item = Stored
             }
         }
     }
-    let append_vec = Rc::clone(&append_vec);
+    let append_vec = append_vec.clone();
     offsets
         .into_iter()
-        .map(move |offset| StoredAccountMetaHandle::new(Rc::clone(&append_vec), offset))
+        .map(move |offset| StoredAccountMetaHandle::new(append_vec.clone(), offset))
 }
 
 pub struct StoredAccountMetaHandle {
-    append_vec: Rc<AppendVec>,
+    append_vec: Arc<AppendVec>,
     offset: usize,
 }
 
 impl StoredAccountMetaHandle {
-    pub fn new(append_vec: Rc<AppendVec>, offset: usize) -> StoredAccountMetaHandle {
+    pub fn new(append_vec: Arc<AppendVec>, offset: usize) -> StoredAccountMetaHandle {
         Self { append_vec, offset }
     }
 
