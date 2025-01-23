@@ -1,18 +1,19 @@
 use crate::geyser::GeyserDumper;
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressBarIter, ProgressStyle};
-use libloading::{Library, Symbol};
 use log::{error, info};
-use reqwest::blocking::Response;
-use serde::Deserialize;
-use solana_geyser_plugin_interface::geyser_plugin_interface::GeyserPlugin;
+use plerkle::geyser_plugin_nft::Plerkle;
 use plerkle_snapshot::archived::ArchiveSnapshotExtractor;
 use plerkle_snapshot::parallel::AppendVecConsumer;
 use plerkle_snapshot::unpacked::UnpackedSnapshotExtractor;
 use plerkle_snapshot::{AppendVecIterator, ReadProgressTracking, SnapshotExtractor};
+use reqwest::blocking::Response;
+use serde::Deserialize;
+use solana_geyser_plugin_interface::geyser_plugin_interface::GeyserPlugin;
 use std::fs::File;
 use std::io::{IoSliceMut, Read};
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::sync::Arc;
 
 mod geyser;
 mod mpl_metadata;
@@ -27,16 +28,19 @@ struct Args {
 }
 
 fn main() {
-    env_logger::init_from_env(
-        env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
-    );
-    if let Err(e) = _main() {
+    plerkle::config::init_logger();
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_name("solana-snapshot-etl")
+        .build()
+        .expect("create tokio runtime");
+    if let Err(e) = run(runtime) {
         error!("{}", e);
         std::process::exit(1);
     }
 }
 
-fn _main() -> Result<(), Box<dyn std::error::Error>> {
+fn run(runtime: tokio::runtime::Runtime) -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     let mut loader = SupportedLoader::new(&args.source, Box::new(LoadProgressTracking {}))?;
@@ -45,7 +49,8 @@ fn _main() -> Result<(), Box<dyn std::error::Error>> {
     let cfg = Config::read(&args.geyser)
         .map_err(|e| format!("Config error: {}", e.to_string()))
         .unwrap();
-    let plugin = unsafe { load_plugin(&cfg.geyser_conf_path, cfg.libpath)? };
+    let mut plugin = Plerkle::new_for_etl(Arc::new(runtime));
+    plugin.on_load(&args.geyser, false).expect("setup plugin");
 
     assert!(
         plugin.account_data_notifications_enabled(),
@@ -64,6 +69,7 @@ fn _main() -> Result<(), Box<dyn std::error::Error>> {
         };
     }
 
+    dumper.finish();
     info!("Done!");
 
     Ok(())
@@ -85,43 +91,6 @@ impl Config {
 
         Ok(c)
     }
-}
-
-/// # Safety
-///
-/// This function loads the dynamically linked library specified in the config file.
-///
-/// Causes memory corruption/UB on mismatching rustc or Solana versions, or if you look at the wrong way.
-pub unsafe fn load_plugin(
-    config_file: &str,
-    libpath: String,
-) -> Result<Box<dyn GeyserPlugin>, Box<dyn std::error::Error>> {
-    println!("{}", libpath);
-    let config_path = PathBuf::from(config_file);
-    let mut libpath = PathBuf::from(libpath.as_str());
-    if libpath.is_relative() {
-        let config_dir = config_path
-            .parent()
-            .expect("failed to resolve parent of Geyser config file");
-        libpath = config_dir.join(libpath);
-    }
-
-    load_plugin_inner(&libpath, &config_path.to_string_lossy())
-}
-
-unsafe fn load_plugin_inner(
-    libpath: &Path,
-    config_file: &str,
-) -> Result<Box<dyn GeyserPlugin>, Box<dyn std::error::Error>> {
-    type PluginConstructor = unsafe fn() -> *mut dyn GeyserPlugin;
-    // Load library and leak, as we never want to unload it.
-    let lib = Box::leak(Box::new(Library::new(libpath)?));
-    let constructor: Symbol<PluginConstructor> = lib.get(b"_create_etl_plugin")?;
-    // Unsafe call down to library.
-    let plugin_raw = constructor();
-    let mut plugin = Box::from_raw(plugin_raw);
-    plugin.on_load(config_file, false)?;
-    Ok(plugin)
 }
 
 struct LoadProgressTracking {}

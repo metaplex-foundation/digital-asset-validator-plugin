@@ -31,8 +31,6 @@ crossbeam = { version = "0.8.2", optional = true }
 csv = { version = "1.1.6", optional = true }
 env_logger = { version = "0.10.0", optional = true }
 indicatif = { version = "0.17.0-rc.11", optional = true }
-libloading = { version = "0.8.1", optional = true }
-num_cpus = { version = "1.13.1", optional = true }
 reqwest = { version = "0.11.11", features = ["blocking"], optional = true }
 rusqlite = { version = "0.29.0", features = ["bundled"], optional = true }
 serde_json = { version = "1.0.82", optional = true }
@@ -41,25 +39,35 @@ solana-program = { version = "~1.18.11", optional = true }
 solana_rbpf = { version = "0.7.2", optional = true }
 spl-token = { version = "4.0.0", optional = true }
 json5 = { version = "0.4.1", optional = true }
+plerkle = { path = "../plerkle", optional = true }
+tokio = { version = "1.23.0", features = ["full"], optional = true }
+tracing = { version = "0.1.37", optional = true }
+tracing-subscriber = { version = "0.3.16", features = [
+  "json",
+  "env-filter",
+  "ansi",
+], optional = true }
 
 [features]
 parallel = []
 standalone = [
-    "borsh",
-    "crossbeam",
-    "csv",
-    "env_logger",
-    "indicatif",
-    "libloading",
-    "num_cpus",
+    "dep:borsh",
+    "dep:crossbeam",
+    "dep:csv",
+    "dep:env_logger",
+    "dep:indicatif",
     "parallel",
-    "reqwest",
-    "rusqlite",
-    "serde_json",
-    "solana-geyser-plugin-interface",
-    "solana-program",
-    "spl-token",
-    "json5",
+    "dep:reqwest",
+    "dep:rusqlite",
+    "dep:serde_json",
+    "dep:solana-geyser-plugin-interface",
+    "dep:solana-program",
+    "dep:spl-token",
+    "dep:json5",
+    "dep:plerkle",
+    "dep:tokio",
+    "dep:tracing",
+    "dep:tracing-subscriber",
 ]
 opcode_stats = [
     "solana_rbpf",

@@ -1,19 +1,21 @@
 // TODO add multi-threading
 
 use indicatif::{ProgressBar, ProgressStyle};
-use solana_geyser_plugin_interface::geyser_plugin_interface::{
-    GeyserPlugin, ReplicaAccountInfo, ReplicaAccountInfoVersions,
-};
+use plerkle::geyser_plugin_nft::Plerkle;
 use plerkle_snapshot::append_vec::{AppendVec, StoredAccountMeta};
 use plerkle_snapshot::append_vec_iter;
 use plerkle_snapshot::parallel::{AppendVecConsumer, GenericResult};
+use solana_geyser_plugin_interface::geyser_plugin_interface::{
+    GeyserPlugin, ReplicaAccountInfo, ReplicaAccountInfoVersions,
+};
 use std::error::Error;
 use std::rc::Rc;
+use std::sync::Arc;
 
-pub(crate) struct GeyserDumper {
+pub struct GeyserDumper {
     throttle_nanos: u64,
     accounts_spinner: ProgressBar,
-    plugin: Box<dyn GeyserPlugin>,
+    plugin: Arc<Plerkle<'static>>,
     accounts_count: u64,
 }
 
@@ -30,7 +32,7 @@ impl AppendVecConsumer for GeyserDumper {
 }
 
 impl GeyserDumper {
-    pub(crate) fn new(plugin: Box<dyn GeyserPlugin>, throttle_nanos: u64) -> Self {
+    pub(crate) fn new(plugin: Plerkle<'static>, throttle_nanos: u64) -> Self {
         // TODO dedup spinner definitions
         let spinner_style = ProgressStyle::with_template(
             "{prefix:>10.bold.dim} {spinner} rate={per_sec}/s total={human_pos}",
@@ -42,7 +44,7 @@ impl GeyserDumper {
 
         Self {
             accounts_spinner,
-            plugin,
+            plugin: Arc::new(plugin),
             accounts_count: 0,
             throttle_nanos,
         }
@@ -76,10 +78,8 @@ impl GeyserDumper {
         }
         Ok(())
     }
-}
 
-impl Drop for GeyserDumper {
-    fn drop(&mut self) {
-        self.accounts_spinner.finish();
+    pub fn finish(&self) {
+        self.accounts_spinner.finish()
     }
 }

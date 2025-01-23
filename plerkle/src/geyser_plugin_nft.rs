@@ -91,8 +91,8 @@ impl SlotStore {
 }
 
 #[derive(Default)]
-pub(crate) struct Plerkle<'a> {
-    runtime: Option<Runtime>,
+pub struct Plerkle<'a> {
+    runtime: Option<Arc<Runtime>>,
     accounts_selector: Option<AccountsSelector>,
     transaction_selector: Option<TransactionSelector>,
     sender: Option<UnboundedSender<SerializedData<'a>>>,
@@ -204,10 +204,9 @@ impl<'a> Plerkle<'a> {
         }
     }
 
-    pub fn new_for_etl() -> Self {
-        init_logger();
+    pub fn new_for_etl(runtime: Arc<tokio::runtime::Runtime>) -> Self {
         Plerkle {
-            runtime: None,
+            runtime: Some(runtime),
             accounts_selector: None,
             transaction_selector: None,
             sender: None,
@@ -223,22 +222,18 @@ impl<'a> Plerkle<'a> {
 
     fn send(
         sender: UnboundedSender<SerializedData<'static>>,
-        runtime: &tokio::runtime::Runtime,
         data: SerializedData<'static>,
     ) -> Result<()> {
-        // Send account info over channel.
-        runtime.spawn(async move {
-            let s = sender.send(data);
-            match s {
-                Ok(_) => {}
-                Err(e) => {
-                    metric! {
-                        statsd_count!("plerkle.send_error", 1, "error" => "main_send_error");
-                    }
-                    error!("Error sending data: {}", e);
+        let s = sender.send(data);
+        match s {
+            Ok(_) => {}
+            Err(e) => {
+                metric! {
+                    statsd_count!("plerkle.send_error", 1, "error" => "main_send_error");
                 }
+                error!("Error sending data: {}", e);
             }
-        });
+        }
         Ok(())
     }
 
@@ -389,13 +384,16 @@ impl GeyserPlugin for Plerkle<'static> {
             }
         }
 
-        let runtime = Builder::new_multi_thread()
-            .enable_all()
-            .thread_name("plerkle-runtime-worker")
-            .build()
-            .map_err(|err| GeyserPluginError::ConfigFileReadError {
-                msg: format!("Could not create tokio runtime: {:?}", err),
-            })?;
+        if self.runtime.is_none() {
+            let runtime = Builder::new_multi_thread()
+                .enable_all()
+                .thread_name("plerkle-runtime-worker")
+                .build()
+                .map_err(|err| GeyserPluginError::ConfigFileReadError {
+                    msg: format!("Could not create tokio runtime: {:?}", err),
+                })?;
+            self.runtime = Some(Arc::new(runtime));
+        }
 
         let (sender, mut main_receiver) = unbounded_channel::<SerializedData>();
         let config: PluginConfig = Figment::new()
@@ -407,7 +405,9 @@ impl GeyserPlugin for Plerkle<'static> {
         self.conf_level = config.confirmation_level.map(|c| c.into());
         let workers_num = config.num_workers.unwrap_or(NUM_WORKERS);
 
-        runtime.spawn(async move {
+        self.sender = Some(sender);
+
+        self.runtime.as_ref().unwrap().spawn(async move {
             let mut messenger_workers = Vec::with_capacity(workers_num);
             let mut worker_senders = Vec::with_capacity(workers_num);
             for _ in 0..workers_num {
@@ -485,8 +485,6 @@ impl GeyserPlugin for Plerkle<'static> {
             tasks.join_all().await;
 
         });
-        self.sender = Some(sender);
-        self.runtime = Some(runtime);
         Ok(())
     }
 
@@ -574,11 +572,10 @@ impl GeyserPlugin for Plerkle<'static> {
             builder,
             seen_at: seen,
         };
-        let runtime = self.get_runtime()?;
         let sender = self.get_sender_clone()?;
 
         if is_startup || self.snapshot_parsing {
-            Plerkle::send(sender, runtime, data)?;
+            Plerkle::send(sender, data)?;
         } else {
             let account_key = Pubkey::try_from(account.pubkey).expect("valid Pubkey");
             let cache = self.account_event_cache.get_mut(&slot);
@@ -636,8 +633,7 @@ impl GeyserPlugin for Plerkle<'static> {
                 for (_, event) in events.into_iter() {
                     info!("Sending Account event for stream: {:?}", event.1.stream);
                     let sender = self.get_sender_clone()?;
-                    let runtime = self.get_runtime()?;
-                    Plerkle::send(sender, runtime, event.1)?;
+                    Plerkle::send(sender, event.1)?;
                 }
             }
 
@@ -647,8 +643,7 @@ impl GeyserPlugin for Plerkle<'static> {
                 for (_, event) in events.into_iter() {
                     info!("Sending Transction event for stream: {:?}", event.1.stream);
                     let sender = self.get_sender_clone()?;
-                    let runtime = self.get_runtime()?;
-                    Plerkle::send(sender, runtime, event.1)?;
+                    Plerkle::send(sender, event.1)?;
                 }
             }
 
@@ -804,18 +799,6 @@ impl GeyserPlugin for Plerkle<'static> {
 /// This function returns the GeyserPluginPostgres pointer as trait GeyserPlugin.
 pub unsafe extern "C" fn _create_plugin() -> *mut dyn GeyserPlugin {
     let plugin = Plerkle::new();
-    let plugin: Box<dyn GeyserPlugin> = Box::new(plugin);
-    Box::into_raw(plugin)
-}
-
-#[no_mangle]
-#[allow(improper_ctypes_definitions)]
-/// # Safety
-///
-/// This function returns the GeyserPluginPostgres pointer as trait GeyserPlugin.
-/// This binary has to be used for snapshot parsing.
-pub unsafe extern "C" fn _create_etl_plugin() -> *mut dyn GeyserPlugin {
-    let plugin = Plerkle::new_for_etl();
     let plugin: Box<dyn GeyserPlugin> = Box::new(plugin);
     Box::into_raw(plugin)
 }
