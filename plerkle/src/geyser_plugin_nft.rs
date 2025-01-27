@@ -8,7 +8,8 @@ use dashmap::DashMap;
 use figment::{providers::Env, Figment};
 use flatbuffers::FlatBufferBuilder;
 use plerkle_messenger::{
-    select_messenger_stream, MessengerConfig, ACCOUNT_STREAM, BLOCK_STREAM, SLOT_STREAM, TRANSACTION_STREAM
+    select_messenger_stream, MessengerConfig, ACCOUNT_STREAM, BLOCK_STREAM, SLOT_STREAM,
+    TRANSACTION_STREAM,
 };
 use plerkle_serialization::serializer::{
     serialize_account, serialize_block, serialize_transaction,
@@ -16,7 +17,7 @@ use plerkle_serialization::serializer::{
 use serde::Deserialize;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
-use solana_geyser_plugin_interface::geyser_plugin_interface::{
+use agave_geyser_plugin_interface::geyser_plugin_interface::{
     GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions, ReplicaBlockInfoVersions,
     ReplicaTransactionInfoVersions, Result, SlotStatus,
 };
@@ -137,6 +138,17 @@ impl<'a> PlerklePrivateMethods for Plerkle<'a> {
                 }
             }
             ReplicaBlockInfoVersions::V0_0_3(block_info) => {
+                plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaBlockInfoV2 {
+                    parent_slot: 0,
+                    parent_blockhash: "",
+                    slot: block_info.slot,
+                    blockhash: block_info.blockhash,
+                    block_time: block_info.block_time,
+                    block_height: block_info.block_height,
+                    executed_transaction_count: 0,
+                }
+            }
+            ReplicaBlockInfoVersions::V0_0_4(block_info) => {
                 plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaBlockInfoV2 {
                     parent_slot: 0,
                     parent_blockhash: "",
@@ -322,11 +334,10 @@ impl<'a> Plerkle<'a> {
 
     // Currently not used but may want later.
     pub fn _txn_contains_program<'b>(keys: AccountKeys, program: &Pubkey) -> bool {
-        keys.iter()
-            .any(|p| {
-                let d = *p;
-                d.eq(program)
-            })
+        keys.iter().any(|p| {
+            let d = *p;
+            d.eq(program)
+        })
     }
 }
 
@@ -495,7 +506,7 @@ impl GeyserPlugin for Plerkle<'static> {
         account: ReplicaAccountInfoVersions,
         slot: u64,
         is_startup: bool,
-    ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
+    ) -> agave_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
         if !self.handle_startup && is_startup {
             return Ok(());
         }
@@ -602,7 +613,7 @@ impl GeyserPlugin for Plerkle<'static> {
 
     fn notify_end_of_startup(
         &self,
-    ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
+    ) -> agave_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
         metric! {
             statsd_time!("startup.timer", self.started_at.unwrap().elapsed());
         }
@@ -615,7 +626,7 @@ impl GeyserPlugin for Plerkle<'static> {
         slot: u64,
         parent: Option<u64>,
         status: SlotStatus,
-    ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
+    ) -> agave_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
         info!("Slot status update: {:?} {:?}", slot, status);
         if status == SlotStatus::Processed && parent.is_some() {
             let mut seen = self
@@ -676,7 +687,7 @@ impl GeyserPlugin for Plerkle<'static> {
         &self,
         transaction_info: ReplicaTransactionInfoVersions,
         slot: u64,
-    ) -> solana_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
+    ) -> agave_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
         let seen = Instant::now();
         let rep: plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaTransactionInfoV2;
         let transaction_info = match transaction_info {
