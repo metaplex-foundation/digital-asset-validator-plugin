@@ -1249,6 +1249,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "dotenvy"
+version = "0.15.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
+
+[[package]]
 name = "downcast"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1344,19 +1350,6 @@ checksum = "a12e6657c4c97ebab115a42dcee77225f7f482cdd841cf7088c657a42e9e00e7"
 dependencies = [
  "atty",
  "humantime",
- "log",
- "regex",
- "termcolor",
-]
-
-[[package]]
-name = "env_logger"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cd405aab171cb85d6735e5c8d9db038c17d3ca007a4d2c25f337935c3d90580"
-dependencies = [
- "humantime",
- "is-terminal",
  "log",
  "regex",
  "termcolor",
@@ -1764,12 +1757,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d77f7ec81a6d05a3abb01ab6eb7590f6083d08449fe5a1c8b1e620283546ccb7"
 
 [[package]]
-name = "hermit-abi"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbf6a919d6cf397374f7dfeeea91d974c7c0a7221d0d0f4f20d859d329e53fcc"
-
-[[package]]
 name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2167,17 +2154,6 @@ name = "ipnet"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28b29a3cd74f0f4598934efe3aeba42bae0eb4680554128851ebbecb02af14e6"
-
-[[package]]
-name = "is-terminal"
-version = "0.4.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "261f68e344040fbd0edea105bef17c66edf46f984ddb1115b775ce31be948f4b"
-dependencies = [
- "hermit-abi 0.4.0",
- "libc",
- "windows-sys 0.52.0",
-]
 
 [[package]]
 name = "is_terminal_polyfill"
@@ -3075,12 +3051,16 @@ name = "plerkle_snapshot"
 version = "0.3.0"
 dependencies = [
  "agave-geyser-plugin-interface",
+ "async-trait",
  "bincode",
  "borsh 0.10.3",
+ "bs58 0.4.0",
  "clap",
  "crossbeam",
  "csv",
- "env_logger 0.10.2",
+ "dotenvy",
+ "figment",
+ "flatbuffers",
  "indicatif",
  "itertools 0.11.0",
  "json5",
@@ -3088,6 +3068,8 @@ dependencies = [
  "log",
  "memmap2 0.9.5",
  "num_cpus",
+ "plerkle_messenger",
+ "plerkle_serialization",
  "reqwest",
  "rusqlite",
  "serde",
@@ -3101,6 +3083,9 @@ dependencies = [
  "spl-token 4.0.0",
  "tar",
  "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
  "zstd 0.12.4",
 ]
 
@@ -4246,7 +4231,7 @@ version = "2.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4646954b1b99d7f5ecd8a4705a9ff3d7e3d223e170b5ea86fe7282c58755565"
 dependencies = [
- "env_logger 0.9.3",
+ "env_logger",
  "lazy_static",
  "log",
 ]
