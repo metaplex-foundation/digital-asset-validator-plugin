@@ -1,14 +1,14 @@
 // TODO add multi-threading
 
+use agave_geyser_plugin_interface::geyser_plugin_interface::{
+    GeyserPlugin, ReplicaAccountInfo, ReplicaAccountInfoVersions,
+};
 use figment::value::{Map, Tag};
 use indicatif::{ProgressBar, ProgressStyle};
 use plerkle_messenger::redis_messenger::RedisMessenger;
 use plerkle_messenger::{MessageStreamer, MessengerConfig};
 use plerkle_serialization::serializer::serialize_account;
 use plerkle_snapshot::append_vec::StoredMeta;
-use agave_geyser_plugin_interface::geyser_plugin_interface::{
-    GeyserPlugin, ReplicaAccountInfo, ReplicaAccountInfoVersions,
-};
 use solana_sdk::account::{Account, AccountSharedData};
 use std::error::Error;
 use std::sync::atomic::AtomicU64;
@@ -116,10 +116,8 @@ impl GeyserDumper {
     }
 
     pub async fn force_flush(self) {
-        self.accounts_spinner.set_position(
-            self.accounts_count
-                .load(Ordering::Relaxed),
-        );
+        self.accounts_spinner
+            .set_position(self.accounts_count.load(Ordering::Relaxed));
         self.accounts_spinner
             .finish_with_message("Finished processing snapshot!");
         let messenger_mutex = Arc::into_inner(self.messenger)

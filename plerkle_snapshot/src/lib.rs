@@ -1,10 +1,10 @@
+use solana_sdk::account::AccountSharedData;
 use std::cell::RefCell;
 use std::ffi::OsStr;
 use std::io::Read;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
-use solana_sdk::account::AccountSharedData;
 use thiserror::Error;
 
 pub mod append_vec;
@@ -59,7 +59,9 @@ fn parse_append_vec_name(name: &OsStr) -> Option<(u64, u64)> {
     }
 }
 
-pub fn append_vec_iter(append_vec: AppendVec) -> impl Iterator<Item = (StoredMeta, AccountSharedData)> {
+pub fn append_vec_iter(
+    append_vec: AppendVec,
+) -> impl Iterator<Item = (StoredMeta, AccountSharedData)> {
     let mut offsets = Vec::<usize>::new();
     let mut metas = Vec::new();
     let mut offset = 0usize;
