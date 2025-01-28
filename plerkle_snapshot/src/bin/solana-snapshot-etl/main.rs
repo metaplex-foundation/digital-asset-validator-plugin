@@ -2,17 +2,17 @@ use crate::geyser::GeyserDumper;
 use agave_geyser_plugin_interface::geyser_plugin_interface::GeyserPlugin;
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressBarIter, ProgressStyle};
-use libloading::{Library, Symbol};
-use log::{error, info};
 use plerkle_snapshot::archived::ArchiveSnapshotExtractor;
-use plerkle_snapshot::parallel::AppendVecConsumer;
 use plerkle_snapshot::unpacked::UnpackedSnapshotExtractor;
-use plerkle_snapshot::{AppendVecIterator, ReadProgressTracking, SnapshotExtractor};
+use plerkle_snapshot::{
+    append_vec_iter, AppendVecIterator, ReadProgressTracking, SnapshotExtractor,
+};
 use reqwest::blocking::Response;
 use serde::Deserialize;
 use std::fs::File;
 use std::io::{IoSliceMut, Read};
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use tracing::info;
 
 mod geyser;
 mod mpl_metadata;
@@ -26,17 +26,15 @@ struct Args {
     geyser: String,
 }
 
-fn main() {
-    env_logger::init_from_env(
-        env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
-    );
-    if let Err(e) = _main() {
-        error!("{}", e);
-        std::process::exit(1);
-    }
-}
+#[tokio::main(flavor = "multi_thread")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenvy::dotenv()?;
 
-fn _main() -> Result<(), Box<dyn std::error::Error>> {
+    let env_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .event_format(tracing_subscriber::fmt::format::json())
+        .init();
     let args = Args::parse();
 
     let mut loader = SupportedLoader::new(&args.source, Box::new(LoadProgressTracking {}))?;
@@ -45,26 +43,28 @@ fn _main() -> Result<(), Box<dyn std::error::Error>> {
     let cfg = Config::read(&args.geyser)
         .map_err(|e| format!("Config error: {}", e.to_string()))
         .unwrap();
-    let plugin = unsafe { load_plugin(&cfg.geyser_conf_path, cfg.libpath)? };
 
-    assert!(
-        plugin.account_data_notifications_enabled(),
-        "Geyser plugin does not accept account data notifications"
-    );
-
-    let mut dumper = GeyserDumper::new(plugin, cfg.throttle_nanos);
+    let mut dumper = GeyserDumper::new(cfg.throttle_nanos).await;
     for append_vec in loader.iter() {
-        match append_vec {
-            Ok(v) => {
-                dumper.on_append_vec(v).unwrap_or_else(|error| {
-                    error!("on_append_vec: {:?}", error);
-                });
-            }
-            Err(error) => error!("append_vec: {:?}", error),
-        };
+        let append_vec = append_vec.unwrap();
+        let slot = append_vec.get_slot();
+
+        for account in append_vec_iter(append_vec) {
+            dumper
+                .dump_account(account, slot)
+                .await
+                .expect("failed to dump account");
+        }
     }
 
-    info!("Done!");
+    info!(
+        "Done! Accounts: {}",
+        dumper
+            .accounts_count
+            .load(std::sync::atomic::Ordering::Relaxed)
+    );
+
+    dumper.force_flush().await;
 
     Ok(())
 }
@@ -85,43 +85,6 @@ impl Config {
 
         Ok(c)
     }
-}
-
-/// # Safety
-///
-/// This function loads the dynamically linked library specified in the config file.
-///
-/// Causes memory corruption/UB on mismatching rustc or Solana versions, or if you look at the wrong way.
-pub unsafe fn load_plugin(
-    config_file: &str,
-    libpath: String,
-) -> Result<Box<dyn GeyserPlugin>, Box<dyn std::error::Error>> {
-    println!("{}", libpath);
-    let config_path = PathBuf::from(config_file);
-    let mut libpath = PathBuf::from(libpath.as_str());
-    if libpath.is_relative() {
-        let config_dir = config_path
-            .parent()
-            .expect("failed to resolve parent of Geyser config file");
-        libpath = config_dir.join(libpath);
-    }
-
-    load_plugin_inner(&libpath, &config_path.to_string_lossy())
-}
-
-unsafe fn load_plugin_inner(
-    libpath: &Path,
-    config_file: &str,
-) -> Result<Box<dyn GeyserPlugin>, Box<dyn std::error::Error>> {
-    type PluginConstructor = unsafe fn() -> *mut dyn GeyserPlugin;
-    // Load library and leak, as we never want to unload it.
-    let lib = Box::leak(Box::new(Library::new(libpath)?));
-    let constructor: Symbol<PluginConstructor> = lib.get(b"_create_etl_plugin")?;
-    // Unsafe call down to library.
-    let plugin_raw = constructor();
-    let mut plugin = Box::from_raw(plugin_raw);
-    plugin.on_load(config_file, false)?;
-    Ok(plugin)
 }
 
 struct LoadProgressTracking {}

@@ -217,6 +217,34 @@ impl RedisMessenger {
         }
         Ok(retained_ids)
     }
+
+    pub async fn force_flush(mut self) -> Result<(), MessengerError> {
+        for (stream_key, mut stream) in self.streams.into_iter() {
+            // Get max length for the stream.
+            let maxlen = if let Some(maxlen) = stream.max_len {
+                maxlen
+            } else {
+                error!("Cannot send data for stream key {stream_key}, buffer size not set.");
+                return Ok(());
+            };
+            let mut pipe = redis::pipe();
+            for bytes in stream.local_buffer.iter() {
+                pipe.xadd_maxlen(stream_key, maxlen, "*", &[(DATA_KEY, &bytes)]);
+            }
+            let result: Result<Vec<String>, redis::RedisError> =
+                pipe.query_async(&mut self.connection).await;
+            if let Err(e) = result {
+                error!("Redis send error: {e}");
+                return Err(MessengerError::SendError { msg: e.to_string() });
+            } else {
+                debug!("Data Sent to {}", stream_key);
+                stream.local_buffer.clear();
+                stream.local_buffer_total = 0;
+                stream.local_buffer_last_flush = Instant::now();
+            }
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -333,10 +361,11 @@ impl MessageStreamer for RedisMessenger {
         );
 
         // Add stream to Redis.
-        let result: RedisResult<()> = self
-            .connection
-            .xgroup_create_mkstream(stream_key, self.consumer_group_name.as_str(), "$")
-            .await;
+        let result: RedisResult<()> = self.connection.xgroup_create_mkstream(
+            stream_key,
+            self.consumer_group_name.as_str(),
+            "$",
+        ).await;
 
         if let Err(e) = result {
             info!("Group already exists: {:?}", e)
@@ -385,12 +414,10 @@ impl MessageStreamer for RedisMessenger {
             return Ok(());
         } else {
             let mut pipe = redis::pipe();
-            pipe.atomic();
             for bytes in stream.local_buffer.iter() {
                 pipe.xadd_maxlen(stream_key, maxlen, "*", &[(DATA_KEY, &bytes)]);
             }
-            let result: Result<Vec<String>, redis::RedisError> =
-                pipe.query_async(&mut self.connection).await;
+            let result: Result<Vec<String>, redis::RedisError> = pipe.query_async(&mut self.connection).await;
             if let Err(e) = result {
                 error!("Redis send error: {e}");
                 return Err(MessengerError::SendError { msg: e.to_string() });
