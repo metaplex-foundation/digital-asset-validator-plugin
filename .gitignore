@@ -22,3 +22,5 @@ test-ledger
 programs
 docker/geyser-outputs
 docker/solana-outputs
+.env
+snapshot

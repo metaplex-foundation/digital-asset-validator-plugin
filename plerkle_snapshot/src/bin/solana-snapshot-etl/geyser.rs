@@ -1,20 +1,20 @@
 // TODO add multi-threading
 
-use agave_geyser_plugin_interface::geyser_plugin_interface::{
-    GeyserPlugin, ReplicaAccountInfo, ReplicaAccountInfoVersions,
-};
+use agave_geyser_plugin_interface::geyser_plugin_interface::ReplicaAccountInfo;
 use figment::value::{Map, Tag};
 use indicatif::{ProgressBar, ProgressStyle};
 use plerkle_messenger::redis_messenger::RedisMessenger;
 use plerkle_messenger::{MessageStreamer, MessengerConfig};
 use plerkle_serialization::serializer::serialize_account;
 use plerkle_snapshot::append_vec::StoredMeta;
-use solana_sdk::account::{Account, AccountSharedData};
+use solana_sdk::account::{Account, AccountSharedData, ReadableAccount};
 use std::error::Error;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+use crate::accounts_selector::AccountsSelector;
 
 const ACCOUNT_STREAM_KEY: &str = "ACC";
 
@@ -22,12 +22,13 @@ const ACCOUNT_STREAM_KEY: &str = "ACC";
 pub(crate) struct GeyserDumper {
     messenger: Arc<Mutex<RedisMessenger>>,
     throttle_nanos: u64,
+    accounts_selector: AccountsSelector,
     pub accounts_spinner: ProgressBar,
     pub accounts_count: Arc<AtomicU64>,
 }
 
 impl GeyserDumper {
-    pub(crate) async fn new(throttle_nanos: u64) -> Self {
+    pub(crate) async fn new(throttle_nanos: u64, accounts_selector: AccountsSelector) -> Self {
         // TODO dedup spinner definitions
         let spinner_style = ProgressStyle::with_template(
             "{prefix:>10.bold.dim} {spinner} rate={per_sec} total={human_pos}",
@@ -64,6 +65,7 @@ impl GeyserDumper {
         Self {
             messenger: Arc::new(Mutex::new(messenger)),
             accounts_spinner,
+            accounts_selector,
             accounts_count: Arc::new(AtomicU64::new(0)),
             throttle_nanos,
         }
@@ -74,38 +76,46 @@ impl GeyserDumper {
         (meta, account): (StoredMeta, AccountSharedData),
         slot: u64,
     ) -> Result<(), Box<dyn Error>> {
-        let account: Account = account.into();
-        // Get runtime and sender channel.
-        // Serialize data.
-        let ai = &ReplicaAccountInfo {
-            pubkey: meta.pubkey.as_ref(),
-            lamports: account.lamports,
-            owner: account.owner.as_ref(),
-            executable: account.executable,
-            rent_epoch: account.rent_epoch,
-            data: &account.data,
-            write_version: meta.write_version,
-        };
-        let account =
-            plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaAccountInfoV2 {
-                pubkey: ai.pubkey,
-                lamports: ai.lamports,
-                owner: ai.owner,
-                executable: ai.executable,
-                rent_epoch: ai.rent_epoch,
-                data: ai.data,
-                write_version: ai.write_version,
-                txn_signature: None,
+        if self
+            .accounts_selector
+            .is_account_selected(meta.pubkey.as_ref(), account.owner().as_ref())
+        {
+            let account: Account = account.into();
+            // Serialize data.
+            let ai = &ReplicaAccountInfo {
+                pubkey: meta.pubkey.as_ref(),
+                lamports: account.lamports,
+                owner: account.owner.as_ref(),
+                executable: account.executable,
+                rent_epoch: account.rent_epoch,
+                data: &account.data,
+                write_version: meta.write_version,
             };
-        let builder = flatbuffers::FlatBufferBuilder::new();
-        let builder = serialize_account(builder, &account, slot, false);
-        let data = builder.finished_data();
+            let account =
+                plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaAccountInfoV2 {
+                    pubkey: ai.pubkey,
+                    lamports: ai.lamports,
+                    owner: ai.owner,
+                    executable: ai.executable,
+                    rent_epoch: ai.rent_epoch,
+                    data: ai.data,
+                    write_version: ai.write_version,
+                    txn_signature: None,
+                };
+            let builder = flatbuffers::FlatBufferBuilder::new();
+            let builder = serialize_account(builder, &account, slot, false);
+            let data = builder.finished_data();
 
-        self.messenger
-            .lock()
-            .await
-            .send(ACCOUNT_STREAM_KEY, data)
-            .await?;
+            self.messenger
+                .lock()
+                .await
+                .send(ACCOUNT_STREAM_KEY, data)
+                .await?;
+        } else {
+            tracing::trace!(?account, ?meta, "Account filtered out by accounts selector");
+            return Ok(());
+        }
+
         let prev = self.accounts_count.fetch_add(1, Ordering::Relaxed);
         self.accounts_spinner.set_position(prev + 1);
 

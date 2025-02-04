@@ -32,12 +32,19 @@ If you are using this plugin for your bespoke use case then the build steps are 
 
 ### Building Locally
 
-**NOTE -> M1 macs may have issues. Linux is best.**
+#### Linux
 
 `cargo build` for debug or
 `cargo build --release` for a release build.
 
-You will now have a libplerkle.so file in the target folder. This is the binary that you will pass into the validator using the following option.
+You will now have a libplerkle.so file in the target folder.
+
+#### Mac
+
+Building is similar to Linux, except for the extension of the library produced.
+Instead of a `.so` file, look for `libplerkle.dylib`. The loader does not really care what extension to link, as long as it's a proper dynamically linked object, such as a `dylib`.
+
+### Configuration
 
 ```bash
 --geyser-plugin-config plugin-config.json
@@ -78,10 +85,9 @@ PLUGIN_MESSENGER_CONFIG='{ messenger_type="Redis", connection_config={ redis_con
 
 The PLUGIN_MESSENGER_CONFIG determines which compiled messenger to select and a specific configuration for the messenger.
 
-
 #### Additional Configuration Examples
 
-***Producer Configuration***
+**_Producer Configuration_**
 
 - "pipeline_size_bytes" - Maximum command size, roughly equates to the payload size. This setting locally buffers bytes in a queue to be flushed when the buffer grows past the desired amount. Default is 512MB (max redis command size) / 1000, maximum is 512MB (max redis command size) / 1000. You should test your optimal size to avoid high send latency and avoid RTT.
 - "local_buffer_max_window" - Maximum time to wait for the buffer to fill be for flushing. For lower traffic you dont want to be waiting around so set a max window and it will send at a minumum of every X milliseconds . Default 10
@@ -92,9 +98,8 @@ The PLUGIN_MESSENGER_CONFIG determines which compiled messenger to select and a 
 - "transaction_stream_size" - default value 10_000_000
 - "block_stream_size" - default value 100_000
 
-
 ```
-Lower Scale Low network latency 
+Lower Scale Low network latency
 
 PLUGIN_MESSENGER_CONFIG='{pipeline_size_bytes=1000000,local_buffer_max_window=10, messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
 
@@ -105,11 +110,11 @@ PLUGIN_MESSENGER_CONFIG='{pipeline_size_bytes=50000000,local_buffer_max_window=5
 
 ```
 
-***Consumer Configuration***
+**_Consumer Configuration_**
 
 - "retries" - Amount of times to deliver the message. If delivered this many times and not ACKed, then it is deleted
 - "batch_size" - Max Amout of messages to grab within the wait timeout window.
-- "message_wait_timeout" - Amount of time the consumer will keep the stream open and wait for messages 
+- "message_wait_timeout" - Amount of time the consumer will keep the stream open and wait for messages
 - "idle_timeout" - Amount of time a consumer can have the message before it goes back on the queue
 - "consumer_id" - VERY important. This is used to scale horizontally so messages arent duplicated over instances.Make sure this is different per instance
 
@@ -125,11 +130,12 @@ PLUGIN_BLOCK_STREAM_SIZE=250000
 
 NOTE: in 1.4.0 we are not sending to slot status.
 
-
 ### Metrics
+
 The plugin exposes the following statsd metrics
+
 - count plugin.startup -> times the plugin started
-- time message_send_queue_time ->  time spent on messenger internal buffer
+- time message_send_queue_time -> time spent on messenger internal buffer
 - time message_send_latency -> rtt time to messenger bus
 - count account_seen_event , tags: owner , is_startup -> number of account events filtered and seen
 - time startup.timer -> startup flush timer
@@ -174,9 +180,9 @@ plerkle_serialization-https://crates.io/crates/plerkle_serialization
 
 ## Snapshot ETL
 
-The Plerkle snapshot tool can be used for parsing Solana account snapshots. The repository already includes pre-configured geyser-config.json and etl-config.json files, which are ready to use. The only thing you might want to modify is the list of programs in geyser-config.json; otherwise, you can leave the configurations as they are.
+The Plerkle snapshot tool can be used for parsing Solana account snapshots. The repository already includes a pre-configured `accounts-selector-config.json` file, which is ready to use. The only thing you might want to modify is the list of programs in `accounts-selector-config.json`; otherwise, you can leave the configurations as they are.
 
-Before running the tool, it's important to create an .env file, modeled after .env.example. In this file, you should specify the path to the directory containing the snapshots as well as the Plerkle messenger configuration.
+Before running the tool, it's important to create an .env file, modeled after .env.example. In this file, you should specify the path to the directory containing the snapshots as well as the snapshot redis connection details.
 
 Once everything is set up, you can build the Docker container for ETL by running:
 
