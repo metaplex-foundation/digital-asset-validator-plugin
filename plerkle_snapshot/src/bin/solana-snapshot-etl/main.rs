@@ -12,7 +12,7 @@ use serde::Deserialize;
 use std::fs::File;
 use std::io::{IoSliceMut, Read};
 use std::path::Path;
-use tracing::info;
+use tracing::{info, warn};
 
 mod geyser;
 mod mpl_metadata;
@@ -28,13 +28,15 @@ struct Args {
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    dotenvy::dotenv()?;
-
     let env_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
     tracing_subscriber::fmt()
         .with_env_filter(env_filter)
         .event_format(tracing_subscriber::fmt::format::json())
         .init();
+    if let Err(e) = dotenvy::dotenv() {
+        warn!(error = %e, "Error initializing .env, make sure all required env is available...");
+    }
+
     let args = Args::parse();
 
     let mut loader = SupportedLoader::new(&args.source, Box::new(LoadProgressTracking {}))?;
