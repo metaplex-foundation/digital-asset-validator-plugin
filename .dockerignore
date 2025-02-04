@@ -7,3 +7,5 @@ ledger
 .anchor
 docker/geyser-outputs
 docker/solana-outputs
+snapshot/
+.env
