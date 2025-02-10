@@ -2984,7 +2984,7 @@ checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
 
 [[package]]
 name = "plerkle"
-version = "1.10.0"
+version = "1.11.0"
 dependencies = [
  "agave-geyser-plugin-interface",
  "async-trait",
@@ -3017,7 +3017,7 @@ dependencies = [
 
 [[package]]
 name = "plerkle_messenger"
-version = "1.10.0"
+version = "1.11.0"
 dependencies = [
  "async-mutex",
  "async-trait",
@@ -3048,7 +3048,7 @@ dependencies = [
 
 [[package]]
 name = "plerkle_snapshot"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "agave-geyser-plugin-interface",
  "async-trait",

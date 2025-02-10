@@ -9,14 +9,16 @@ use plerkle_serialization::serializer::serialize_account;
 use plerkle_snapshot::append_vec::StoredMeta;
 use solana_sdk::account::{Account, AccountSharedData, ReadableAccount};
 use std::error::Error;
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::accounts_selector::AccountsSelector;
 
 const ACCOUNT_STREAM_KEY: &str = "ACC";
+// the upper limit of accounts stream length for when the snapshot is in progress
+const MAX_INTERMEDIATE_STREAM_LEN: u64 = 50_000_000;
+// every PROCESSED_CHECKPOINT we check the stream length and reset the local stream_counter
+const PROCESSED_CHECKPOINT: u64 = 20_000_000;
 
 #[derive(Clone)]
 pub(crate) struct GeyserDumper {
@@ -24,7 +26,12 @@ pub(crate) struct GeyserDumper {
     throttle_nanos: u64,
     accounts_selector: AccountsSelector,
     pub accounts_spinner: ProgressBar,
-    pub accounts_count: Arc<AtomicU64>,
+    /// how many accounts were processed in total during the snapshot run.
+    pub accounts_count: u64,
+    /// intermediate counter of accounts sent to regulate XLEN checks.
+    /// the reason for a separate field is that we initialize it as the current
+    /// stream length, which might be non-zero.
+    pub stream_counter: u64,
 }
 
 impl GeyserDumper {
@@ -61,13 +68,18 @@ impl GeyserDumper {
         messenger
             .set_buffer_size(ACCOUNT_STREAM_KEY, 100_000_000)
             .await;
+        let initial_stream_len = messenger
+            .stream_len(&ACCOUNT_STREAM_KEY)
+            .await
+            .expect("get initial stream len of accounts");
 
         Self {
             messenger: Arc::new(Mutex::new(messenger)),
             accounts_spinner,
             accounts_selector,
-            accounts_count: Arc::new(AtomicU64::new(0)),
+            accounts_count: 0,
             throttle_nanos,
+            stream_counter: initial_stream_len,
         }
     }
 
@@ -76,6 +88,21 @@ impl GeyserDumper {
         (meta, account): (StoredMeta, AccountSharedData),
         slot: u64,
     ) -> Result<(), Box<dyn Error>> {
+        if self.stream_counter >= PROCESSED_CHECKPOINT {
+            loop {
+                let stream_len = self
+                    .messenger
+                    .lock()
+                    .await
+                    .stream_len(ACCOUNT_STREAM_KEY)
+                    .await?;
+                if stream_len < MAX_INTERMEDIATE_STREAM_LEN {
+                    self.stream_counter = 0;
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+        }
         if self
             .accounts_selector
             .is_account_selected(meta.pubkey.as_ref(), account.owner().as_ref())
@@ -111,23 +138,24 @@ impl GeyserDumper {
                 .await
                 .send(ACCOUNT_STREAM_KEY, data)
                 .await?;
+            self.stream_counter += 1;
         } else {
             tracing::trace!(?account, ?meta, "Account filtered out by accounts selector");
             return Ok(());
         }
 
-        let prev = self.accounts_count.fetch_add(1, Ordering::Relaxed);
-        self.accounts_spinner.set_position(prev + 1);
+        self.accounts_count += 1;
+        self.accounts_spinner.set_position(self.accounts_count);
 
         if self.throttle_nanos > 0 {
             tokio::time::sleep(std::time::Duration::from_nanos(self.throttle_nanos)).await;
         }
+
         Ok(())
     }
 
     pub async fn force_flush(self) {
-        self.accounts_spinner
-            .set_position(self.accounts_count.load(Ordering::Relaxed));
+        self.accounts_spinner.set_position(self.accounts_count);
         self.accounts_spinner
             .finish_with_message("Finished processing snapshot!");
         let messenger_mutex = Arc::into_inner(self.messenger)
