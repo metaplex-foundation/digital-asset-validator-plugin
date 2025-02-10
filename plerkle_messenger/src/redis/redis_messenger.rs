@@ -245,6 +245,13 @@ impl RedisMessenger {
         }
         Ok(())
     }
+
+    pub async fn stream_len(&mut self, stream_key: &'static str) -> Result<u64, MessengerError> {
+        Ok(self.connection.xlen(stream_key).await.map_err(|e| {
+            error!("Failed to read stream length: {}", e);
+            MessengerError::ConnectionError { msg: e.to_string() }
+        })?)
+    }
 }
 
 #[async_trait]

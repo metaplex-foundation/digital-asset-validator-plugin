@@ -71,12 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    info!(
-        "Done! Accounts: {}",
-        dumper
-            .accounts_count
-            .load(std::sync::atomic::Ordering::Relaxed)
-    );
+    info!("Done! Accounts: {}", dumper.accounts_count);
 
     dumper.force_flush().await;
 
