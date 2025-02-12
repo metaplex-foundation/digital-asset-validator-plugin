@@ -18,7 +18,7 @@ use bincode::Options;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use solana_accounts_db::account_storage::meta::StoredMetaWriteVersion;
-use solana_accounts_db::accounts_db::BankHashStats;
+use solana_accounts_db::accounts_db::stats::BankHashStats;
 use solana_accounts_db::ancestors::AncestorsForSerialization;
 use solana_accounts_db::blockhash_queue::BlockhashQueue;
 use solana_frozen_abi_macro::AbiExample;
