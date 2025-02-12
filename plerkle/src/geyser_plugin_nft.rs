@@ -332,7 +332,7 @@ impl<'a> Plerkle<'a> {
     }
 
     fn get_confirmation_level(&self) -> SlotStatus {
-        self.conf_level.unwrap_or(SlotStatus::Processed)
+        self.conf_level.clone().unwrap_or(SlotStatus::Processed)
     }
 
     // Currently not used but may want later.
@@ -629,17 +629,17 @@ impl GeyserPlugin for Plerkle<'static> {
         &self,
         slot: u64,
         parent: Option<u64>,
-        status: SlotStatus,
+        status: &SlotStatus,
     ) -> agave_geyser_plugin_interface::geyser_plugin_interface::Result<()> {
         info!("Slot status update: {:?} {:?}", slot, status);
-        if status == SlotStatus::Processed && parent.is_some() {
+        if status == &SlotStatus::Processed && parent.is_some() {
             let mut seen = self
                 .slots_seen
                 .lock()
                 .map_err(|e| PlerkleError::SlotsSeenLockError { msg: e.to_string() })?;
             seen.insert(parent.unwrap())
         }
-        if status == self.get_confirmation_level() {
+        if status == &self.get_confirmation_level() {
             // playing with this value here
             let slot_map = self.account_event_cache.remove(&slot);
             if let Some((_, events)) = slot_map {

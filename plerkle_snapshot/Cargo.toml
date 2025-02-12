@@ -1,7 +1,7 @@
 [package]
 # Renamed from original "solana-snapshot-etl"
 name = "plerkle_snapshot"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 license = "Apache-2.0"
 documentation = "https://docs.rs/solana-snapshot-etl"
@@ -13,13 +13,13 @@ keywords = ["solana"]
 [dependencies]
 clap = { version = "4.4.6", features = ["derive"] }
 log = "0.4.17"
-solana-runtime = ">=2.0, <2.1"
-solana-frozen-abi-macro = ">=2.0, <2.1"
-solana-accounts-db = ">=2.0, <2.1"
+solana-runtime = "2.1"
+solana-frozen-abi-macro = "2.1"
+solana-accounts-db = "2.1"
 thiserror = "1.0.31"
 bincode = "1.3.3"
 serde = { version = "1.0.139", features = ["derive"] }
-solana-sdk = ">=2.0, <2.1"
+solana-sdk = "2.1"
 memmap2 = "0.9.0"
 itertools = "0.11.0"
 tar = "0.4.38"
@@ -37,8 +37,8 @@ rusqlite = { version = "0.29.0", features = ["bundled"], optional = true }
 flatbuffers = { version = "23.1.21", optional = true }
 bs58 = { version = "0.4.0", optional = true }
 serde_json = { version = "1.0.82", optional = true }
-agave-geyser-plugin-interface = { version = ">=2.0, <2.1", optional = true }
-solana-program = { version = ">=2.0, <2.1", optional = true }
+agave-geyser-plugin-interface = { version = "2.1", optional = true }
+solana-program = { version = "2.1", optional = true }
 solana_rbpf = { version = "0.7.2", optional = true }
 spl-token = { version = "4.0.0", optional = true }
 json5 = { version = "0.4.1", optional = true }

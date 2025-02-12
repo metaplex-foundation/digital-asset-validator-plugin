@@ -1,4 +1,4 @@
-ARG SOLANA_VERSION=v2.0.15
+ARG SOLANA_VERSION=v2.1.11
 ARG RUST_VERSION=1.83.0
 FROM rust:$RUST_VERSION-bullseye as builder
 RUN apt-get update \
