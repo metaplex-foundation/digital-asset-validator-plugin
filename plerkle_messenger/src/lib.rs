@@ -5,4 +5,5 @@ mod plerkle_messenger;
 pub mod redis;
 pub use redis::*;
 
-pub use {crate::error::*, plerkle_messenger::*};
+pub use crate::error::*;
+pub use plerkle_messenger::*;

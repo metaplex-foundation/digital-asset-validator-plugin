@@ -69,7 +69,7 @@ impl GeyserDumper {
             .set_buffer_size(ACCOUNT_STREAM_KEY, 100_000_000)
             .await;
         let initial_stream_len = messenger
-            .stream_len(&ACCOUNT_STREAM_KEY)
+            .stream_len(ACCOUNT_STREAM_KEY)
             .await
             .expect("get initial stream len of accounts");
 
