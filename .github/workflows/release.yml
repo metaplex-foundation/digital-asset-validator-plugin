@@ -38,7 +38,7 @@ jobs:
         run: |
           echo "CI_TAG=${GITHUB_REF#refs/*/}" >> "$GITHUB_ENV"
           echo "CI_OS_NAME=linux" >> "$GITHUB_ENV"
-          cargo build --release
+          cargo build --release --locked
       - name: Build release tarball
         run: ./ci/create-tarball.sh
       - name: Publish to crates registry
