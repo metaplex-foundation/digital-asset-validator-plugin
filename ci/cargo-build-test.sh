@@ -14,7 +14,7 @@ export RUSTBACKTRACE=1
 set -x
 
 # Build/test all host crates
-cargo +"$rust_stable" build
-cargo +"$rust_stable" test -- --nocapture
+cargo +"$rust_stable" build --locked
+cargo +"$rust_stable" test --locked -- --nocapture
 
 exit 0

@@ -13,13 +13,13 @@ env:
   CARGO_TERM_COLOR: always
   IMAGE_NAME: plerkle-test-validator
   RUST_VERSION: 1.83.0
-  SOLANA_VERSION_STABLE: v2.0.15
+  SOLANA_VERSION_STABLE: v2.1.11
 
 jobs:
   test-stable:
     runs-on: ubuntu-20-04-8-cores
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Set env vars
         run: |
           source ci/env.sh
@@ -42,7 +42,7 @@ jobs:
           override: true
           profile: minimal
           components: rustfmt, clippy
-      - uses: actions/cache@v2
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
