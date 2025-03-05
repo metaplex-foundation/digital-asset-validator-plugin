@@ -88,12 +88,12 @@ pub async fn select_messenger_read(
     config: MessengerConfig,
 ) -> Result<Box<dyn Messenger>, MessengerError> {
     match config.messenger_type {
-        MessengerType::Redis => {
-            RedisMessenger::new(config).await.map(|a| Box::new(a) as Box<dyn Messenger>)
-        }
+        MessengerType::Redis => RedisMessenger::new(config)
+            .await
+            .map(|a| Box::new(a) as Box<dyn Messenger>),
         _ => Err(MessengerError::ConfigurationError {
-            msg: "This Messenger type is not valid or not unimplemented.".to_string()
-        })
+            msg: "This Messenger type is not valid or not unimplemented.".to_string(),
+        }),
     }
 }
 
