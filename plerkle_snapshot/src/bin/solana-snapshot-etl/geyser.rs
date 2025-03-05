@@ -1,12 +1,14 @@
 // TODO add multi-threading
 
 use agave_geyser_plugin_interface::geyser_plugin_interface::ReplicaAccountInfo;
-use figment::value::{Map, Tag};
+use figment::providers::Env;
+use figment::Figment;
 use indicatif::{ProgressBar, ProgressStyle};
 use plerkle_messenger::redis_messenger::RedisMessenger;
 use plerkle_messenger::{MessageStreamer, MessengerConfig};
 use plerkle_serialization::serializer::serialize_account;
 use plerkle_snapshot::append_vec::StoredMeta;
+use serde::Deserialize;
 use solana_sdk::account::{Account, AccountSharedData, ReadableAccount};
 use std::error::Error;
 use std::sync::Arc;
@@ -45,22 +47,16 @@ impl GeyserDumper {
             .with_style(spinner_style)
             .with_prefix("accs");
 
-        let mut connection_config = Map::new();
-        connection_config.insert(
-            "redis_connection_str".to_owned(),
-            figment::value::Value::String(
-                Tag::default(),
-                std::env::var("SNAPSHOT_REDIS_CONNECTION_STR").expect(
-                    "SNAPSHOT_REDIS_CONNECTION_STR must be present for snapshot processing",
-                ),
-            ),
-        );
-        let mut messenger = RedisMessenger::new(MessengerConfig {
-            messenger_type: plerkle_messenger::MessengerType::Redis,
-            connection_config,
-        })
-        .await
-        .expect("create redis messenger");
+        #[derive(Deserialize)]
+        struct MessengerConfigWrapper {
+            pub messenger_config: MessengerConfig,
+        }
+        let wrapper: MessengerConfigWrapper = Figment::from(Env::prefixed("PLUGIN_"))
+            .extract()
+            .expect("PLUGIN_MESSENGER_CONFIG env variable must be defined to run ETL!");
+        let mut messenger = RedisMessenger::new(wrapper.messenger_config)
+            .await
+            .expect("create redis messenger");
         messenger
             .add_stream(ACCOUNT_STREAM_KEY)
             .await
