@@ -1,21 +1,23 @@
-use crate::error::PlerkleSerializationError;
-use crate::solana_geyser_plugin_interface_shims::{
-    ReplicaAccountInfoV2, ReplicaBlockInfoV2, ReplicaTransactionInfoV2, SlotStatus,
-};
 use crate::{
+    error::PlerkleSerializationError,
+    solana_geyser_plugin_interface_shims::{
+        ReplicaAccountInfoV2, ReplicaBlockInfoV2, ReplicaTransactionInfoV2, SlotStatus,
+    },
     AccountInfo, AccountInfoArgs, BlockInfo, BlockInfoArgs, CompiledInnerInstruction,
     CompiledInnerInstructionArgs, CompiledInnerInstructions, CompiledInnerInstructionsArgs,
-    CompiledInstruction, CompiledInstructionArgs,
-    Pubkey as FBPubkey, Pubkey, SlotStatusInfo, SlotStatusInfoArgs, Status as FBSlotStatus,
-    TransactionInfo, TransactionInfoArgs, TransactionVersion,
+    CompiledInstruction, CompiledInstructionArgs, Pubkey as FBPubkey, Pubkey, SlotStatusInfo,
+    SlotStatusInfoArgs, Status as FBSlotStatus, TransactionInfo, TransactionInfoArgs,
+    TransactionVersion,
 };
 use chrono::Utc;
 use flatbuffers::{FlatBufferBuilder, WIPOffset};
-use solana_sdk::message::{SanitizedMessage, VersionedMessage};
-use solana_sdk::transaction::VersionedTransaction;
-use solana_transaction_status::option_serializer::OptionSerializer;
+use solana_sdk::{
+    message::{SanitizedMessage, VersionedMessage},
+    transaction::VersionedTransaction,
+};
 use solana_transaction_status::{
-    EncodedConfirmedTransactionWithStatusMeta, UiInstruction, UiTransactionStatusMeta,
+    option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta, UiInstruction,
+    UiTransactionStatusMeta,
 };
 
 pub fn serialize_account<'a>(
@@ -52,12 +54,12 @@ pub fn serialize_account<'a>(
     builder
 }
 
-pub fn serialize_slot_status<'a>(
-    mut builder: FlatBufferBuilder<'a>,
+pub fn serialize_slot_status(
+    mut builder: FlatBufferBuilder<'_>,
     slot: u64,
     parent: Option<u64>,
     status: SlotStatus,
-) -> FlatBufferBuilder<'a> {
+) -> FlatBufferBuilder<'_> {
     // Convert to flatbuffer enum.
     let status = match status {
         SlotStatus::Confirmed => FBSlotStatus::Confirmed,
@@ -258,10 +260,10 @@ pub fn serialize_block<'a>(
 
 /// Serialize a `EncodedConfirmedTransactionWithStatusMeta` from RPC into a FlatBuffer.
 /// The Transaction must be base54 encoded.
-pub fn seralize_encoded_transaction_with_status<'a>(
-    mut builder: FlatBufferBuilder<'a>,
+pub fn seralize_encoded_transaction_with_status(
+    mut builder: FlatBufferBuilder<'_>,
     tx: EncodedConfirmedTransactionWithStatusMeta,
-) -> Result<FlatBufferBuilder<'a>, PlerkleSerializationError> {
+) -> Result<FlatBufferBuilder<'_>, PlerkleSerializationError> {
     let meta: UiTransactionStatusMeta =
         tx.transaction
             .meta
