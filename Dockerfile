@@ -23,7 +23,7 @@ WORKDIR /app
 COPY --from=builder /app/target/release/solana-snapshot-etl .
 COPY --from=builder /app/scripts/docker-entrypoint.sh .
 COPY ./accounts-selector-config.json .
-RUN groupadd appuser && useradd -g appuser appuser
+RUN groupadd -g 10001 appgroup && useradd -u 10001 -r -g appgroup -m -d /home/appuser -s /bin/bash appuser
 USER appuser
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
