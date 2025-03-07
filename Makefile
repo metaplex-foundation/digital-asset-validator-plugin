@@ -12,5 +12,8 @@ export IMAGE_NAME=solana-snapshot-etl
 build:
 	@docker build -f Dockerfile . -t ${IMAGE_NAME}
 
+# NOTE: make sure that Redis is reachable from the container.
+# If Redis is running locally, it might be feasible to run the container
+# with `--net=host` option specified.
 stream:
-	for f in $(shell ls ${SNAPSHOTDIR}); do echo $$(realpath $${f}) && docker run --env-file .env -p 3000:3000 --rm -it --mount type=bind,source=$$(realpath $${f}),target=$$(realpath $${f}),readonly --mount type=bind,source=$$(pwd)/accounts-selector-config.json,target=/app/accounts-selector-config.json,readonly ${IMAGE_NAME} $$(realpath $${f}) --accounts-selector-config=/app/accounts-selector-config.json && date; done
+	@export SNAPSHOT_MOUNT="$$(realpath $$SNAPSHOTDIR)" && echo $$SNAPSHOT_MOUNT && docker run --env-file .env --rm -it --mount type=bind,source=$$SNAPSHOT_MOUNT,target=/app/snapshot,ro $$IMAGE_NAME

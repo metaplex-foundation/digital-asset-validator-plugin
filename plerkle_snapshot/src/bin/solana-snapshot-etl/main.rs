@@ -43,6 +43,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Err(e) = dotenvy::dotenv() {
         warn!(error = %e, "Error initializing .env, make sure all required env is available...");
     }
+    let stop_future = tokio::task::spawn(async move {
+        match tokio::signal::ctrl_c().await {
+            Ok(_) => info!("Stop signal received, shutting down..."),
+            Err(e) => tracing::error!(error = %e, "Error shutting down: {e}"),
+        }
+    });
 
     let args = Args::parse();
     let accounts_selector_config = args
@@ -58,22 +64,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut loader = SupportedLoader::new(&args.source, Box::new(LoadProgressTracking {}))?;
 
-    let mut dumper = GeyserDumper::new(args.throttle_nanos, accounts_selector).await;
-    for append_vec in loader.iter() {
-        let append_vec = append_vec.unwrap();
-        let slot = append_vec.get_slot();
+    let process_everything_future = async move {
+        let mut dumper = GeyserDumper::new(args.throttle_nanos, accounts_selector).await;
+        for append_vec in loader.iter() {
+            let append_vec = append_vec.unwrap();
+            let slot = append_vec.get_slot();
 
-        for account in append_vec_iter(append_vec) {
-            dumper
-                .dump_account(account, slot)
-                .await
-                .expect("failed to dump account");
+            for account in append_vec_iter(append_vec) {
+                dumper
+                    .dump_account(account, slot)
+                    .await
+                    .expect("failed to dump account");
+            }
         }
+        info!("Done! Accounts: {}", dumper.accounts_count);
+        dumper.force_flush().await;
+    };
+
+    tokio::select! {
+        _ = stop_future => {},
+        _ = process_everything_future => {},
     }
-
-    info!("Done! Accounts: {}", dumper.accounts_count);
-
-    dumper.force_flush().await;
 
     Ok(())
 }

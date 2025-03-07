@@ -9,3 +9,6 @@ docker/geyser-outputs
 docker/solana-outputs
 snapshot/
 .env
+Dockerfile
+Solana.Dockerfile
+Makefile
