@@ -1,6 +1,7 @@
 //! Copied from plerkle/src/accounts_selector.rs with some API-changing improvements.
 
 use std::collections::HashSet;
+
 use tracing::*;
 
 const fn select_all_accounts_by_default() -> bool {
@@ -36,29 +37,12 @@ pub(crate) struct AccountsSelector {
 
 impl AccountsSelector {
     pub fn new(config: AccountsSelectorConfig) -> Self {
-        let AccountsSelectorConfig {
-            accounts,
-            owners,
-            select_all_accounts,
-        } = config;
-        info!(
-            "Creating AccountsSelector from accounts: {:?}, owners: {:?}",
-            accounts, owners
-        );
+        let AccountsSelectorConfig { accounts, owners, select_all_accounts } = config;
+        info!("Creating AccountsSelector from accounts: {:?}, owners: {:?}", accounts, owners);
 
-        let accounts = accounts
-            .iter()
-            .map(|key| bs58::decode(key).into_vec().unwrap())
-            .collect();
-        let owners = owners
-            .iter()
-            .map(|key| bs58::decode(key).into_vec().unwrap())
-            .collect();
-        AccountsSelector {
-            accounts,
-            owners,
-            select_all_accounts,
-        }
+        let accounts = accounts.iter().map(|key| bs58::decode(key).into_vec().unwrap()).collect();
+        let owners = owners.iter().map(|key| bs58::decode(key).into_vec().unwrap()).collect();
+        AccountsSelector { accounts, owners, select_all_accounts }
     }
 
     pub fn is_account_selected(&self, account: &[u8], owner: &[u8]) -> bool {

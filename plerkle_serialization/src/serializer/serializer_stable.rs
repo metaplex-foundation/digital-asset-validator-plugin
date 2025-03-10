@@ -1,21 +1,23 @@
-use crate::error::PlerkleSerializationError;
-use crate::solana_geyser_plugin_interface_shims::{
-    ReplicaAccountInfoV2, ReplicaBlockInfoV2, ReplicaTransactionInfoV2, SlotStatus,
-};
 use crate::{
+    error::PlerkleSerializationError,
+    solana_geyser_plugin_interface_shims::{
+        ReplicaAccountInfoV2, ReplicaBlockInfoV2, ReplicaTransactionInfoV2, SlotStatus,
+    },
     AccountInfo, AccountInfoArgs, BlockInfo, BlockInfoArgs, CompiledInnerInstruction,
     CompiledInnerInstructionArgs, CompiledInnerInstructions, CompiledInnerInstructionsArgs,
-    CompiledInstruction, CompiledInstructionArgs,
-    Pubkey as FBPubkey, Pubkey, SlotStatusInfo, SlotStatusInfoArgs, Status as FBSlotStatus,
-    TransactionInfo, TransactionInfoArgs, TransactionVersion,
+    CompiledInstruction, CompiledInstructionArgs, Pubkey as FBPubkey, Pubkey, SlotStatusInfo,
+    SlotStatusInfoArgs, Status as FBSlotStatus, TransactionInfo, TransactionInfoArgs,
+    TransactionVersion,
 };
 use chrono::Utc;
 use flatbuffers::{FlatBufferBuilder, WIPOffset};
-use solana_sdk::message::{SanitizedMessage, VersionedMessage};
-use solana_sdk::transaction::VersionedTransaction;
-use solana_transaction_status::option_serializer::OptionSerializer;
+use solana_sdk::{
+    message::{SanitizedMessage, VersionedMessage},
+    transaction::VersionedTransaction,
+};
 use solana_transaction_status::{
-    EncodedConfirmedTransactionWithStatusMeta, UiInstruction, UiTransactionStatusMeta,
+    option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta, UiInstruction,
+    UiTransactionStatusMeta,
 };
 
 pub fn serialize_account<'a>(

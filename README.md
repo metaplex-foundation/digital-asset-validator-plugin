@@ -30,6 +30,10 @@ If you are building the Metaplex RPC API infrastructure please follow the instru
 
 If you are using this plugin for your bespoke use case then the build steps are below.
 
+#### A note on formatting
+
+Since `rustfmt.toml` uses unstable configuration options, it is required to run formatting with the nightly toolchain: `cargo +nightly fmt`.
+
 ### Building Locally
 
 #### Linux
@@ -80,7 +84,7 @@ The process running the validator must have access to environment variables. Tho
 
 ```bash
 RUST_LOG=warn
-PLUGIN_MESSENGER_CONFIG='{ messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
+PLUGIN_MESSENGER_CONFIG={ messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }
 ```
 
 The PLUGIN_MESSENGER_CONFIG determines which compiled messenger to select and a specific configuration for the messenger.
@@ -101,11 +105,11 @@ The PLUGIN_MESSENGER_CONFIG determines which compiled messenger to select and a 
 ```
 Lower Scale Low network latency
 
-PLUGIN_MESSENGER_CONFIG='{pipeline_size_bytes=1000000,local_buffer_max_window=10, messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
+PLUGIN_MESSENGER_CONFIG={pipeline_size_bytes=1000000,local_buffer_max_window=10, messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }
 
 High Scale Higher latency
 
-PLUGIN_MESSENGER_CONFIG='{pipeline_size_bytes=50000000,local_buffer_max_window=500, messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
+PLUGIN_MESSENGER_CONFIG={pipeline_size_bytes=50000000,local_buffer_max_window=500, messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }
 
 
 ```
@@ -120,7 +124,7 @@ PLUGIN_MESSENGER_CONFIG='{pipeline_size_bytes=50000000,local_buffer_max_window=5
 
 ```
 
-PLUGIN_MESSENGER_CONFIG='{batch_size=1000, message_wait_timeout=5, retries=5, consumer_id="random_string",messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }'
+PLUGIN_MESSENGER_CONFIG={batch_size=1000, message_wait_timeout=5, retries=5, consumer_id="random_string",messenger_type="Redis", connection_config={ redis_connection_str="redis://redis" } }
 PLUGIN_ACCOUNT_STREAM_SIZE=250000000
 PLUGIN_SLOT_STREAM_SIZE=250000
 PLUGIN_TRANSACTION_STREAM_SIZE=25000000

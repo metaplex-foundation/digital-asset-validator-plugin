@@ -1,10 +1,6 @@
+use std::{cell::RefCell, ffi::OsStr, io::Read, path::Path, str::FromStr, sync::Arc};
+
 use solana_sdk::account::AccountSharedData;
-use std::cell::RefCell;
-use std::ffi::OsStr;
-use std::io::Read;
-use std::path::Path;
-use std::str::FromStr;
-use std::sync::Arc;
 use thiserror::Error;
 
 pub mod append_vec;
@@ -16,13 +12,14 @@ pub mod unpacked;
 #[cfg(feature = "parallel")]
 pub mod parallel;
 
-use crate::append_vec::{AppendVec, StoredAccountMeta};
-use crate::solana::{
-    deserialize_from, AccountsDbFields, DeserializableVersionedBank,
-    SerializableAccountStorageEntry,
-};
-
 use self::append_vec::StoredMeta;
+use crate::{
+    append_vec::{AppendVec, StoredAccountMeta},
+    solana::{
+        deserialize_from, AccountsDbFields, DeserializableVersionedBank,
+        SerializableAccountStorageEntry,
+    },
+};
 
 const SNAPSHOTS_DIR: &str = "snapshots";
 
@@ -72,7 +69,7 @@ pub fn append_vec_iter(
                 offsets.push(offset);
                 metas.push(meta.clone_account());
                 offset = next_offset;
-            }
+            },
         }
     }
 

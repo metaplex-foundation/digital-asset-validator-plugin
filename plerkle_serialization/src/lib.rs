@@ -1,14 +1,20 @@
 #[allow(unused_imports)]
+#[rustfmt::skip]
 mod account_info_generated;
 #[allow(unused_imports)]
+#[rustfmt::skip]
 mod block_info_generated;
 #[allow(unused_imports)]
+#[rustfmt::skip]
 mod common_generated;
 #[allow(unused_imports)]
+#[rustfmt::skip]
 mod compiled_instruction_generated;
 #[allow(unused_imports)]
+#[rustfmt::skip]
 mod slot_status_info_generated;
 #[allow(unused_imports)]
+#[rustfmt::skip]
 mod transaction_info_generated;
 
 pub mod deserializer;

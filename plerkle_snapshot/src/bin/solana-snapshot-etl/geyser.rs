@@ -1,17 +1,15 @@
 // TODO add multi-threading
 
+use std::{error::Error, sync::Arc};
+
 use agave_geyser_plugin_interface::geyser_plugin_interface::ReplicaAccountInfo;
-use figment::providers::Env;
-use figment::Figment;
+use figment::{providers::Env, Figment};
 use indicatif::{ProgressBar, ProgressStyle};
-use plerkle_messenger::redis_messenger::RedisMessenger;
-use plerkle_messenger::{MessageStreamer, MessengerConfig};
+use plerkle_messenger::{redis_messenger::RedisMessenger, MessageStreamer, MessengerConfig};
 use plerkle_serialization::serializer::serialize_account;
 use plerkle_snapshot::append_vec::StoredMeta;
 use serde::Deserialize;
 use solana_sdk::account::{Account, AccountSharedData, ReadableAccount};
-use std::error::Error;
-use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::accounts_selector::AccountsSelector;
@@ -43,9 +41,8 @@ impl GeyserDumper {
             "{prefix:>10.bold.dim} {spinner} rate={per_sec} total={human_pos}",
         )
         .unwrap();
-        let accounts_spinner = ProgressBar::new_spinner()
-            .with_style(spinner_style)
-            .with_prefix("accs");
+        let accounts_spinner =
+            ProgressBar::new_spinner().with_style(spinner_style).with_prefix("accs");
 
         #[derive(Deserialize)]
         struct MessengerConfigWrapper {
@@ -54,16 +51,10 @@ impl GeyserDumper {
         let wrapper: MessengerConfigWrapper = Figment::from(Env::prefixed("PLUGIN_"))
             .extract()
             .expect("PLUGIN_MESSENGER_CONFIG env variable must be defined to run ETL!");
-        let mut messenger = RedisMessenger::new(wrapper.messenger_config)
-            .await
-            .expect("create redis messenger");
-        messenger
-            .add_stream(ACCOUNT_STREAM_KEY)
-            .await
-            .expect("configure accounts stream");
-        messenger
-            .set_buffer_size(ACCOUNT_STREAM_KEY, 100_000_000)
-            .await;
+        let mut messenger =
+            RedisMessenger::new(wrapper.messenger_config).await.expect("create redis messenger");
+        messenger.add_stream(ACCOUNT_STREAM_KEY).await.expect("configure accounts stream");
+        messenger.set_buffer_size(ACCOUNT_STREAM_KEY, 100_000_000).await;
         let initial_stream_len = messenger
             .stream_len(&ACCOUNT_STREAM_KEY)
             .await
@@ -86,12 +77,7 @@ impl GeyserDumper {
     ) -> Result<(), Box<dyn Error>> {
         if self.stream_counter >= PROCESSED_CHECKPOINT {
             loop {
-                let stream_len = self
-                    .messenger
-                    .lock()
-                    .await
-                    .stream_len(ACCOUNT_STREAM_KEY)
-                    .await?;
+                let stream_len = self.messenger.lock().await.stream_len(ACCOUNT_STREAM_KEY).await?;
                 if stream_len < MAX_INTERMEDIATE_STREAM_LEN {
                     self.stream_counter = 0;
                     break;
@@ -129,11 +115,7 @@ impl GeyserDumper {
             let builder = serialize_account(builder, &account, slot, false);
             let data = builder.finished_data();
 
-            self.messenger
-                .lock()
-                .await
-                .send(ACCOUNT_STREAM_KEY, data)
-                .await?;
+            self.messenger.lock().await.send(ACCOUNT_STREAM_KEY, data).await?;
             self.stream_counter += 1;
         } else {
             tracing::trace!(?account, ?meta, "Account filtered out by accounts selector");
@@ -152,15 +134,10 @@ impl GeyserDumper {
 
     pub async fn force_flush(self) {
         self.accounts_spinner.set_position(self.accounts_count);
-        self.accounts_spinner
-            .finish_with_message("Finished processing snapshot!");
+        self.accounts_spinner.finish_with_message("Finished processing snapshot!");
         let messenger_mutex = Arc::into_inner(self.messenger)
             .expect("reference count to messenger to be 0 when forcing flush at the end");
 
-        messenger_mutex
-            .into_inner()
-            .force_flush()
-            .await
-            .expect("force flush to succeed");
+        messenger_mutex.into_inner().force_flush().await.expect("force flush to succeed");
     }
 }

@@ -2,21 +2,23 @@ mod accounts_selector;
 mod geyser;
 mod mpl_metadata;
 
-use crate::geyser::GeyserDumper;
+use std::{
+    fs::File,
+    io::{IoSliceMut, Read},
+    path::{Path, PathBuf},
+};
+
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressBarIter, ProgressStyle};
-use plerkle_snapshot::archived::ArchiveSnapshotExtractor;
-use plerkle_snapshot::unpacked::UnpackedSnapshotExtractor;
 use plerkle_snapshot::{
-    append_vec_iter, AppendVecIterator, ReadProgressTracking, SnapshotExtractor,
+    append_vec_iter, archived::ArchiveSnapshotExtractor, unpacked::UnpackedSnapshotExtractor,
+    AppendVecIterator, ReadProgressTracking, SnapshotExtractor,
 };
 use reqwest::blocking::Response;
-use std::fs::File;
-use std::io::{IoSliceMut, Read};
-use std::path::{Path, PathBuf};
 use tracing::{info, warn};
 
 use self::accounts_selector::{AccountsSelector, AccountsSelectorConfig};
+use crate::geyser::GeyserDumper;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -71,10 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let slot = append_vec.get_slot();
 
             for account in append_vec_iter(append_vec) {
-                dumper
-                    .dump_account(account, slot)
-                    .await
-                    .expect("failed to dump account");
+                dumper.dump_account(account, slot).await.expect("failed to dump account");
             }
         }
         info!("Done! Accounts: {}", dumper.accounts_count);
@@ -106,10 +105,7 @@ impl ReadProgressTracking for LoadProgressTracking {
             .progress_chars("#>-"),
         );
         progress_bar.set_prefix("manifest");
-        Box::new(LoadProgressTracker {
-            rd: progress_bar.wrap_read(rd),
-            progress_bar,
-        })
+        Box::new(LoadProgressTracker { rd: progress_bar.wrap_read(rd), progress_bar })
     }
 }
 
