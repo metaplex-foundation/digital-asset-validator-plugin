@@ -5,7 +5,9 @@ use std::{error::Error, sync::Arc};
 use agave_geyser_plugin_interface::geyser_plugin_interface::ReplicaAccountInfo;
 use figment::{providers::Env, Figment};
 use indicatif::{ProgressBar, ProgressStyle};
-use plerkle_messenger::{redis_messenger::RedisMessenger, MessageStreamer, MessengerConfig};
+use plerkle_messenger::{
+    redis_messenger::RedisMessenger, MessageStreamer, MessengerConfig, ACCOUNT_BACKFILL_STREAM,
+};
 use plerkle_serialization::serializer::serialize_account;
 use plerkle_snapshot::append_vec::StoredMeta;
 use serde::Deserialize;
@@ -14,7 +16,6 @@ use tokio::sync::Mutex;
 
 use crate::accounts_selector::AccountsSelector;
 
-const ACCOUNT_STREAM_KEY: &str = "ACC";
 // the upper limit of accounts stream length for when the snapshot is in progress
 const MAX_INTERMEDIATE_STREAM_LEN: u64 = 50_000_000;
 // every PROCESSED_CHECKPOINT we check the stream length and reset the local stream_counter
@@ -53,10 +54,10 @@ impl GeyserDumper {
             .expect("PLUGIN_MESSENGER_CONFIG env variable must be defined to run ETL!");
         let mut messenger =
             RedisMessenger::new(wrapper.messenger_config).await.expect("create redis messenger");
-        messenger.add_stream(ACCOUNT_STREAM_KEY).await.expect("configure accounts stream");
-        messenger.set_buffer_size(ACCOUNT_STREAM_KEY, 100_000_000).await;
+        messenger.add_stream(ACCOUNT_BACKFILL_STREAM).await.expect("configure accounts stream");
+        messenger.set_buffer_size(ACCOUNT_BACKFILL_STREAM, 100_000_000).await;
         let initial_stream_len = messenger
-            .stream_len(&ACCOUNT_STREAM_KEY)
+            .stream_len(&ACCOUNT_BACKFILL_STREAM)
             .await
             .expect("get initial stream len of accounts");
 
@@ -77,7 +78,8 @@ impl GeyserDumper {
     ) -> Result<(), Box<dyn Error>> {
         if self.stream_counter >= PROCESSED_CHECKPOINT {
             loop {
-                let stream_len = self.messenger.lock().await.stream_len(ACCOUNT_STREAM_KEY).await?;
+                let stream_len =
+                    self.messenger.lock().await.stream_len(ACCOUNT_BACKFILL_STREAM).await?;
                 if stream_len < MAX_INTERMEDIATE_STREAM_LEN {
                     self.stream_counter = 0;
                     break;
@@ -115,7 +117,7 @@ impl GeyserDumper {
             let builder = serialize_account(builder, &account, slot, false);
             let data = builder.finished_data();
 
-            self.messenger.lock().await.send(ACCOUNT_STREAM_KEY, data).await?;
+            self.messenger.lock().await.send(ACCOUNT_BACKFILL_STREAM, data).await?;
             self.stream_counter += 1;
         } else {
             tracing::trace!(?account, ?meta, "Account filtered out by accounts selector");
