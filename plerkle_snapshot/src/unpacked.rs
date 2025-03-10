@@ -1,16 +1,20 @@
+use std::{
+    fs::OpenOptions,
+    io::BufReader,
+    path::{Path, PathBuf},
+    str::FromStr,
+    time::Instant,
+};
+
+use itertools::Itertools;
+use log::info;
+use solana_runtime::snapshot_utils::SNAPSHOT_STATUS_CACHE_FILENAME;
+
 use crate::{
     deserialize_from, parse_append_vec_name, AccountsDbFields, AppendVec, AppendVecIterator,
     DeserializableVersionedBank, ReadProgressTracking, Result, SerializableAccountStorageEntry,
     SnapshotError, SnapshotExtractor, SNAPSHOTS_DIR,
 };
-use itertools::Itertools;
-use log::info;
-use solana_runtime::snapshot_utils::SNAPSHOT_STATUS_CACHE_FILENAME;
-use std::fs::OpenOptions;
-use std::io::BufReader;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::time::Instant;
 
 /// Extracts account data from snapshots that were unarchived to a file system.
 pub struct UnpackedSnapshotExtractor {
@@ -61,25 +65,17 @@ impl UnpackedSnapshotExtractor {
         let accounts_db_fields_post_time = Instant::now();
         drop(snapshot_file);
 
-        info!(
-            "Read bank fields in {:?}",
-            versioned_bank_post_time - pre_unpack
-        );
+        info!("Read bank fields in {:?}", versioned_bank_post_time - pre_unpack);
         info!(
             "Read accounts DB fields in {:?}",
             accounts_db_fields_post_time - versioned_bank_post_time
         );
 
-        Ok(UnpackedSnapshotExtractor {
-            root: path.to_path_buf(),
-            accounts_db_fields,
-        })
+        Ok(UnpackedSnapshotExtractor { root: path.to_path_buf(), accounts_db_fields })
     }
 
     pub fn unboxed_iter(&self) -> impl Iterator<Item = Result<AppendVec>> + '_ {
-        std::iter::once(self.iter_streams())
-            .flatten_ok()
-            .flatten_ok()
+        std::iter::once(self.iter_streams()).flatten_ok().flatten_ok()
     }
 
     fn iter_streams(&self) -> Result<impl Iterator<Item = Result<AppendVec>> + '_> {
@@ -97,22 +93,13 @@ impl UnpackedSnapshotExtractor {
     }
 
     fn open_append_vec(&self, slot: u64, id: u64, path: &Path) -> Result<AppendVec> {
-        let known_vecs = self
-            .accounts_db_fields
-            .0
-            .get(&slot)
-            .map(|v| &v[..])
-            .unwrap_or(&[]);
+        let known_vecs = self.accounts_db_fields.0.get(&slot).map(|v| &v[..]).unwrap_or(&[]);
         let known_vec = known_vecs.iter().find(|entry| entry.id == (id as usize));
         let known_vec = match known_vec {
             None => return Err(SnapshotError::UnexpectedAppendVec),
             Some(v) => v,
         };
 
-        Ok(AppendVec::new_from_file(
-            path,
-            known_vec.accounts_current_len,
-            slot,
-        )?)
+        Ok(AppendVec::new_from_file(path, known_vec.accounts_current_len, slot)?)
     }
 }

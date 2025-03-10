@@ -368,11 +368,10 @@ impl MessageStreamer for RedisMessenger {
         );
 
         // Add stream to Redis.
-        let result: RedisResult<()> = self.connection.xgroup_create_mkstream(
-            stream_key,
-            self.consumer_group_name.as_str(),
-            "$",
-        ).await;
+        let result: RedisResult<()> = self
+            .connection
+            .xgroup_create_mkstream(stream_key, self.consumer_group_name.as_str(), "$")
+            .await;
 
         if let Err(e) = result {
             info!("Group already exists: {:?}", e)
@@ -424,7 +423,8 @@ impl MessageStreamer for RedisMessenger {
             for bytes in stream.local_buffer.iter() {
                 pipe.xadd_maxlen(stream_key, maxlen, "*", &[(DATA_KEY, &bytes)]);
             }
-            let result: Result<Vec<String>, redis::RedisError> = pipe.query_async(&mut self.connection).await;
+            let result: Result<Vec<String>, redis::RedisError> =
+                pipe.query_async(&mut self.connection).await;
             if let Err(e) = result {
                 error!("Redis send error: {e}");
                 return Err(MessengerError::SendError { msg: e.to_string() });

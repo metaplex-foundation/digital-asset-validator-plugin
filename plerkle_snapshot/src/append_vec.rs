@@ -15,23 +15,22 @@
 // This file contains code vendored from https://github.com/solana-labs/solana
 // Source: solana/runtime/src/append_vec.rs
 
-use {
-    log::*,
-    memmap2::{Mmap, MmapMut},
-    serde::{Deserialize, Serialize},
-    solana_sdk::{
-        account::{Account, AccountSharedData, ReadableAccount},
-        clock::Epoch,
-        hash::Hash,
-        pubkey::Pubkey,
-    },
-    std::{
-        convert::TryFrom,
-        fs::OpenOptions,
-        io::{self, Read},
-        mem,
-        path::Path,
-    },
+use std::{
+    convert::TryFrom,
+    fs::OpenOptions,
+    io::{self, Read},
+    mem,
+    path::Path,
+};
+
+use log::*;
+use memmap2::{Mmap, MmapMut};
+use serde::{Deserialize, Serialize};
+use solana_sdk::{
+    account::{Account, AccountSharedData, ReadableAccount},
+    clock::Epoch,
+    hash::Hash,
+    pubkey::Pubkey,
 };
 
 // Data placement should be aligned at the next boundary. Without alignment accessing the memory may
@@ -186,11 +185,7 @@ impl AppendVec {
         current_len: usize,
         slot: u64,
     ) -> io::Result<Self> {
-        let data = OpenOptions::new()
-            .read(true)
-            .write(false)
-            .create(false)
-            .open(&path)?;
+        let data = OpenOptions::new().read(true).write(false).create(false).open(&path)?;
 
         let file_size = std::fs::metadata(&path)?.len();
         AppendVec::sanitize_len_and_size(current_len, file_size as usize)?;
@@ -204,12 +199,7 @@ impl AppendVec {
             result?
         };
 
-        let new = AppendVec {
-            map,
-            current_len,
-            file_size,
-            slot,
-        };
+        let new = AppendVec { map, current_len, file_size, slot };
 
         Ok(new)
     }
@@ -269,17 +259,7 @@ impl AppendVec {
         let (hash, next): (&'a Hash, _) = self.get_type(next)?;
         let (data, next) = self.get_slice(next, meta.data_len as usize)?;
         let stored_size = next - offset;
-        Some((
-            StoredAccountMeta {
-                meta,
-                account_meta,
-                data,
-                offset,
-                stored_size,
-                hash,
-            },
-            next,
-        ))
+        Some((StoredAccountMeta { meta, account_meta, data, offset, stored_size, hash }, next))
     }
 
     pub fn get_slot(&self) -> u64 {

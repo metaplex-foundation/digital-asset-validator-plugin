@@ -1,5 +1,6 @@
-use crate::{AppendVec, AppendVecIterator};
 use crossbeam::sync::WaitGroup;
+
+use crate::{AppendVec, AppendVecIterator};
 
 pub type GenericResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 

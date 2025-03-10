@@ -1,15 +1,19 @@
+use std::{
+    fs::File,
+    io::{BufReader, Read},
+    path::{Component, Path},
+    pin::Pin,
+    time::Instant,
+};
+
+use log::info;
+use tar::{Archive, Entries, Entry};
+
 use crate::{
     deserialize_from, parse_append_vec_name, AccountsDbFields, AppendVec, AppendVecIterator,
     DeserializableVersionedBank, Result, SerializableAccountStorageEntry, SnapshotError,
     SnapshotExtractor,
 };
-use log::info;
-use std::fs::File;
-use std::io::{BufReader, Read};
-use std::path::{Component, Path};
-use std::pin::Pin;
-use std::time::Instant;
-use tar::{Archive, Entries, Entry};
 
 /// Extracts account data from a .tar.zst stream.
 pub struct ArchiveSnapshotExtractor<Source>
@@ -72,10 +76,7 @@ where
         let accounts_db_fields_post_time = Instant::now();
         drop(snapshot_file);
 
-        info!(
-            "Read bank fields in {:?}",
-            versioned_bank_post_time - pre_unpack
-        );
+        info!("Read bank fields in {:?}", versioned_bank_post_time - pre_unpack);
         info!(
             "Read accounts DB fields in {:?}",
             accounts_db_fields_post_time - versioned_bank_post_time
@@ -89,22 +90,18 @@ where
     }
 
     fn unboxed_iter(&mut self) -> impl Iterator<Item = Result<AppendVec>> + '_ {
-        self.entries
-            .take()
-            .into_iter()
-            .flatten()
-            .filter_map(|entry| {
-                let mut entry = match entry {
-                    Ok(x) => x,
-                    Err(e) => return Some(Err(e.into())),
-                };
-                let path = match entry.path() {
-                    Ok(x) => x,
-                    Err(e) => return Some(Err(e.into())),
-                };
-                let (slot, id) = path.file_name().and_then(parse_append_vec_name)?;
-                Some(self.process_entry(&mut entry, slot, id))
-            })
+        self.entries.take().into_iter().flatten().filter_map(|entry| {
+            let mut entry = match entry {
+                Ok(x) => x,
+                Err(e) => return Some(Err(e.into())),
+            };
+            let path = match entry.path() {
+                Ok(x) => x,
+                Err(e) => return Some(Err(e.into())),
+            };
+            let (slot, id) = path.file_name().and_then(parse_append_vec_name)?;
+            Some(self.process_entry(&mut entry, slot, id))
+        })
     }
 
     fn process_entry(
@@ -113,22 +110,13 @@ where
         slot: u64,
         id: u64,
     ) -> Result<AppendVec> {
-        let known_vecs = self
-            .accounts_db_fields
-            .0
-            .get(&slot)
-            .map(|v| &v[..])
-            .unwrap_or(&[]);
+        let known_vecs = self.accounts_db_fields.0.get(&slot).map(|v| &v[..]).unwrap_or(&[]);
         let known_vec = known_vecs.iter().find(|entry| entry.id == (id as usize));
         let known_vec = match known_vec {
             None => return Err(SnapshotError::UnexpectedAppendVec),
             Some(v) => v,
         };
-        Ok(AppendVec::new_from_reader(
-            entry,
-            known_vec.accounts_current_len,
-            slot,
-        )?)
+        Ok(AppendVec::new_from_reader(entry, known_vec.accounts_current_len, slot)?)
     }
 
     fn is_snapshot_manifest_file(path: &Path) -> bool {
@@ -141,11 +129,7 @@ where
             _ => return false,
         };
         // Check if slot number file is valid u64.
-        if slot_number_str_1
-            .to_str()
-            .and_then(|s| s.parse::<u64>().ok())
-            .is_none()
-        {
+        if slot_number_str_1.to_str().and_then(|s| s.parse::<u64>().ok()).is_none() {
             return false;
         }
         let slot_number_str_2 = match components.next() {
