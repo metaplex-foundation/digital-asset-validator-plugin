@@ -112,7 +112,7 @@ trait PlerklePrivateMethods {
     ) -> plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaBlockInfoV2<'b>;
 }
 
-impl<'a> PlerklePrivateMethods for Plerkle<'a> {
+impl PlerklePrivateMethods for Plerkle<'_> {
     fn get_plerkle_block_info<'b>(
         &self,
         blockinfo: ReplicaBlockInfoVersions<'b>,
@@ -173,9 +173,9 @@ pub enum ConfirmationLevel {
     Confirmed,
 }
 
-impl Into<SlotStatus> for ConfirmationLevel {
-    fn into(self) -> SlotStatus {
-        match self {
+impl From<ConfirmationLevel> for SlotStatus {
+    fn from(val: ConfirmationLevel) -> Self {
+        match val {
             ConfirmationLevel::Processed => SlotStatus::Processed,
             ConfirmationLevel::Rooted => SlotStatus::Rooted,
             ConfirmationLevel::Confirmed => SlotStatus::Confirmed,
@@ -344,7 +344,7 @@ impl<'a> Plerkle<'a> {
     }
 }
 
-impl<'a> Debug for Plerkle<'a> {
+impl Debug for Plerkle<'_> {
     fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
         Ok(())
     }

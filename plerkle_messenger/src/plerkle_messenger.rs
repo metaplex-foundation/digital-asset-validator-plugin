@@ -114,8 +114,10 @@ pub async fn select_messenger_stream(
 }
 
 #[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(Default)]
 pub enum MessengerType {
     // Connect to one Redis instance
+    #[default]
     Redis,
     // Connect to few different Redis instances
     // Not a cluster
@@ -123,11 +125,6 @@ pub enum MessengerType {
     Invalid,
 }
 
-impl Default for MessengerType {
-    fn default() -> Self {
-        MessengerType::Redis
-    }
-}
 
 #[derive(Deserialize, Debug, Default, PartialEq)]
 pub struct MessengerConfig {

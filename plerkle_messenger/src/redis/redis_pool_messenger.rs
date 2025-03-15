@@ -147,7 +147,7 @@ impl MessageStreamer for RedisPoolMessenger {
         // Put serialized data into Redis.
         if stream.local_buffer_total < self.pipeline_size
             && stream.local_buffer_last_flush.elapsed()
-                <= Duration::from_millis(self.pipeline_max_time as u64)
+                <= Duration::from_millis(self.pipeline_max_time)
         {
             debug!(
                 "Redis local buffer bytes {} and message pipeline size {} elapsed time {}ms",

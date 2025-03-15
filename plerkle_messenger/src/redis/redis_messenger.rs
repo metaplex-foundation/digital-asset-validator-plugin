@@ -159,8 +159,8 @@ impl RedisMessenger {
             .xpending_count(
                 stream_key,
                 self.consumer_group_name.clone(),
-                &f.id.clone(),
-                &l.id.clone(),
+                f.id.clone(),
+                l.id.clone(),
                 range_reply.ids.len(),
             )
             .await
@@ -247,10 +247,10 @@ impl RedisMessenger {
     }
 
     pub async fn stream_len(&mut self, stream_key: &'static str) -> Result<u64, MessengerError> {
-        Ok(self.connection.xlen(stream_key).await.map_err(|e| {
+        self.connection.xlen(stream_key).await.map_err(|e| {
             error!("Failed to read stream length: {}", e);
             MessengerError::ConnectionError { msg: e.to_string() }
-        })?)
+        })
     }
 }
 
@@ -409,7 +409,7 @@ impl MessageStreamer for RedisMessenger {
         // Put serialized data into Redis.
         if stream.local_buffer_total < self.pipeline_size
             && stream.local_buffer_last_flush.elapsed()
-                <= Duration::from_millis(self.pipeline_max_time as u64)
+                <= Duration::from_millis(self.pipeline_max_time)
         {
             debug!(
                 "Redis local buffer bytes {} and message pipeline size {} elapsed time {}ms",

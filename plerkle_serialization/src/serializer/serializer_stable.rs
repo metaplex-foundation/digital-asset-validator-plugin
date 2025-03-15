@@ -54,12 +54,12 @@ pub fn serialize_account<'a>(
     builder
 }
 
-pub fn serialize_slot_status<'a>(
-    mut builder: FlatBufferBuilder<'a>,
+pub fn serialize_slot_status(
+    mut builder: FlatBufferBuilder<'_>,
     slot: u64,
     parent: Option<u64>,
     status: SlotStatus,
-) -> FlatBufferBuilder<'a> {
+) -> FlatBufferBuilder<'_> {
     // Convert to flatbuffer enum.
     let status = match status {
         SlotStatus::Confirmed => FBSlotStatus::Confirmed,
@@ -260,10 +260,10 @@ pub fn serialize_block<'a>(
 
 /// Serialize a `EncodedConfirmedTransactionWithStatusMeta` from RPC into a FlatBuffer.
 /// The Transaction must be base54 encoded.
-pub fn seralize_encoded_transaction_with_status<'a>(
-    mut builder: FlatBufferBuilder<'a>,
+pub fn seralize_encoded_transaction_with_status(
+    mut builder: FlatBufferBuilder<'_>,
     tx: EncodedConfirmedTransactionWithStatusMeta,
-) -> Result<FlatBufferBuilder<'a>, PlerkleSerializationError> {
+) -> Result<FlatBufferBuilder<'_>, PlerkleSerializationError> {
     let meta: UiTransactionStatusMeta =
         tx.transaction
             .meta

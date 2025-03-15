@@ -105,7 +105,7 @@ pub struct StoredAccountMeta<'a> {
     pub hash: &'a Hash,
 }
 
-impl<'a> StoredAccountMeta<'a> {
+impl StoredAccountMeta<'_> {
     /// Return a new Account by copying all the data referenced by the `StoredAccountMeta`.
     pub fn clone_account(&self) -> (StoredMeta, AccountSharedData) {
         (
