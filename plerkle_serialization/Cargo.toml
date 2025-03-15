@@ -9,12 +9,12 @@ edition = "2021"
 readme = "Readme.md"
 
 [dependencies]
-flatbuffers = "23.1.21"
-chrono = "0.4.22"
-serde = { version = "1.0.152" }
+flatbuffers = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
 solana-sdk = { version = "2.1" }
 solana-transaction-status = { version = "2.1" }
-bs58 = "0.4.0"
-thiserror = "1.0.38"
+bs58 = { workspace = true }
+thiserror = { workspace = true }
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
