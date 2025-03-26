@@ -2944,7 +2944,7 @@ dependencies = [
 
 [[package]]
 name = "plerkle_messenger"
-version = "1.12.0"
+version = "2.0.0"
 dependencies = [
  "async-mutex",
  "async-trait",
@@ -2962,7 +2962,7 @@ dependencies = [
 
 [[package]]
 name = "plerkle_serialization"
-version = "1.10.0"
+version = "2.0.0"
 dependencies = [
  "bs58 0.4.0",
  "chrono",
