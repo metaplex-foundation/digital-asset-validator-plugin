@@ -6,7 +6,8 @@ use crate::{
     Pubkey as FBPubkey,
 };
 use flatbuffers::{ForwardsUOffset, Vector};
-use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey, signature::Signature};
+use solana_message::compiled_instruction::CompiledInstruction;
+use solana_sdk::{pubkey::Pubkey, signature::Signature};
 use solana_transaction_status::{InnerInstruction, InnerInstructions};
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]

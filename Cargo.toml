@@ -3,6 +3,5 @@ members = [
     "plerkle_messenger",
     "plerkle",
     "plerkle_serialization",
-    "plerkle_snapshot"
 ]
 resolver = "2"
