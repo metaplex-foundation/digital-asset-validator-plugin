@@ -156,7 +156,7 @@ pub fn serialize_transaction<'a>(
                     &mut builder,
                     &CompiledInnerInstructionArgs {
                         compiled_instruction: Some(compiled),
-                        stack_height: 0, // Desperatley need this when it comes in 1.15
+                        stack_height: 0, // Available since Solana 1.15 but unused by DAS consumers
                     },
                 ));
             }
@@ -295,7 +295,7 @@ pub fn serialize_transaction_v3<'a>(
                     &mut builder,
                     &CompiledInnerInstructionArgs {
                         compiled_instruction: Some(compiled),
-                        stack_height: 0,
+                        stack_height: 0, // Available since Solana 1.15 but unused by DAS consumers
                     },
                 ));
             }
@@ -490,7 +490,7 @@ pub fn seralize_encoded_transaction_with_status<'a>(
                         &mut builder,
                         &CompiledInnerInstructionArgs {
                             compiled_instruction: Some(compiled),
-                            stack_height: 0, // Desperatley need this when it comes in 1.15
+                            stack_height: 0, // Available since Solana 1.15 but unused by DAS consumers
                         },
                     ));
                 }
@@ -711,5 +711,71 @@ mod tests {
 
         let parsed = root_as_transaction_info(buf).expect("valid flatbuffer");
         assert!(parsed.is_vote());
+    }
+
+    #[test]
+    fn test_serialize_transaction_v3_v0_message() {
+        let program_id = Pubkey::new_unique();
+        let account_a = Pubkey::new_unique();
+        let account_b = Pubkey::new_unique();
+        let atl_writable = Pubkey::new_unique();
+        let atl_readonly = Pubkey::new_unique();
+
+        let v0_message = solana_message::v0::Message {
+            header: MessageHeader {
+                num_required_signatures: 1,
+                num_readonly_signed_accounts: 0,
+                num_readonly_unsigned_accounts: 1,
+            },
+            account_keys: vec![account_a.into(), account_b.into(), program_id.into()],
+            recent_blockhash: Hash::new_unique(),
+            instructions: vec![SolanaCompiledInstruction {
+                program_id_index: 2,
+                accounts: vec![0, 1],
+                data: vec![10, 20],
+            }],
+            address_table_lookups: vec![],
+        };
+
+        let signature = Signature::new_unique();
+        let message_hash = Hash::new_unique();
+        let tx = VersionedTransaction {
+            signatures: vec![signature],
+            message: VersionedMessage::V0(v0_message),
+        };
+
+        let meta = TransactionStatusMeta {
+            loaded_addresses: LoadedAddresses {
+                writable: vec![atl_writable],
+                readonly: vec![atl_readonly],
+            },
+            ..TransactionStatusMeta::default()
+        };
+
+        let info = ReplicaTransactionInfoV3 {
+            signature: &signature,
+            message_hash: &message_hash,
+            is_vote: false,
+            transaction: &tx,
+            transaction_status_meta: &meta,
+            index: 7,
+        };
+
+        let builder = FlatBufferBuilder::new();
+        let builder = serialize_transaction_v3(builder, &info, 500);
+        let buf = builder.finished_data();
+
+        let parsed = root_as_transaction_info(buf).expect("valid flatbuffer");
+        assert_eq!(parsed.version(), TransactionVersion::V0);
+
+        let keys = parsed.account_keys().unwrap();
+        assert_eq!(keys.len(), 5);
+        assert_eq!(keys.get(0).0, account_a.to_bytes());
+        assert_eq!(keys.get(3).0, atl_writable.to_bytes());
+        assert_eq!(keys.get(4).0, atl_readonly.to_bytes());
+
+        let outer = parsed.outer_instructions().unwrap();
+        assert_eq!(outer.len(), 1);
+        assert_eq!(outer.get(0).data().unwrap().bytes(), &[10, 20]);
     }
 }
