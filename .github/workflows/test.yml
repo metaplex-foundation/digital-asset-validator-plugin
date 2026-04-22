@@ -12,12 +12,12 @@ on:
 env:
   CARGO_TERM_COLOR: always
   IMAGE_NAME: plerkle-test-validator
-  RUST_VERSION: 1.83.0
-  SOLANA_VERSION_STABLE: v2.1.11
+  RUST_VERSION: 1.89.0
+  SOLANA_VERSION_STABLE: v3.1.14
 
 jobs:
   test-stable:
-    runs-on: ubuntu-20-04-8-cores
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Set env vars
@@ -28,14 +28,7 @@ jobs:
       - if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get upgrade
-          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          sudo apt-add-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main"
-          sudo apt-get update
-          sudo apt-get install -y libudev-dev libssl-dev libsasl2-dev libzstd-dev
-          sudo apt-get install -y openssl --allow-unauthenticated
-          sudo apt-get install -y libssl1.1 --allow-unauthenticated
-          sudo apt-get install -y protobuf-compiler
+          sudo apt-get install -y libudev-dev libssl-dev libsasl2-dev libzstd-dev protobuf-compiler
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ env.RUST_VERSION }}
@@ -47,7 +40,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: cargo-build-${{ hashFiles('**/Cargo.lock') }}-${{ env.RUST_STABLE}}
+          key: cargo-build-${{ hashFiles('**/Cargo.lock') }}-${{ env.RUST_VERSION }}
       - name: cargo clippy
         uses: actions-rs/cargo@v1
         with:

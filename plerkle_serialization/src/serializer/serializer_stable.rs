@@ -1,7 +1,8 @@
 use crate::{
     error::PlerkleSerializationError,
     solana_geyser_plugin_interface_shims::{
-        ReplicaAccountInfoV2, ReplicaBlockInfoV2, ReplicaTransactionInfoV2, SlotStatus,
+        ReplicaAccountInfoV2, ReplicaBlockInfoV2, ReplicaTransactionInfoV2,
+        ReplicaTransactionInfoV3, SlotStatus,
     },
     AccountInfo, AccountInfoArgs, BlockInfo, BlockInfoArgs, CompiledInnerInstruction,
     CompiledInnerInstructionArgs, CompiledInnerInstructions, CompiledInnerInstructionsArgs,
@@ -155,7 +156,7 @@ pub fn serialize_transaction<'a>(
                     &mut builder,
                     &CompiledInnerInstructionArgs {
                         compiled_instruction: Some(compiled),
-                        stack_height: 0, // Desperatley need this when it comes in 1.15
+                        stack_height: 0, // Available since Solana 1.15 but unused by DAS consumers
                     },
                 ));
             }
@@ -229,6 +230,143 @@ pub fn serialize_transaction<'a>(
     builder
 }
 
+pub fn serialize_transaction_v3<'a>(
+    mut builder: FlatBufferBuilder<'a>,
+    transaction_info: &ReplicaTransactionInfoV3,
+    slot: u64,
+) -> FlatBufferBuilder<'a> {
+    let message = &transaction_info.transaction.message;
+    let account_keys = {
+        let static_keys = message.static_account_keys();
+        let atl_keys = &transaction_info.transaction_status_meta.loaded_addresses;
+        let mut account_keys_fb_vec = Vec::with_capacity(
+            static_keys.len() + atl_keys.writable.len() + atl_keys.readonly.len(),
+        );
+        for key in static_keys.iter() {
+            account_keys_fb_vec.push(FBPubkey(key.to_bytes()));
+        }
+        for i in &atl_keys.writable {
+            account_keys_fb_vec.push(FBPubkey(i.to_bytes()));
+        }
+        for i in &atl_keys.readonly {
+            account_keys_fb_vec.push(FBPubkey(i.to_bytes()));
+        }
+        if !account_keys_fb_vec.is_empty() {
+            Some(builder.create_vector(&account_keys_fb_vec))
+        } else {
+            None
+        }
+    };
+
+    let log_messages =
+        if let Some(log_messages) = &transaction_info.transaction_status_meta.log_messages {
+            let mut log_messages_fb_vec = Vec::with_capacity(log_messages.len());
+            for message in log_messages {
+                log_messages_fb_vec.push(builder.create_string(message));
+            }
+            Some(builder.create_vector(&log_messages_fb_vec))
+        } else {
+            None
+        };
+
+    let inner_instructions = if let Some(inner_instructions_vec) = transaction_info
+        .transaction_status_meta
+        .inner_instructions
+        .as_ref()
+    {
+        let mut overall_fb_vec = Vec::with_capacity(inner_instructions_vec.len());
+        for inner_instructions in inner_instructions_vec.iter() {
+            let index = inner_instructions.index;
+            let mut instructions_fb_vec = Vec::with_capacity(inner_instructions.instructions.len());
+            for compiled_instruction in inner_instructions.instructions.iter() {
+                let program_id_index = compiled_instruction.instruction.program_id_index;
+                let accounts =
+                    Some(builder.create_vector(&compiled_instruction.instruction.accounts));
+                let data = Some(builder.create_vector(&compiled_instruction.instruction.data));
+                let compiled = CompiledInstruction::create(
+                    &mut builder,
+                    &CompiledInstructionArgs {
+                        program_id_index,
+                        accounts,
+                        data,
+                    },
+                );
+                instructions_fb_vec.push(CompiledInnerInstruction::create(
+                    &mut builder,
+                    &CompiledInnerInstructionArgs {
+                        compiled_instruction: Some(compiled),
+                        stack_height: 0, // Available since Solana 1.15 but unused by DAS consumers
+                    },
+                ));
+            }
+
+            let instructions = Some(builder.create_vector(&instructions_fb_vec));
+            overall_fb_vec.push(CompiledInnerInstructions::create(
+                &mut builder,
+                &CompiledInnerInstructionsArgs {
+                    index,
+                    instructions,
+                },
+            ))
+        }
+
+        Some(builder.create_vector(&overall_fb_vec))
+    } else {
+        None
+    };
+
+    let version = match message {
+        VersionedMessage::Legacy(_) => TransactionVersion::Legacy,
+        VersionedMessage::V0(_) => TransactionVersion::V0,
+    };
+
+    let outer_instructions = message.instructions();
+    let outer_instructions = if !outer_instructions.is_empty() {
+        let mut instructions_fb_vec = Vec::with_capacity(outer_instructions.len());
+        for compiled_instruction in outer_instructions.iter() {
+            let program_id_index = compiled_instruction.program_id_index;
+            let accounts = Some(builder.create_vector(&compiled_instruction.accounts));
+            let data = Some(builder.create_vector(&compiled_instruction.data));
+            instructions_fb_vec.push(CompiledInstruction::create(
+                &mut builder,
+                &CompiledInstructionArgs {
+                    program_id_index,
+                    accounts,
+                    data,
+                },
+            ));
+        }
+        Some(builder.create_vector(&instructions_fb_vec))
+    } else {
+        None
+    };
+
+    let seen_at = Utc::now();
+    let txn_sig = transaction_info.signature.to_string();
+    let signature_offset = builder.create_string(&txn_sig);
+    let slot_idx = format!("{}_{}", slot, transaction_info.index);
+    let slot_index_offset = builder.create_string(&slot_idx);
+    let transaction_info_ser = TransactionInfo::create(
+        &mut builder,
+        &TransactionInfoArgs {
+            is_vote: transaction_info.is_vote,
+            account_keys,
+            log_messages,
+            inner_instructions: None,
+            outer_instructions,
+            slot,
+            slot_index: Some(slot_index_offset),
+            seen_at: seen_at.timestamp_millis(),
+            signature: Some(signature_offset),
+            compiled_inner_instructions: inner_instructions,
+            version,
+        },
+    );
+
+    builder.finish(transaction_info_ser, None);
+    builder
+}
+
 pub fn serialize_block<'a>(
     mut builder: FlatBufferBuilder<'a>,
     block_info: &ReplicaBlockInfoV2,
@@ -258,8 +396,8 @@ pub fn serialize_block<'a>(
     builder
 }
 
-/// Serialize a `EncodedConfirmedTransactionWithStatusMeta` from RPC into a FlatBuffer.
-/// The Transaction must be base54 encoded.
+/// Serialize a [`EncodedConfirmedTransactionWithStatusMeta`] from RPC into a FlatBuffer.
+/// The Transaction must be base58 encoded.
 pub fn seralize_encoded_transaction_with_status<'a>(
     mut builder: FlatBufferBuilder<'a>,
     tx: EncodedConfirmedTransactionWithStatusMeta,
@@ -352,7 +490,7 @@ pub fn seralize_encoded_transaction_with_status<'a>(
                         &mut builder,
                         &CompiledInnerInstructionArgs {
                             compiled_instruction: Some(compiled),
-                            stack_height: 0, // Desperatley need this when it comes in 1.15
+                            stack_height: 0, // Available since Solana 1.15 but unused by DAS consumers
                         },
                     ));
                 }
@@ -424,4 +562,220 @@ pub fn seralize_encoded_transaction_with_status<'a>(
     // Finalize buffer and return to caller.
     builder.finish(transaction_info, None);
     Ok(builder)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::root_as_transaction_info;
+    use crate::solana_geyser_plugin_interface_shims::ReplicaTransactionInfoV3;
+    use solana_message::compiled_instruction::CompiledInstruction as SolanaCompiledInstruction;
+    use solana_message::v0::LoadedAddresses;
+    use solana_sdk::{
+        hash::Hash,
+        message::{Message, MessageHeader},
+        pubkey::Pubkey,
+        signature::Signature,
+        transaction::VersionedTransaction,
+    };
+    use solana_transaction_status::{InnerInstruction, InnerInstructions, TransactionStatusMeta};
+
+    fn make_test_transaction() -> (Signature, Hash, VersionedTransaction, TransactionStatusMeta) {
+        let program_id = Pubkey::new_unique();
+        let account_a = Pubkey::new_unique();
+        let account_b = Pubkey::new_unique();
+        let atl_writable = Pubkey::new_unique();
+        let atl_readonly = Pubkey::new_unique();
+
+        let message = Message {
+            header: MessageHeader {
+                num_required_signatures: 1,
+                num_readonly_signed_accounts: 0,
+                num_readonly_unsigned_accounts: 1,
+            },
+            account_keys: vec![account_a, account_b, program_id],
+            recent_blockhash: Hash::new_unique(),
+            instructions: vec![SolanaCompiledInstruction {
+                program_id_index: 2,
+                accounts: vec![0, 1],
+                data: vec![1, 2, 3, 4],
+            }],
+        };
+
+        let signature = Signature::new_unique();
+        let message_hash = Hash::new_unique();
+        let tx = VersionedTransaction {
+            signatures: vec![signature],
+            message: VersionedMessage::Legacy(message),
+        };
+
+        let meta = TransactionStatusMeta {
+            loaded_addresses: LoadedAddresses {
+                writable: vec![atl_writable],
+                readonly: vec![atl_readonly],
+            },
+            log_messages: Some(vec![
+                "Program log: hello".to_string(),
+                "Program log: world".to_string(),
+            ]),
+            inner_instructions: Some(vec![InnerInstructions {
+                index: 0,
+                instructions: vec![InnerInstruction {
+                    instruction: SolanaCompiledInstruction {
+                        program_id_index: 2,
+                        accounts: vec![0],
+                        data: vec![5, 6],
+                    },
+                    stack_height: Some(2),
+                }],
+            }]),
+            ..TransactionStatusMeta::default()
+        };
+
+        (signature, message_hash, tx, meta)
+    }
+
+    #[test]
+    fn test_serialize_transaction_v3_roundtrip() {
+        let (signature, message_hash, tx, meta) = make_test_transaction();
+
+        let info = ReplicaTransactionInfoV3 {
+            signature: &signature,
+            message_hash: &message_hash,
+            is_vote: false,
+            transaction: &tx,
+            transaction_status_meta: &meta,
+            index: 42,
+        };
+
+        let builder = FlatBufferBuilder::new();
+        let builder = serialize_transaction_v3(builder, &info, 12345);
+        let buf = builder.finished_data();
+
+        let parsed = root_as_transaction_info(buf).expect("valid flatbuffer");
+
+        assert_eq!(parsed.signature().unwrap(), signature.to_string());
+        assert_eq!(parsed.slot(), 12345);
+        assert_eq!(parsed.slot_index().unwrap(), "12345_42");
+        assert!(!parsed.is_vote());
+        assert_eq!(parsed.version(), TransactionVersion::Legacy);
+
+        // 3 static keys + 1 ATL writable + 1 ATL readonly = 5
+        let keys = parsed.account_keys().unwrap();
+        assert_eq!(keys.len(), 5);
+        assert_eq!(
+            keys.get(0).0,
+            tx.message.static_account_keys()[0].to_bytes()
+        );
+        assert_eq!(keys.get(3).0, meta.loaded_addresses.writable[0].to_bytes());
+        assert_eq!(keys.get(4).0, meta.loaded_addresses.readonly[0].to_bytes());
+
+        let logs = parsed.log_messages().unwrap();
+        assert_eq!(logs.len(), 2);
+        assert_eq!(logs.get(0), "Program log: hello");
+        assert_eq!(logs.get(1), "Program log: world");
+
+        let outer = parsed.outer_instructions().unwrap();
+        assert_eq!(outer.len(), 1);
+        assert_eq!(outer.get(0).program_id_index(), 2);
+        assert_eq!(outer.get(0).accounts().unwrap().bytes(), &[0, 1]);
+        assert_eq!(outer.get(0).data().unwrap().bytes(), &[1, 2, 3, 4]);
+
+        let inner = parsed.compiled_inner_instructions().unwrap();
+        assert_eq!(inner.len(), 1);
+        assert_eq!(inner.get(0).index(), 0);
+        let inner_ixs = inner.get(0).instructions().unwrap();
+        assert_eq!(inner_ixs.len(), 1);
+        let cix = inner_ixs.get(0).compiled_instruction().unwrap();
+        assert_eq!(cix.program_id_index(), 2);
+        assert_eq!(cix.accounts().unwrap().bytes(), &[0]);
+        assert_eq!(cix.data().unwrap().bytes(), &[5, 6]);
+    }
+
+    #[test]
+    fn test_serialize_transaction_v3_vote_and_version() {
+        let (signature, message_hash, tx, meta) = make_test_transaction();
+
+        let info = ReplicaTransactionInfoV3 {
+            signature: &signature,
+            message_hash: &message_hash,
+            is_vote: true,
+            transaction: &tx,
+            transaction_status_meta: &meta,
+            index: 0,
+        };
+
+        let builder = FlatBufferBuilder::new();
+        let builder = serialize_transaction_v3(builder, &info, 999);
+        let buf = builder.finished_data();
+
+        let parsed = root_as_transaction_info(buf).expect("valid flatbuffer");
+        assert!(parsed.is_vote());
+    }
+
+    #[test]
+    fn test_serialize_transaction_v3_v0_message() {
+        let program_id = Pubkey::new_unique();
+        let account_a = Pubkey::new_unique();
+        let account_b = Pubkey::new_unique();
+        let atl_writable = Pubkey::new_unique();
+        let atl_readonly = Pubkey::new_unique();
+
+        let v0_message = solana_message::v0::Message {
+            header: MessageHeader {
+                num_required_signatures: 1,
+                num_readonly_signed_accounts: 0,
+                num_readonly_unsigned_accounts: 1,
+            },
+            account_keys: vec![account_a.into(), account_b.into(), program_id.into()],
+            recent_blockhash: Hash::new_unique(),
+            instructions: vec![SolanaCompiledInstruction {
+                program_id_index: 2,
+                accounts: vec![0, 1],
+                data: vec![10, 20],
+            }],
+            address_table_lookups: vec![],
+        };
+
+        let signature = Signature::new_unique();
+        let message_hash = Hash::new_unique();
+        let tx = VersionedTransaction {
+            signatures: vec![signature],
+            message: VersionedMessage::V0(v0_message),
+        };
+
+        let meta = TransactionStatusMeta {
+            loaded_addresses: LoadedAddresses {
+                writable: vec![atl_writable],
+                readonly: vec![atl_readonly],
+            },
+            ..TransactionStatusMeta::default()
+        };
+
+        let info = ReplicaTransactionInfoV3 {
+            signature: &signature,
+            message_hash: &message_hash,
+            is_vote: false,
+            transaction: &tx,
+            transaction_status_meta: &meta,
+            index: 7,
+        };
+
+        let builder = FlatBufferBuilder::new();
+        let builder = serialize_transaction_v3(builder, &info, 500);
+        let buf = builder.finished_data();
+
+        let parsed = root_as_transaction_info(buf).expect("valid flatbuffer");
+        assert_eq!(parsed.version(), TransactionVersion::V0);
+
+        let keys = parsed.account_keys().unwrap();
+        assert_eq!(keys.len(), 5);
+        assert_eq!(keys.get(0).0, account_a.to_bytes());
+        assert_eq!(keys.get(3).0, atl_writable.to_bytes());
+        assert_eq!(keys.get(4).0, atl_readonly.to_bytes());
+
+        let outer = parsed.outer_instructions().unwrap();
+        assert_eq!(outer.len(), 1);
+        assert_eq!(outer.get(0).data().unwrap().bytes(), &[10, 20]);
+    }
 }

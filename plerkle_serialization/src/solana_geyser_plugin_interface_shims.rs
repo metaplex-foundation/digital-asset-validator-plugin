@@ -1,3 +1,5 @@
+use solana_sdk::hash::Hash;
+use solana_sdk::transaction::VersionedTransaction;
 use solana_sdk::{clock::UnixTimestamp, signature::Signature, transaction::SanitizedTransaction};
 use solana_transaction_status::TransactionStatusMeta;
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,6 +45,27 @@ pub struct ReplicaTransactionInfoV2<'a> {
 
     /// The sanitized transaction.
     pub transaction: &'a SanitizedTransaction,
+
+    /// Metadata of the transaction status.
+    pub transaction_status_meta: &'a TransactionStatusMeta,
+
+    /// The transaction's index in the block
+    pub index: usize,
+}
+
+#[derive(Clone, Debug)]
+pub struct ReplicaTransactionInfoV3<'a> {
+    /// The first signature of the transaction, used for identifying the transaction.
+    pub signature: &'a Signature,
+
+    /// The transaction message hash.
+    pub message_hash: &'a Hash,
+
+    /// Indicates if the transaction is a simple vote transaction.
+    pub is_vote: bool,
+
+    /// The versioned transaction.
+    pub transaction: &'a VersionedTransaction,
 
     /// Metadata of the transaction status.
     pub transaction_status_meta: &'a TransactionStatusMeta,

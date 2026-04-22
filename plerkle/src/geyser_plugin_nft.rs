@@ -12,7 +12,7 @@ use plerkle_messenger::{
     TRANSACTION_STREAM,
 };
 use plerkle_serialization::serializer::{
-    serialize_account, serialize_block, serialize_transaction,
+    serialize_account, serialize_block, serialize_transaction, serialize_transaction_v3,
 };
 use serde::Deserialize;
 use tokio::{
@@ -24,7 +24,8 @@ use agave_geyser_plugin_interface::geyser_plugin_interface::{
     GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions, ReplicaBlockInfoVersions,
     ReplicaTransactionInfoVersions, Result, SlotStatus,
 };
-use solana_sdk::{message::AccountKeys, pubkey::Pubkey, signature::Signature};
+use solana_message::AccountKeys;
+use solana_sdk::{pubkey::Pubkey, signature::Signature};
 use std::{
     collections::BTreeSet,
     fmt::{Debug, Formatter},
@@ -714,6 +715,59 @@ impl GeyserPlugin for Plerkle<'static> {
                     index: 0,
                 };
                 &rep
+            }
+            ReplicaTransactionInfoVersions::V0_0_3(ti) => {
+                if ti.is_vote || ti.transaction_status_meta.status.is_err() {
+                    return Ok(());
+                }
+                if let Some(transaction_selector) = &self.transaction_selector {
+                    if !transaction_selector.is_transaction_selected(
+                        ti.is_vote,
+                        Box::new(ti.transaction.message.static_account_keys().iter()),
+                    ) {
+                        return Ok(());
+                    }
+                } else {
+                    return Ok(());
+                }
+                trace!(signature = ti.signature.to_string(), "matched transaction");
+
+                let rep_v3 = plerkle_serialization::solana_geyser_plugin_interface_shims::ReplicaTransactionInfoV3 {
+                    signature: ti.signature,
+                    message_hash: ti.message_hash,
+                    is_vote: ti.is_vote,
+                    transaction: ti.transaction,
+                    transaction_status_meta: ti.transaction_status_meta,
+                    index: ti.index,
+                };
+
+                let builder = FlatBufferBuilder::new();
+                let builder = serialize_transaction_v3(builder, &rep_v3, slot);
+
+                let signature = *ti.signature;
+                let index: u64 = ti.index.try_into().unwrap_or(0);
+                let data = SerializedData {
+                    stream: TRANSACTION_STREAM,
+                    builder,
+                    seen_at: seen,
+                };
+                let cache = self.transaction_event_cache.get_mut(&slot);
+                if let Some(cache) = cache {
+                    if cache.contains_key(&signature) {
+                        cache.alter(&signature, |_, _| (index, data));
+                    } else {
+                        cache.insert(signature, (index, data));
+                    }
+                } else {
+                    let pubkey_cache = DashMap::new();
+                    pubkey_cache.insert(signature, (index, data));
+                    self.transaction_event_cache.insert(slot, pubkey_cache);
+                }
+
+                metric! {
+                    statsd_count!("transaction_seen_event", 1);
+                }
+                return Ok(());
             }
         };
         if transaction_info.is_vote || transaction_info.transaction_status_meta.status.is_err() {
