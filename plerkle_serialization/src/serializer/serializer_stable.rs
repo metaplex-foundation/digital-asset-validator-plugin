@@ -397,7 +397,7 @@ pub fn serialize_block<'a>(
 }
 
 /// Serialize a [`EncodedConfirmedTransactionWithStatusMeta`] from RPC into a FlatBuffer.
-/// The Transaction must be base54 encoded.
+/// The Transaction must be base58 encoded.
 pub fn seralize_encoded_transaction_with_status<'a>(
     mut builder: FlatBufferBuilder<'a>,
     tx: EncodedConfirmedTransactionWithStatusMeta,
