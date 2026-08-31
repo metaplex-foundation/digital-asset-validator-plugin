@@ -22,7 +22,7 @@ pub enum SolanaDeserializerError {
 
 pub type SolanaDeserializeResult<T> = Result<T, SolanaDeserializerError>;
 
-impl<'a> TryFrom<&FBPubkey> for Pubkey {
+impl TryFrom<&FBPubkey> for Pubkey {
     type Error = SolanaDeserializerError;
 
     fn try_from(pubkey: &FBPubkey) -> SolanaDeserializeResult<Self> {
