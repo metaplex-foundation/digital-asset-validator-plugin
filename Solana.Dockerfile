@@ -1,5 +1,5 @@
-ARG SOLANA_VERSION=v3.1.13
-ARG RUST_VERSION=1.89.0
+ARG SOLANA_VERSION=v4.2.2
+ARG RUST_VERSION=1.96.1
 FROM rust:$RUST_VERSION-bookworm AS builder
 RUN apt-get update \
       && apt-get -y install \

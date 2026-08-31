@@ -14,12 +14,13 @@ use self::flatbuffers::{EndianScalar, Follow};
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
 pub const ENUM_MIN_TRANSACTION_VERSION: i8 = 0;
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
-pub const ENUM_MAX_TRANSACTION_VERSION: i8 = 1;
+pub const ENUM_MAX_TRANSACTION_VERSION: i8 = 2;
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
 #[allow(non_camel_case_types)]
-pub const ENUM_VALUES_TRANSACTION_VERSION: [TransactionVersion; 2] = [
+pub const ENUM_VALUES_TRANSACTION_VERSION: [TransactionVersion; 3] = [
   TransactionVersion::Legacy,
   TransactionVersion::V0,
+  TransactionVersion::V1,
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -29,18 +30,21 @@ pub struct TransactionVersion(pub i8);
 impl TransactionVersion {
   pub const Legacy: Self = Self(0);
   pub const V0: Self = Self(1);
+  pub const V1: Self = Self(2);
 
   pub const ENUM_MIN: i8 = 0;
-  pub const ENUM_MAX: i8 = 1;
+  pub const ENUM_MAX: i8 = 2;
   pub const ENUM_VALUES: &'static [Self] = &[
     Self::Legacy,
     Self::V0,
+    Self::V1,
   ];
   /// Returns the variant's name or "" if unknown.
   pub fn variant_name(self) -> Option<&'static str> {
     match self {
       Self::Legacy => Some("Legacy"),
       Self::V0 => Some("V0"),
+      Self::V1 => Some("V1"),
       _ => None,
     }
   }

@@ -884,3 +884,73 @@ pub unsafe extern "C" fn _create_etl_plugin() -> *mut dyn GeyserPlugin {
     let plugin: Box<dyn GeyserPlugin> = Box::new(plugin);
     Box::into_raw(plugin)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use agave_geyser_plugin_interface::geyser_plugin_interface::ReplicaTransactionInfoV3;
+    use plerkle_serialization::{root_as_transaction_info, TransactionVersion};
+    use solana_message::{compiled_instruction::CompiledInstruction, v1, MessageHeader};
+    use solana_sdk::{hash::Hash, signature::Signature, transaction::VersionedTransaction};
+    use solana_transaction_status::TransactionStatusMeta;
+
+    #[test]
+    fn notify_transaction_serializes_v1_from_geyser_v3() {
+        let plugin = Plerkle {
+            transaction_selector: Some(TransactionSelector::new(&["*".to_string()])),
+            ..Plerkle::default()
+        };
+        let payer = Pubkey::new_unique();
+        let program_id = Pubkey::new_unique();
+        let instruction_data = vec![9; 1_500];
+        let transaction = VersionedTransaction {
+            signatures: vec![Signature::new_unique()],
+            message: solana_message::VersionedMessage::V1(v1::Message::new(
+                MessageHeader {
+                    num_required_signatures: 1,
+                    num_readonly_signed_accounts: 0,
+                    num_readonly_unsigned_accounts: 1,
+                },
+                v1::TransactionConfig::empty()
+                    .with_compute_unit_limit(20_000)
+                    .with_loaded_accounts_data_size_limit(65_536),
+                Hash::new_unique(),
+                vec![payer, program_id],
+                vec![CompiledInstruction {
+                    program_id_index: 1,
+                    accounts: vec![0],
+                    data: instruction_data.clone(),
+                }],
+            )),
+        };
+        let signature = transaction.signatures[0];
+        let message_hash = Hash::new_unique();
+        let meta = TransactionStatusMeta::default();
+        let geyser_transaction = ReplicaTransactionInfoV3 {
+            signature: &signature,
+            message_hash: &message_hash,
+            is_vote: false,
+            transaction: &transaction,
+            transaction_status_meta: &meta,
+            index: 8,
+        };
+
+        plugin
+            .notify_transaction(
+                ReplicaTransactionInfoVersions::V0_0_3(&geyser_transaction),
+                501,
+            )
+            .unwrap();
+
+        let slot = plugin.transaction_event_cache.get(&501).unwrap();
+        let cached = slot.get(&signature).unwrap();
+        assert_eq!(cached.value().0, 8);
+        assert_eq!(cached.value().1.stream, TRANSACTION_STREAM);
+        let parsed = root_as_transaction_info(cached.value().1.builder.finished_data()).unwrap();
+        assert_eq!(parsed.version(), TransactionVersion::V1);
+        assert_eq!(parsed.slot(), 501);
+        assert_eq!(parsed.slot_index(), Some("501_8"));
+        let outer = parsed.outer_instructions().unwrap();
+        assert_eq!(outer.get(0).data().unwrap().bytes(), instruction_data);
+    }
+}
