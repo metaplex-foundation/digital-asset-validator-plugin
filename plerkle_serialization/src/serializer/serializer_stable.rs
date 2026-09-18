@@ -179,6 +179,7 @@ pub fn serialize_transaction<'a>(
     let version = match message {
         SanitizedMessage::Legacy(_) => TransactionVersion::Legacy,
         SanitizedMessage::V0(_) => TransactionVersion::V0,
+        SanitizedMessage::V1(_) => TransactionVersion::V1,
     };
 
     // Serialize outer instructions.
@@ -318,6 +319,7 @@ pub fn serialize_transaction_v3<'a>(
     let version = match message {
         VersionedMessage::Legacy(_) => TransactionVersion::Legacy,
         VersionedMessage::V0(_) => TransactionVersion::V0,
+        VersionedMessage::V1(_) => TransactionVersion::V1,
     };
 
     let outer_instructions = message.instructions();
@@ -537,6 +539,7 @@ pub fn seralize_encoded_transaction_with_status<'a>(
     let version = match msg {
         VersionedMessage::Legacy(_) => TransactionVersion::Legacy,
         VersionedMessage::V0(_) => TransactionVersion::V0,
+        VersionedMessage::V1(_) => TransactionVersion::V1,
     };
 
     // Serialize everything into Transaction Info table.
@@ -570,7 +573,7 @@ mod tests {
     use crate::root_as_transaction_info;
     use crate::solana_geyser_plugin_interface_shims::ReplicaTransactionInfoV3;
     use solana_message::compiled_instruction::CompiledInstruction as SolanaCompiledInstruction;
-    use solana_message::v0::LoadedAddresses;
+    use solana_message::{v0::LoadedAddresses, v1};
     use solana_sdk::{
         hash::Hash,
         message::{Message, MessageHeader},
@@ -727,7 +730,7 @@ mod tests {
                 num_readonly_signed_accounts: 0,
                 num_readonly_unsigned_accounts: 1,
             },
-            account_keys: vec![account_a.into(), account_b.into(), program_id.into()],
+            account_keys: vec![account_a, account_b, program_id],
             recent_blockhash: Hash::new_unique(),
             instructions: vec![SolanaCompiledInstruction {
                 program_id_index: 2,
@@ -777,5 +780,65 @@ mod tests {
         let outer = parsed.outer_instructions().unwrap();
         assert_eq!(outer.len(), 1);
         assert_eq!(outer.get(0).data().unwrap().bytes(), &[10, 20]);
+    }
+
+    #[test]
+    fn test_serialize_transaction_v3_v1_message() {
+        let payer = Pubkey::new_unique();
+        let program_id = Pubkey::new_unique();
+        let instruction_data = vec![7; 1_500];
+        let v1_message = v1::Message::new(
+            MessageHeader {
+                num_required_signatures: 1,
+                num_readonly_signed_accounts: 0,
+                num_readonly_unsigned_accounts: 1,
+            },
+            v1::TransactionConfig::empty()
+                .with_compute_unit_limit(20_000)
+                .with_loaded_accounts_data_size_limit(65_536),
+            Hash::new_unique(),
+            vec![payer, program_id],
+            vec![SolanaCompiledInstruction {
+                program_id_index: 1,
+                accounts: vec![0],
+                data: instruction_data.clone(),
+            }],
+        );
+
+        let signature = Signature::new_unique();
+        let message_hash = Hash::new_unique();
+        let tx = VersionedTransaction {
+            signatures: vec![signature],
+            message: VersionedMessage::V1(v1_message),
+        };
+        assert!(wincode::serialize(&tx).unwrap().len() > 1_232);
+
+        let meta = TransactionStatusMeta::default();
+        let info = ReplicaTransactionInfoV3 {
+            signature: &signature,
+            message_hash: &message_hash,
+            is_vote: false,
+            transaction: &tx,
+            transaction_status_meta: &meta,
+            index: 8,
+        };
+
+        let builder = serialize_transaction_v3(FlatBufferBuilder::new(), &info, 501);
+        let parsed = root_as_transaction_info(builder.finished_data()).expect("valid flatbuffer");
+
+        assert_eq!(parsed.version(), TransactionVersion::V1);
+        assert_eq!(parsed.slot(), 501);
+        assert_eq!(parsed.slot_index(), Some("501_8"));
+
+        let keys = parsed.account_keys().unwrap();
+        assert_eq!(keys.len(), 2);
+        assert_eq!(keys.get(0).0, payer.to_bytes());
+        assert_eq!(keys.get(1).0, program_id.to_bytes());
+
+        let outer = parsed.outer_instructions().unwrap();
+        assert_eq!(outer.len(), 1);
+        assert_eq!(outer.get(0).program_id_index(), 1);
+        assert_eq!(outer.get(0).accounts().unwrap().bytes(), &[0]);
+        assert_eq!(outer.get(0).data().unwrap().bytes(), instruction_data);
     }
 }

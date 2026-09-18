@@ -1,19 +1,19 @@
-#[allow(unused_imports)]
+#[allow(clippy::all, unused_imports, mismatched_lifetime_syntaxes)]
 #[rustfmt::skip]
 mod account_info_generated;
-#[allow(unused_imports)]
+#[allow(clippy::all, unused_imports, mismatched_lifetime_syntaxes)]
 #[rustfmt::skip]
 mod block_info_generated;
-#[allow(unused_imports)]
+#[allow(clippy::all, unused_imports, mismatched_lifetime_syntaxes)]
 #[rustfmt::skip]
 mod common_generated;
-#[allow(unused_imports)]
+#[allow(clippy::all, unused_imports, mismatched_lifetime_syntaxes)]
 #[rustfmt::skip]
 mod compiled_instruction_generated;
-#[allow(unused_imports)]
+#[allow(clippy::all, unused_imports, mismatched_lifetime_syntaxes)]
 #[rustfmt::skip]
 mod slot_status_info_generated;
-#[allow(unused_imports)]
+#[allow(clippy::all, unused_imports, mismatched_lifetime_syntaxes)]
 #[rustfmt::skip]
 mod transaction_info_generated;
 

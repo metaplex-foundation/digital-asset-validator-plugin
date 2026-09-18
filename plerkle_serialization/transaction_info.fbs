@@ -5,7 +5,8 @@ include "./common.fbs";
 //Legacy is default for unknown
 enum TransactionVersion:byte {
   Legacy,
-  V0
+  V0,
+  V1
 }
 
 table TransactionInfo {
