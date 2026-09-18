@@ -25,8 +25,26 @@ COPY Cargo.lock /rust/
 WORKDIR /rust
 RUN cargo build --release --locked
 
-FROM anzaxyz/agave:$SOLANA_VERSION
-COPY --from=builder /rust/target/release/libplerkle.so /plugin/plugin.so      
+# Anza stopped publishing anzaxyz/agave Docker images after v3.1.14, so
+# install the official prebuilt release binaries on the same distro the
+# plugin is built on (bookworm), keeping glibc/OpenSSL in sync (see #103).
+FROM debian:bookworm-slim
+ARG SOLANA_VERSION
+RUN apt-get update \
+      && apt-get -y install --no-install-recommends \
+           curl \
+           ca-certificates \
+           bzip2 \
+           bash \
+           libssl3 \
+      && rm -rf /var/lib/apt/lists/*
+RUN curl -sSfL "https://release.anza.xyz/${SOLANA_VERSION}/solana-release-x86_64-unknown-linux-gnu.tar.bz2" \
+      | tar -xj -C /usr/local \
+      && for bin in /usr/local/solana-release/bin/*; do \
+           [ -f "$bin" ] && ln -s "$bin" /usr/local/bin/; \
+         done
+RUN mkdir -p /so /plugin-config
+COPY --from=builder /rust/target/release/libplerkle.so /plugin/plugin.so
 COPY ./docker .
 RUN chmod +x ./*.sh
 ENTRYPOINT [ "./runs.sh" ]
