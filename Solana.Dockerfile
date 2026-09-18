@@ -42,14 +42,15 @@ RUN apt-get update \
            bash \
            libssl3 \
       && rm -rf /var/lib/apt/lists/*
+# Install the executables into /usr/bin to match the layout of the old
+# anzaxyz/agave base image; docker/build.sh exports /usr/bin as the solana
+# executable artifact.
 RUN curl -sSfL "https://release.anza.xyz/${SOLANA_VERSION}/solana-release-x86_64-unknown-linux-gnu.tar.bz2" \
         -o /tmp/solana-release.tar.bz2 \
       && echo "${SOLANA_RELEASE_SHA256}  /tmp/solana-release.tar.bz2" | sha256sum -c - \
-      && tar -xjf /tmp/solana-release.tar.bz2 -C /usr/local \
-      && rm /tmp/solana-release.tar.bz2 \
-      && for bin in /usr/local/solana-release/bin/*; do \
-           [ -f "$bin" ] && ln -s "$bin" /usr/local/bin/; \
-         done
+      && tar -xjf /tmp/solana-release.tar.bz2 -C /tmp \
+      && mv /tmp/solana-release/bin/* /usr/bin/ \
+      && rm -rf /tmp/solana-release.tar.bz2 /tmp/solana-release
 RUN mkdir -p /so /plugin-config
 COPY --from=builder /rust/target/release/libplerkle.so /plugin/plugin.so
 COPY ./docker .
