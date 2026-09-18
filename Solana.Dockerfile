@@ -1,4 +1,7 @@
 ARG SOLANA_VERSION=v4.2.2
+# SHA-256 of solana-release-x86_64-unknown-linux-gnu.tar.bz2 for SOLANA_VERSION,
+# published in the anza-xyz/agave GitHub release assets. Update together.
+ARG SOLANA_RELEASE_SHA256=5fc8684f7430038105fde953d4308ed56addf627f658daa61709f345448247ee
 ARG RUST_VERSION=1.96.1
 FROM rust:$RUST_VERSION-bookworm AS builder
 RUN apt-get update \
@@ -30,6 +33,7 @@ RUN cargo build --release --locked
 # plugin is built on (bookworm), keeping glibc/OpenSSL in sync (see #103).
 FROM debian:bookworm-slim
 ARG SOLANA_VERSION
+ARG SOLANA_RELEASE_SHA256
 RUN apt-get update \
       && apt-get -y install --no-install-recommends \
            curl \
@@ -39,7 +43,10 @@ RUN apt-get update \
            libssl3 \
       && rm -rf /var/lib/apt/lists/*
 RUN curl -sSfL "https://release.anza.xyz/${SOLANA_VERSION}/solana-release-x86_64-unknown-linux-gnu.tar.bz2" \
-      | tar -xj -C /usr/local \
+        -o /tmp/solana-release.tar.bz2 \
+      && echo "${SOLANA_RELEASE_SHA256}  /tmp/solana-release.tar.bz2" | sha256sum -c - \
+      && tar -xjf /tmp/solana-release.tar.bz2 -C /usr/local \
+      && rm /tmp/solana-release.tar.bz2 \
       && for bin in /usr/local/solana-release/bin/*; do \
            [ -f "$bin" ] && ln -s "$bin" /usr/local/bin/; \
          done
